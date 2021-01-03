@@ -6,23 +6,27 @@
 #define NINEENGINE_WINDOW_H
 
 #define GLFW_INCLUDE_VULKAN
+
 #include <GLFW/glfw3.h>
 
 
 class Window {
 public:
-    Window(int WIDTH, int  HEIGHT, const char* title);
-    Window(const char* title);
+    Window(int WIDTH, int HEIGHT, const char *title, bool resizable);
+
     Window();
 
     ~Window();
 
+    GLFWwindow *GetWindowHandle();
+
     bool shouldExit();
-private:
-    void createWindow(int width, int height, const char* title);
 
 private:
-    GLFWwindow* window;
+    void createWindow(int width, int height, const char *title, bool resizable);
+
+private:
+    GLFWwindow *window;
 };
 
 

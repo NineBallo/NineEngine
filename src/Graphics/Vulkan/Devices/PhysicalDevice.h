@@ -7,19 +7,22 @@
 
 ///this lets glfw load the Graphics library for us.
 #define GLFW_INCLUDE_VULKAN
+
 #include <GLFW/glfw3.h>
 
 #include <iostream>
-#include <cstdlib>
 #include <vector>
-#include <optional>
-#include <any>
+#include <set>
 
-
-
+struct SwapChainSupportDetails {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
     bool isComplete() {
         return graphicsFamily.has_value();
@@ -27,23 +30,31 @@ struct QueueFamilyIndices {
 
 };
 
-
 class PhysicalDevice {
 public:
-    PhysicalDevice(VkInstance *instance);
-    ~PhysicalDevice();
-
-private:
-    void pickPhysicalDevice();
-    bool isDeviceSuitable(VkPhysicalDevice device);
-    //int rateDeviceSuitability(VkPhysicalDevice device);
+    explicit PhysicalDevice(VkInstance *instance, VkSurfaceKHR *surface);
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
-private:
+protected:
+    void pickPhysicalDevice();
+    bool isDeviceSuitable(VkPhysicalDevice device);
+
+    //int rateDeviceSuitability(VkPhysicalDevice device);
+
+    const std::vector<const char *> deviceExtensions = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+protected:
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkInstance *instance;
-};
+    VkSurfaceKHR *surface;
 
+private:
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+};
 
 
 #endif //VULKANATTEMPT_PHYSICALDEVICES_H
