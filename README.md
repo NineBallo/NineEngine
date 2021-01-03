@@ -9,7 +9,7 @@ This aims to be a hopefully straightforward engine to use that will probably end
 
 - Finish refactoring all the vulkan code into "bite-sized" chunks/classes
 - Get a triangle lol
-- Lightweight Cuda Raytracer (Have some ideas I want to experiment with)
+- Lightweight Cuda/Vulkan/opencl raytracer (Have some ideas I want to experiment with)
 - Utilize the igpu for some calculations, this will take some research.
 - Add opengl
 - Maybe add DX12 but unsure
