@@ -4,7 +4,19 @@
 
 #include "Vulkan.h"
 
+vkGlobalPool vkGlobalPool::s_Instance;
+
 ///TODO fullscreen implementation.
+void Vulkan::initVulkan() {
+    vulkanInstance = new VulkanInstance();
+    surface = new Surface();
+    logicalDevice = new LogicalDevice(true);
+    createSwapChain();
+    createImageViews();
+   // renderPass = new RenderPass(logicalDevice->getLogicalDevice(), &swapChainImageFormat);
+    graphicsPipeline = new GraphicsPipeline();
+}
+
 Vulkan::Vulkan(int width, int height, const char *title, bool resizableWindow, bool fullscreen) {
     initWindow(width, height, title, resizableWindow, resizableWindow);
     initVulkan();
@@ -12,36 +24,31 @@ Vulkan::Vulkan(int width, int height, const char *title, bool resizableWindow, b
 }
 
 Vulkan::~Vulkan() {
-    for (auto imageview : swapChainImageViews){
-        vkDestroyImageView(*logicalDevice->getLogicalDevice(), imageview, nullptr);
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(vkGlobalPool::Get().getVkDevice(), framebuffer, nullptr);
     }
-    vkDestroySwapchainKHR(*logicalDevice->getLogicalDevice(), swapChain, nullptr);
+    delete graphicsPipeline;
+  //  delete renderPass;
+    for (auto imageview : swapChainImageViews){
+        vkDestroyImageView(vkGlobalPool::Get().getVkDevice(), imageview, nullptr);
+    }
+    vkDestroySwapchainKHR(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getSwapChain(), nullptr);
     delete logicalDevice;
     delete surface;
     delete vulkanInstance;
     delete window;
 }
 
-
 void Vulkan::initWindow(int width, int height, const char *title, bool resizableWindow, bool fullscreen) {
     window = new Window(width, height, title, resizableWindow);
-
+    vkGlobalPool::Get().setWindow(window->GetWindowHandle());
 }
-
-void Vulkan::initVulkan() {
-    vulkanInstance = new VulkanInstance();
-    surface = new Surface(vulkanInstance->getVkInstanceHandlePtr(), window->GetWindowHandle());
-    logicalDevice = new LogicalDevice(vulkanInstance->getVkInstanceHandlePtr(), surface->getVkSurfaceKHRPTR(), true);
-    createSwapChain();
-}
-
 
 void Vulkan::mainloop() {
     while (!glfwWindowShouldClose(window->GetWindowHandle())) {
         glfwPollEvents();
     }
 }
-
 
 VkSurfaceFormatKHR Vulkan::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
     for (const auto& availableFormat : availableFormats) {
@@ -84,9 +91,10 @@ VkExtent2D Vulkan::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities
     }
 }
 
-
 void Vulkan::createSwapChain() {
-    SwapChainSupportDetails swapChainSupport = logicalDevice->querySwapChainSupport(*logicalDevice->getPhysicalDevice());
+    VkSwapchainKHR swapChain;
+
+    SwapChainSupportDetails swapChainSupport = logicalDevice->querySwapChainSupport(vkGlobalPool::Get().getVkPhysicalDevice());
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -100,7 +108,7 @@ void Vulkan::createSwapChain() {
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = *surface->getVkSurfaceKHRPTR();
+    createInfo.surface = vkGlobalPool::Get().getVkSurfaceKhr();
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -113,7 +121,7 @@ void Vulkan::createSwapChain() {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     ///Queue family sharing thing.
-    QueueFamilyIndices indices = logicalDevice->findQueueFamilies(*logicalDevice->getPhysicalDevice());
+    QueueFamilyIndices indices = LogicalDevice::findQueueFamilies(vkGlobalPool::Get().getVkPhysicalDevice());
     uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
     if (indices.graphicsFamily != indices.presentFamily) {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -136,19 +144,21 @@ void Vulkan::createSwapChain() {
     ////A new SwapChain needs to be created for each window resize.
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(*logicalDevice->getLogicalDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(vkGlobalPool::Get().getVkDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swap chain!");
     }
     else {
         std::cout << "SwapChain probably successfully created.\n";
     }
 
-    vkGetSwapchainImagesKHR(*logicalDevice->getLogicalDevice(), swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(vkGlobalPool::Get().getVkDevice(), swapChain, &imageCount, nullptr);
     swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(*logicalDevice->getLogicalDevice(), swapChain, &imageCount, swapChainImages.data());
+    vkGetSwapchainImagesKHR(vkGlobalPool::Get().getVkDevice(), swapChain, &imageCount, swapChainImages.data());
 
-    swapChainImageFormat = surfaceFormat.format;
-    swapChainExtent = extent;
+
+    vkGlobalPool::Get().setSwapChain(swapChain);
+    vkGlobalPool::Get().setSwapChainImageFormat(surfaceFormat.format);
+    vkGlobalPool::Get().setSwapChainExtent(extent);
 }
 
 void Vulkan::createImageViews() {
@@ -161,22 +171,49 @@ void Vulkan::createImageViews() {
         createInfo.image = swapChainImages[i];
         ////TODO 3D???!?!?
         createInfo.viewType =  VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = swapChainImageFormat;
+        createInfo.format = vkGlobalPool::Get().getSwapChainImageFormat();
 
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
         createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         createInfo.subresourceRange.baseMipLevel = 0;
         createInfo.subresourceRange.levelCount = 1;
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if(vkCreateImageView(*logicalDevice->getLogicalDevice(), &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS){
+        if(vkCreateImageView(vkGlobalPool::Get().getVkDevice(), &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS){
             throw std::runtime_error("failed to create image views!");
         }
     }
+
+}
+
+void Vulkan::createFramebuffers() {
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+
+    for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+        VkImageView attachments[] = {
+                swapChainImageViews[i]
+        };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = vkGlobalPool::Get().getVkRenderPass();
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = vkGlobalPool::Get().getSwapChainExtent().width;
+        framebufferInfo.height = vkGlobalPool::Get().getSwapChainExtent().height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(vkGlobalPool::Get().getVkDevice(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create framebuffer!");
+        }
+    }
+}
+
+
+void Vulkan::createCommandPool() {
 
 }

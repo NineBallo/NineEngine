@@ -11,13 +11,9 @@ VulkanInstance::VulkanInstance() {
 
 VulkanInstance::~VulkanInstance() {
     if (enableValidationLayers) {
-        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        DestroyDebugUtilsMessengerEXT(vkGlobalPool::Get().getVkInstance(), debugMessenger, nullptr);
     }
-    vkDestroyInstance(instance, nullptr);
-}
-
-VkInstance *VulkanInstance::getVkInstanceHandlePtr() {
-    return &instance;
+    vkDestroyInstance(vkGlobalPool::Get().getVkInstance(), nullptr);
 }
 
 void VulkanInstance::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
@@ -42,6 +38,9 @@ VulkanInstance::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugU
 }
 
 void VulkanInstance::createInstance() {
+    vkGlobalPool& variables = vkGlobalPool::Get();
+
+    VkInstance instance;
     ///Da layers, gotta have em u kno || fail if validation layers are defined but not supported
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("validation layers requested, but not available!");
@@ -94,6 +93,8 @@ void VulkanInstance::createInstance() {
     } else {
         std::cout << "Vulkan instance probably successfully created.\n";
     }
+
+    variables.Get().setVkInstance(instance);
 }
 
 void VulkanInstance::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
@@ -115,7 +116,7 @@ void VulkanInstance::setupDebugMessenger() {
     populateDebugMessengerCreateInfo(createInfo);
 
     ///do the thing (create the extension)
-    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+    if (CreateDebugUtilsMessengerEXT(vkGlobalPool::Get().getVkInstance(), &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
         throw std::runtime_error("failed to set up debug messenger!");
     }
 }

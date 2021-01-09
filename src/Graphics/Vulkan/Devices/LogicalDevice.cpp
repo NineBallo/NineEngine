@@ -4,8 +4,8 @@
 
 #include "LogicalDevice.h"
 
-LogicalDevice::LogicalDevice(VkInstance *instance, VkSurfaceKHR *surface, bool _enableValidationLayers)
-        : PhysicalDevice(instance, surface) {
+LogicalDevice::LogicalDevice(bool _enableValidationLayers)
+        : PhysicalDevice() {
     createLogicalDevice();
     enableValidationLayers = _enableValidationLayers;
 }
@@ -54,6 +54,8 @@ void LogicalDevice::createLogicalDevice() {
     vkGetDeviceQueue(logicalDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(logicalDevice, indices.presentFamily.value(), 0, &presentQueue);
 
+    vkGlobalPool::Get().setVkDevice(logicalDevice);
+    vkGlobalPool::Get().setVkPhysicalDevice(physicalDevice);
 }
 
 
@@ -68,13 +70,4 @@ void LogicalDevice::populateVkDeviceQueueCreateInfo(VkDeviceQueueCreateInfo &que
     //0.0f-1.0f range for queue priority
     float queuePriority = 1.0f;
     queueCreateInfo.pQueuePriorities = &queuePriority;
-}
-
-
-VkDevice* LogicalDevice::getLogicalDevice() {
-    return &logicalDevice;
-}
-
-VkPhysicalDevice* LogicalDevice::getPhysicalDevice() {
-    return &physicalDevice;
 }

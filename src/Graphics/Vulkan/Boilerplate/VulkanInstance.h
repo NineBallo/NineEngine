@@ -14,8 +14,8 @@
 #include <cstdlib>
 #include <vector>
 #include <cstring>
-//#include <optional>
 #include <any>
+#include "../vkGlobalPool.h"
 
 ///TODO split logging and vulkan initialization, at least a little.
 
@@ -24,8 +24,6 @@ public:
     VulkanInstance();
 
     ~VulkanInstance();
-
-    VkInstance *getVkInstanceHandlePtr();
 
 private:
 
@@ -53,7 +51,6 @@ private:
 
 private:
     ///Graphics misc
-    VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
 
     ///Validation layer stuff

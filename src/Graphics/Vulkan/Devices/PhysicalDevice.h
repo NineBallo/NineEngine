@@ -13,6 +13,7 @@
 #include <iostream>
 #include <vector>
 #include <set>
+#include "../vkGlobalPool.h"
 
 struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -20,21 +21,13 @@ struct SwapChainSupportDetails {
     std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct QueueFamilyIndices {
-    std::optional<uint32_t> graphicsFamily;
-    std::optional<uint32_t> presentFamily;
 
-    bool isComplete() {
-        return graphicsFamily.has_value();
-    }
-
-};
 
 class PhysicalDevice {
 public:
-    explicit PhysicalDevice(VkInstance *instance, VkSurfaceKHR *surface);
+    PhysicalDevice();
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
 protected:
     void pickPhysicalDevice();
@@ -48,8 +41,6 @@ protected:
 
 protected:
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkInstance *instance;
-    VkSurfaceKHR *surface;
 
 private:
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);

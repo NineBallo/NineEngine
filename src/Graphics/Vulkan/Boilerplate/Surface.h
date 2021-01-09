@@ -8,19 +8,17 @@
 
 #include <GLFW/glfw3.h>
 #include <iostream>
-
+#include "../vkGlobalPool.h"
 
 class Surface {
 public:
-    Surface(VkInstance *instance, GLFWwindow *window);
+    Surface();
 
     ~Surface();
 
-    VkSurfaceKHR *getVkSurfaceKHRPTR();
+
 
 private:
-    GLFWwindow *window;
-    VkInstance *instance;
     VkSurfaceKHR surface;
 };
 

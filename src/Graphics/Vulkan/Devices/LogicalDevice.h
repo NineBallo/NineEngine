@@ -6,20 +6,15 @@
 #define NINEENGINE_LOGICALDEVICE_H
 
 #include "PhysicalDevice.h"
-
+#include "../vkGlobalPool.h"
 
 class LogicalDevice : public PhysicalDevice {
 public:
-    LogicalDevice(VkInstance *instance, VkSurfaceKHR *surface, bool _enableValidationLayers);
-
+    LogicalDevice(bool _enableValidationLayers);
     ~LogicalDevice();
-
-    VkDevice* getLogicalDevice();
-    VkPhysicalDevice* getPhysicalDevice();
 
 private:
     void createLogicalDevice();
-
     void populateVkDeviceQueueCreateInfo(VkDeviceQueueCreateInfo &CreateInfo, uint32_t family);
 
 
