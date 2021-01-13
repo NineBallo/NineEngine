@@ -24,9 +24,10 @@ public:
 
 private:
     void createWindow(int width, int height, const char *title, bool resizable);
-
+    void createSurface();
 private:
     GLFWwindow *window;
+    VkSurfaceKHR surface;
 };
 
 

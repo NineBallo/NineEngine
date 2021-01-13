@@ -7,6 +7,8 @@
 #define GLFW_INCLUDE_VULKAN
 
 #include <GLFW/glfw3.h>
+#include <set>
+#include <vector>
 
 ///Singleton to help handle the sheer amount of shared variables
 ///Will only be created if a vulkan instance is created
@@ -24,7 +26,11 @@ public:
     }
 
 private:
-    vkGlobalPool() {};
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+
+    vkGlobalPool() : renderFinishedSemaphores(MAX_FRAMES_IN_FLIGHT), imageAvailableSemaphores(MAX_FRAMES_IN_FLIGHT),
+    inFlightFences(MAX_FRAMES_IN_FLIGHT) {};
+
     static vkGlobalPool s_Instance;
 
     //SINGLETON-CLASS-CREATION-END-----------------------------------------------//
@@ -149,29 +155,17 @@ public:
         vkGlobalPool::swapChainExtent = _swapChainExtent;
     }
 
-    const std::vector<VkImage> *getSwapChainImages() const {
-        return &swapChainImages;
+    const std::vector<VkImage>  getSwapChainImages() const {
+        return  swapChainImages;
     }
 
-  //void setSwapChainImages(const std::vector<VkImage> &_swapChainImages) {
-  //    vkGlobalPool::swapChainImages = _swapChainImages;
-  //}
-
-    const std::vector<VkImageView> *getSwapChainImageViews() const {
-        return &swapChainImageViews;
+    const std::vector<VkImageView> getSwapChainImageViews() const {
+        return swapChainImageViews;
     }
 
-  //void setSwapChainImageViews(const std::vector<VkImageView> &_swapChainImageViews) {
-  //    vkGlobalPool::swapChainImageViews = _swapChainImageViews;
-  //}
-
-    const std::vector<VkFramebuffer>*getSwapChainFramebuffers() const {
-        return &swapChainFramebuffers;
+    const std::vector<VkFramebuffer> getSwapChainFrameBuffers() const {
+        return swapChainFramebuffers;
     }
-
-  //void setSwapChainFramebuffers(const std::vector<VkFramebuffer> &swapChainFramebuffers) {
-  //    vkGlobalPool::swapChainFramebuffers = swapChainFramebuffers;
-  //}
 
     const QueueFamilyIndices getQueueFamilyIndices() const {
         return queueFamilyIndices;
@@ -188,7 +182,64 @@ public:
     void setCommandPool(const VkCommandPool _commandPool) {
         vkGlobalPool::commandPool = _commandPool;
     }
+    const VkSemaphore getImageAvailableSemaphore(int i) {
+        return imageAvailableSemaphores[i];
+    }
 
+    void setImageAvailableSemaphore(const VkSemaphore _imageAvailableSemaphore, int i) {
+        vkGlobalPool::imageAvailableSemaphores[i] = _imageAvailableSemaphore;
+    }
+
+    const VkSemaphore getRenderFinishedSemaphore(int i) {
+        return renderFinishedSemaphores[i];
+    }
+
+    void setRenderFinishedSemaphore(const VkSemaphore _renderFinishedSemaphore, int i) {
+        vkGlobalPool::renderFinishedSemaphores[i] = _renderFinishedSemaphore;
+    }
+    const VkQueue getGraphicsQueue() const {
+        return graphicsQueue;
+    }
+
+    void setGraphicsQueue(const VkQueue _graphicsQueue) {
+        vkGlobalPool::graphicsQueue = _graphicsQueue;
+    }
+
+    const VkQueue getPresentQueue() const {
+        return presentQueue;
+    }
+
+    void setPresentQueue(const VkQueue _presentQueue) {
+        vkGlobalPool::presentQueue = _presentQueue;
+    }
+
+    const int getMaxFramesInFlight() const {
+        return MAX_FRAMES_IN_FLIGHT;
+    }
+
+    size_t getCurrentFrame() const {
+        return currentFrame;
+    }
+
+    void setCurrentFrame(size_t currentFrame) {
+        vkGlobalPool::currentFrame = currentFrame;
+    }
+
+    const VkFence getInFlightFences(int i) const {
+        return inFlightFences[i];
+    }
+
+    void setInFlightFences(VkFence _inFlightFences, int i) {
+        vkGlobalPool::inFlightFences[i] = _inFlightFences;
+    }
+
+    const VkFence getImageInFlight(int i) const {
+        return imagesInFlight[i];
+    }
+
+    void setImageInFlight(VkFence _imageInFlight, int i) {
+        vkGlobalPool::imagesInFlight[i] = _imageInFlight;
+    }
 private:
     QueueFamilyIndices queueFamilyIndices;
 
@@ -200,6 +251,8 @@ private:
     ///Device Variables---------------------------------///
     VkDevice vkDevice;
     VkPhysicalDevice vkPhysicalDevice;
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
 
     ///Pipeline Variables------------------------------///
     VkPipeline vkPipeline;
@@ -218,8 +271,17 @@ private:
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
-    ///Rendering and presentation--------------------///
+    ///Rendering-------------------------------------///
     VkCommandPool commandPool;
+    std::vector<VkFence> inFlightFences;
+    std::vector<VkFence> imagesInFlight;
+public:
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+
+private:
+    ///Presentation----------------------------------///
+    size_t currentFrame = 0;
 
     //VARIABLES-END--------------------------------------------------------------//
 

@@ -5,6 +5,11 @@ This one is based on vulkan.... definitely dont have that issue anymore.
 This aims to be a hopefully straightforward engine to use that will probably end up having a lot of niche features and random options for personal learning and tinkering reasons.
 
 
+##Building
+- Run "cmake ./"
+- Run "make -j (cores)"
+- Run ./NineEngine
+
 ## RoadMap
 
 - Finish refactoring all the vulkan code into "bite-sized" chunks/classes

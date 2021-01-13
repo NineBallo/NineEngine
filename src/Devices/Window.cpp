@@ -3,6 +3,9 @@
 //
 
 #include "Window.h"
+#include "../Graphics/Vulkan/vkGlobalPool.h"
+#include <iostream>
+
 
 Window::Window() {
     createWindow(800, 600, "Vulkan go brrrrrrrrrrrrrrrr", false);
@@ -10,6 +13,7 @@ Window::Window() {
 
 Window::Window(int width, int height, const char *title, bool resizable) {
     createWindow(width, height, title, resizable);
+    createSurface();
 }
 
 Window::~Window() {
@@ -43,5 +47,9 @@ bool Window::shouldExit() {
     } else {
         return true;
     }
+
+}
+
+void Window::createSurface() {
 
 }

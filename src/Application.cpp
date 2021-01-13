@@ -3,7 +3,7 @@
 //
 
 #include "Application.h"
-#include "Graphics/Vulkan/Devices/PhysicalDevice.h"
+#include "Graphics/Vulkan/Devices/Device.h"
 #include "Graphics/Vulkan/Boilerplate/VulkanInstance.h"
 #include "Devices/Window.h"
 

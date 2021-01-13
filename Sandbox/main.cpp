@@ -3,7 +3,7 @@
 #include "../src/Application.h"
 #include "main.h"
 #include "iostream"
-
+vkGlobalPool vkGlobalPool::s_Instance;
 
 
 int main() {

@@ -4,39 +4,60 @@
 
 #include "Vulkan.h"
 
-vkGlobalPool vkGlobalPool::s_Instance;
+
 
 ///TODO fullscreen implementation.
 void Vulkan::initVulkan() {
     vulkanInstance = new VulkanInstance();
     surface = new Surface();
-    logicalDevice = new LogicalDevice(true);
+    device = new Device();
     createSwapChain();
     createImageViews();
    // renderPass = new RenderPass(logicalDevice->getLogicalDevice(), &swapChainImageFormat);
     graphicsPipeline = new GraphicsPipeline();
+    createFrameBuffers();
+    createCommandPool();
+    createCommandBuffers();
+    createSyncObjects();
 }
 
 Vulkan::Vulkan(int width, int height, const char *title, bool resizableWindow, bool fullscreen) {
+
     initWindow(width, height, title, resizableWindow, resizableWindow);
     initVulkan();
     mainloop();
+
 }
 
 Vulkan::~Vulkan() {
+    vkGlobalPool& globalPool = vkGlobalPool::Get();
+
+
+
+    for (size_t i = 0; i < globalPool.getMaxFramesInFlight(); i++) {
+        vkDestroySemaphore(globalPool.getVkDevice(), globalPool.renderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(globalPool.getVkDevice(), globalPool.imageAvailableSemaphores[i], nullptr);
+        vkDestroyFence(globalPool.getVkDevice(), inFlightFences[i], nullptr);
+    }
+
+    vkDestroyCommandPool(globalPool.getVkDevice(), globalPool.getCommandPool(), nullptr);
+
     for (auto framebuffer : swapChainFramebuffers) {
-        vkDestroyFramebuffer(vkGlobalPool::Get().getVkDevice(), framebuffer, nullptr);
+        vkDestroyFramebuffer(globalPool.getVkDevice(), framebuffer, nullptr);
     }
+
     delete graphicsPipeline;
-  //  delete renderPass;
+
     for (auto imageview : swapChainImageViews){
-        vkDestroyImageView(vkGlobalPool::Get().getVkDevice(), imageview, nullptr);
+        vkDestroyImageView(globalPool.getVkDevice(), imageview, nullptr);
     }
-    vkDestroySwapchainKHR(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getSwapChain(), nullptr);
-    delete logicalDevice;
+
+    vkDestroySwapchainKHR(globalPool.getVkDevice(), globalPool.getSwapChain(), nullptr);
+    delete device;
     delete surface;
     delete vulkanInstance;
     delete window;
+    glfwTerminate();
 }
 
 void Vulkan::initWindow(int width, int height, const char *title, bool resizableWindow, bool fullscreen) {
@@ -47,7 +68,9 @@ void Vulkan::initWindow(int width, int height, const char *title, bool resizable
 void Vulkan::mainloop() {
     while (!glfwWindowShouldClose(window->GetWindowHandle())) {
         glfwPollEvents();
+        drawFrame();
     }
+    vkDeviceWaitIdle(vkGlobalPool::Get().getVkDevice());
 }
 
 VkSurfaceFormatKHR Vulkan::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
@@ -94,7 +117,7 @@ VkExtent2D Vulkan::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities
 void Vulkan::createSwapChain() {
     VkSwapchainKHR swapChain;
 
-    SwapChainSupportDetails swapChainSupport = logicalDevice->querySwapChainSupport(vkGlobalPool::Get().getVkPhysicalDevice());
+    SwapChainSupportDetails swapChainSupport = device->querySwapChainSupport(vkGlobalPool::Get().getVkPhysicalDevice());
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -121,7 +144,7 @@ void Vulkan::createSwapChain() {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     ///Queue family sharing thing.
-    QueueFamilyIndices indices = LogicalDevice::findQueueFamilies(vkGlobalPool::Get().getVkPhysicalDevice());
+    vkGlobalPool::QueueFamilyIndices indices = vkGlobalPool::Get().getQueueFamilyIndices();
     uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
     if (indices.graphicsFamily != indices.presentFamily) {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -184,13 +207,13 @@ void Vulkan::createImageViews() {
         createInfo.subresourceRange.layerCount = 1;
 
         if(vkCreateImageView(vkGlobalPool::Get().getVkDevice(), &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS){
-            throw std::runtime_error("failed to create image views!");
+            throw std::runtime_error("Failed to create image views!");
         }
     }
 
 }
 
-void Vulkan::createFramebuffers() {
+void Vulkan::createFrameBuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -215,5 +238,146 @@ void Vulkan::createFramebuffers() {
 
 
 void Vulkan::createCommandPool() {
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = vkGlobalPool::Get().getQueueFamilyIndices().graphicsFamily.value();
+    poolInfo.flags = 0; // Optional
 
+    VkCommandPool commandPool;
+    if (vkCreateCommandPool(vkGlobalPool::Get().getVkDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create command pool!");
+    }
+
+    vkGlobalPool::Get().setCommandPool(commandPool);
+}
+
+void Vulkan::createCommandBuffers() {
+    vkGlobalPool& globalPool = vkGlobalPool::Get();
+
+    commandBuffers.resize(swapChainFramebuffers.size());
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = globalPool.getCommandPool();
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
+
+    if (vkAllocateCommandBuffers(globalPool.getVkDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate command buffers!");
+    }
+
+    for (size_t i = 0; i < commandBuffers.size(); i++) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // Optional
+        beginInfo.pInheritanceInfo = nullptr; // Optional
+
+        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording command buffer!");
+        }
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = globalPool.getVkRenderPass();
+        renderPassInfo.framebuffer = swapChainFramebuffers[i];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = globalPool.getSwapChainExtent();
+
+        VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, globalPool.getVkPipeline());
+
+        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffers[i]);
+
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record command buffer!");
+        }
+    }
+}
+
+void Vulkan::drawFrame() {
+    vkGlobalPool& globalPool = vkGlobalPool::Get();
+
+    vkWaitForFences(globalPool.getVkDevice(), 1, &inFlightFences[globalPool.getCurrentFrame()], VK_TRUE, UINT64_MAX);
+
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(globalPool.getVkDevice(), globalPool.getSwapChain(), UINT64_MAX, globalPool.imageAvailableSemaphores[globalPool.getCurrentFrame()], VK_NULL_HANDLE, &imageIndex);
+
+    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+        vkWaitForFences(globalPool.getVkDevice(), 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    imagesInFlight[imageIndex] = inFlightFences[globalPool.getCurrentFrame()];
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore waitSemaphores[] = {globalPool.imageAvailableSemaphores[globalPool.getCurrentFrame()]};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+    VkSemaphore signalSemaphores[] = {globalPool.renderFinishedSemaphores[globalPool.getCurrentFrame()]};
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    vkResetFences(globalPool.getVkDevice(), 1, &inFlightFences[globalPool.getCurrentFrame()]);
+
+    if (vkQueueSubmit(globalPool.getGraphicsQueue(), 1, &submitInfo, inFlightFences[globalPool.getCurrentFrame()]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer!");
+    }
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+
+    VkSwapchainKHR swapChains[] = {globalPool.getSwapChain()};
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+
+    presentInfo.pResults = nullptr;
+
+    vkQueuePresentKHR(globalPool.getPresentQueue(), &presentInfo);
+
+    globalPool.setCurrentFrame((globalPool.getCurrentFrame()+1) % globalPool.getMaxFramesInFlight());
+}
+
+void Vulkan::createSyncObjects() {
+    vkGlobalPool& globalPool = vkGlobalPool::Get();
+
+    inFlightFences.resize(globalPool.getMaxFramesInFlight());
+    imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
+
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (size_t i = 0; i < globalPool.getMaxFramesInFlight(); i++) {
+        if (vkCreateSemaphore(globalPool.getVkDevice(), &semaphoreInfo, nullptr,
+                              &globalPool.imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(globalPool.getVkDevice(), &semaphoreInfo, nullptr,
+                              &globalPool.renderFinishedSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(globalPool.getVkDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+
+            throw std::runtime_error("failed to create semaphores for a frame!");
+        }
+
+      //  inFlightFences[i] = fence;
+
+    }
 }

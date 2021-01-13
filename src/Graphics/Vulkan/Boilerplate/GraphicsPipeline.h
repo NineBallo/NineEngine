@@ -29,7 +29,6 @@ private:
 
 private:
     VkPipeline graphicsPipeline;
-    VkRenderPass renderPass;
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;
     VkPipelineLayout pipelineLayout;

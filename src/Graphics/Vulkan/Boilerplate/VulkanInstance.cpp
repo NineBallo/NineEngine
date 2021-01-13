@@ -38,7 +38,7 @@ VulkanInstance::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugU
 }
 
 void VulkanInstance::createInstance() {
-    vkGlobalPool& variables = vkGlobalPool::Get();
+    vkGlobalPool& globalPool = vkGlobalPool::Get();
 
     VkInstance instance;
     ///Da layers, gotta have em u kno || fail if validation layers are defined but not supported
@@ -94,7 +94,7 @@ void VulkanInstance::createInstance() {
         std::cout << "Vulkan instance probably successfully created.\n";
     }
 
-    variables.Get().setVkInstance(instance);
+    globalPool.Get().setVkInstance(instance);
 }
 
 void VulkanInstance::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {

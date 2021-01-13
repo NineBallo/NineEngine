@@ -9,13 +9,12 @@
 
 
 GraphicsPipeline::~GraphicsPipeline() {
-    vkGlobalPool &variables = vkGlobalPool::Get();
+    vkGlobalPool &globalPool = vkGlobalPool::Get();
 
-    vkDestroyPipeline(variables.getVkDevice(), graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(variables.getVkDevice(), pipelineLayout, nullptr);
-    vkDestroyRenderPass(variables.getVkDevice(), renderPass, nullptr);
-    vkDestroyShaderModule(variables.getVkDevice(), fragShaderModule, nullptr);
-    vkDestroyShaderModule(variables.getVkDevice(), vertShaderModule, nullptr);
+    vkDestroyPipeline(globalPool.getVkDevice(), graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(globalPool.getVkDevice(), pipelineLayout, nullptr);
+    vkDestroyRenderPass(globalPool.getVkDevice(), globalPool.getVkRenderPass(), nullptr);
+
 }
 
 
@@ -182,7 +181,7 @@ void GraphicsPipeline::CreateGraphicsPipeline() {
     pipelineInfo.pDynamicState = nullptr; // Optional
 
     pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.renderPass = vkGlobalPool::Get().getVkRenderPass();
     pipelineInfo.subpass = 0;
 
     ///Used to create a new pipeline derived off another.
@@ -192,7 +191,10 @@ void GraphicsPipeline::CreateGraphicsPipeline() {
     if (vkCreateGraphicsPipelines(vkGlobalPool::Get().getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
+    vkGlobalPool::Get().setVkPipeline(graphicsPipeline);
 
+    vkDestroyShaderModule(vkGlobalPool::Get().getVkDevice(), fragShaderModule, nullptr);
+    vkDestroyShaderModule(vkGlobalPool::Get().getVkDevice(), vertShaderModule, nullptr);
 }
 
 ///Load shader file
@@ -230,6 +232,17 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char> &cod
 }
 
 void GraphicsPipeline::CreateRenderPass() {
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+
     ///The color attachment
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = vkGlobalPool::Get().getSwapChainImageFormat();
@@ -272,11 +285,12 @@ void GraphicsPipeline::CreateRenderPass() {
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
+    VkRenderPass renderPass;
     if (vkCreateRenderPass(vkGlobalPool::Get().getVkDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
-}
-
-VkRenderPass* GraphicsPipeline::getRenderPassPTR() {
-    return &renderPass;
+    vkGlobalPool::Get().setVkRenderPass(renderPass);
 }
