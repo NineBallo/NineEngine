@@ -12,6 +12,7 @@
 #include "vector"
 #include "fstream"
 #include "../vkGlobalPool.h"
+#include "RenderPass.h"
 
 class GraphicsPipeline {
 
@@ -20,8 +21,8 @@ public:
     ~GraphicsPipeline();
 
 private:
-    void CreateRenderPass();
-    void CreateGraphicsPipeline();
+    void createGraphicsPipeline();
+    void createFrameBuffers();
 
 private:
     static std::vector<char> readFile(const std::string& filename);
@@ -32,6 +33,10 @@ private:
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;
     VkPipelineLayout pipelineLayout;
+
+private:
+    RenderPass* renderPass;
+
 };
 
 

@@ -5,7 +5,6 @@
 #ifndef NINEENGINE_APPLICATION_H
 #define NINEENGINE_APPLICATION_H
 
-#include "NineEngine.h"
 #include "Graphics/Vulkan/Vulkan.h"
 
 class Application {

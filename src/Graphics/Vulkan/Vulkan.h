@@ -6,10 +6,11 @@
 #define NINEENGINE_VULKAN_H
 
 #include "Devices/Device.h"
-#include "Boilerplate/VulkanInstance.h"
-#include "Boilerplate/Surface.h"
-#include "Boilerplate/GraphicsPipeline.h"
+#include "Bootstrap/VulkanInstance.h"
+#include "Bootstrap/Surface.h"
+#include "Pipelines/GraphicsPipeline.h"
 #include "../../Devices/Window.h"
+#include "RenderPass/Swapchain.h"
 #include "vkGlobalPool.h"
 #include <algorithm>
 
@@ -23,13 +24,8 @@ public:
 
     void mainloop();
 
-    void createSwapChain();
-    void createImageViews();
-
-    void createFrameBuffers();
     void createCommandPool();
     void createCommandBuffers();
-
 
     void createSyncObjects();
     void drawFrame();
@@ -42,13 +38,12 @@ private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 private:
-    std::vector<VkImage> swapChainImages;
-    std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
+
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
 private:
+    Swapchain *swapchain;
     VulkanInstance *vulkanInstance;
     Device *device;
     Surface *surface;

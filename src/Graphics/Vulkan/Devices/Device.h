@@ -9,11 +9,7 @@
 #include <string>
 #include <iostream>
 
-struct SwapChainSupportDetails {
-    VkSurfaceCapabilitiesKHR capabilities;
-    std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
-};
+
 
 
 class Device {
@@ -22,7 +18,7 @@ public:
 
     ~Device();
 
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+    vkGlobalPool::SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 
 private:
 

@@ -3,9 +3,6 @@
 //
 
 #include "Application.h"
-#include "Graphics/Vulkan/Devices/Device.h"
-#include "Graphics/Vulkan/Boilerplate/VulkanInstance.h"
-#include "Devices/Window.h"
 
 ///TODO fullscreen implementation.
 Application::Application(int width, int height, const char *title, bool resizableWindow, bool fullscreen) {

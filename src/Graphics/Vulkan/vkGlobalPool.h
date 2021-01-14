@@ -11,7 +11,7 @@
 #include <vector>
 
 ///Singleton to help handle the sheer amount of shared variables
-///Will only be created if a vulkan instance is created
+///Will only be accessible if a vulkan instance is created
 
 class vkGlobalPool{
 
@@ -41,6 +41,8 @@ private:
     //VARIABLES-START------------------------------------------------------------//
 
 public:
+    //STRUCTS-START------------------------------------------------------------//
+
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -49,6 +51,14 @@ public:
             return graphicsFamily.has_value();
         }
     };
+
+    struct SwapChainSupportDetails {
+        VkSurfaceCapabilitiesKHR capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
+
+    //STRUCTS-END--------------------------------------------------------------//
 
 public:
     const VkSurfaceKHR getVkSurfaceKhr() const {
@@ -155,15 +165,15 @@ public:
         vkGlobalPool::swapChainExtent = _swapChainExtent;
     }
 
-    const std::vector<VkImage>  getSwapChainImages() const {
+    std::vector<VkImage>&  getSwapChainImages() {
         return  swapChainImages;
     }
 
-    const std::vector<VkImageView> getSwapChainImageViews() const {
+    std::vector<VkImageView>& getSwapChainImageViews() {
         return swapChainImageViews;
     }
 
-    const std::vector<VkFramebuffer> getSwapChainFrameBuffers() const {
+     std::vector<VkFramebuffer>& getSwapChainFrameBuffers() {
         return swapChainFramebuffers;
     }
 
@@ -213,11 +223,11 @@ public:
         vkGlobalPool::presentQueue = _presentQueue;
     }
 
-    const int getMaxFramesInFlight() const {
+    const int& getMaxFramesInFlight() const {
         return MAX_FRAMES_IN_FLIGHT;
     }
 
-    size_t getCurrentFrame() const {
+    size_t& getCurrentFrame() {
         return currentFrame;
     }
 
@@ -225,21 +235,30 @@ public:
         vkGlobalPool::currentFrame = currentFrame;
     }
 
-    const VkFence getInFlightFences(int i) const {
-        return inFlightFences[i];
+    const std::vector<VkFence>& getInFlightFences(int i) const {
+        return inFlightFences;
     }
 
-    void setInFlightFences(VkFence _inFlightFences, int i) {
-        vkGlobalPool::inFlightFences[i] = _inFlightFences;
+    void setInFlightFences(std::vector<VkFence>& _inFlightFences) {
+        vkGlobalPool::inFlightFences = _inFlightFences;
     }
 
-    const VkFence getImageInFlight(int i) const {
-        return imagesInFlight[i];
+    const std::vector<VkFence> getImageInFlight() const {
+        return imagesInFlight;
     }
 
-    void setImageInFlight(VkFence _imageInFlight, int i) {
-        vkGlobalPool::imagesInFlight[i] = _imageInFlight;
+    void setImagesInFlight(std::vector<VkFence>& _imagesInFlight) {
+        vkGlobalPool::imagesInFlight = _imagesInFlight;
     }
+
+    const SwapChainSupportDetails &getSwapChainSupportDetails() const {
+        return swapChainSupportDetails;
+    }
+
+    void setSwapChainSupportDetails(const SwapChainSupportDetails &supportDetails) {
+        vkGlobalPool::swapChainSupportDetails = supportDetails;
+    }
+
 private:
     QueueFamilyIndices queueFamilyIndices;
 
@@ -265,6 +284,9 @@ private:
     VkSwapchainKHR swapChain;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
+    SwapChainSupportDetails swapChainSupportDetails;
+
+private:
 
     ///Swapbuffer Vectors-----------------------------///
     std::vector<VkImage> swapChainImages;
@@ -275,6 +297,8 @@ private:
     VkCommandPool commandPool;
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
+
+
 public:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -315,8 +339,8 @@ public:
             i++;
         }
     }
-
     //FUNCTIONS-END------------------------------------------------------------//
+
 
 
 

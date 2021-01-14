@@ -48,7 +48,7 @@ bool Device::isDeviceSuitable(VkPhysicalDevice device) {
 
     bool swapChainAdequate = false;
     if (extensionsSupported) {
-        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+        vkGlobalPool::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
 
@@ -76,8 +76,8 @@ bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     return requiredExtensions.empty();
 }
 
-SwapChainSupportDetails Device::querySwapChainSupport(VkPhysicalDevice device) {
-    SwapChainSupportDetails details;
+vkGlobalPool::SwapChainSupportDetails Device::querySwapChainSupport(VkPhysicalDevice device) {
+    vkGlobalPool::SwapChainSupportDetails details;
 
     vkGlobalPool &variables = vkGlobalPool::Get();
 
@@ -102,6 +102,7 @@ SwapChainSupportDetails Device::querySwapChainSupport(VkPhysicalDevice device) {
                                                   details.presentModes.data());
     }
 
+    vkGlobalPool::Get().setSwapChainSupportDetails(details);
     return details;
 }
 ////------------------------------------------------------------------------------------------------------------////

@@ -9,7 +9,7 @@ find_package(Vulkan REQUIRED FATAL_ERROR) # error
 
 find_package(glfw3 REQUIRED FATAL_ERROR) # error
 
-add_executable(NineEngine Sandbox/main.cpp src/Graphics/Vulkan/Boilerplate/VulkanInstance.cpp src/Graphics/Vulkan/Boilerplate/VulkanInstance.h src/Devices/Window.cpp src/Devices/Window.h src/Application.cpp src/Application.h src/NineEngine.h Sandbox/main.h src/Graphics/Vulkan/Boilerplate/Surface.cpp src/Graphics/Vulkan/Boilerplate/Surface.h src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/Boilerplate/GraphicsPipeline.cpp src/Graphics/Vulkan/Boilerplate/GraphicsPipeline.h src/Graphics/Vulkan/vkGlobalPool.h src/Graphics/Vulkan/Devices/Device.cpp src/Graphics/Vulkan/Devices/Device.h)
+add_executable(NineEngine Sandbox/main.cpp src/Graphics/Vulkan/Bootstrap/VulkanInstance.cpp src/Graphics/Vulkan/Bootstrap/VulkanInstance.h src/Devices/Window.cpp src/Devices/Window.h src/Application.cpp src/Application.h src/NineEngine.h Sandbox/main.h src/Graphics/Vulkan/Bootstrap/Surface.cpp src/Graphics/Vulkan/Bootstrap/Surface.h src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/Pipelines/GraphicsPipeline.cpp src/Graphics/Vulkan/Pipelines/GraphicsPipeline.h src/Graphics/Vulkan/vkGlobalPool.h src/Graphics/Vulkan/Devices/Device.cpp src/Graphics/Vulkan/Devices/Device.h src/Graphics/Vulkan/RenderPass/Swapchain.cpp src/Graphics/Vulkan/RenderPass/Swapchain.h src/Graphics/Vulkan/Pipelines/RenderPass.cpp src/Graphics/Vulkan/Pipelines/RenderPass.h)
 
 target_link_libraries (NineEngine glfw vulkan dl pthread X11 Xxf86vm Xrandr Xi)
 
