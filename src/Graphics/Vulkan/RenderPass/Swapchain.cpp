@@ -4,7 +4,6 @@
 
 #include "Swapchain.h"
 #include "iostream"
-#include "../Vulkan.h"
 
 Swapchain::Swapchain() {
     createSwapChain();
@@ -49,8 +48,6 @@ void Swapchain::createImageViews() {
 
 void Swapchain::createSwapChain() {
     VkSwapchainKHR swapChain;
-
-    //vkGlobalPoolSwapChainSupportDetails swapChainSupport = device->querySwapChainSupport(vkGlobalPool::Get().getVkPhysicalDevice());
 
     vkGlobalPool::SwapChainSupportDetails swapChainSupport = vkGlobalPool::Get().getSwapChainSupportDetails();
 

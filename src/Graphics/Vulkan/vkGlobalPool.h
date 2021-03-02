@@ -7,8 +7,10 @@
 #define GLFW_INCLUDE_VULKAN
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 #include <set>
 #include <vector>
+#include <array>
 
 ///Singleton to help handle the sheer amount of shared variables
 ///Will only be accessible if a vulkan instance is created
@@ -57,6 +59,47 @@ public:
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
+
+    struct Vertex {
+        glm::vec2 pos;
+        glm::vec3 color;
+
+        static VkVertexInputBindingDescription getBindingDescription() {
+            VkVertexInputBindingDescription bindingDescription{};
+            bindingDescription.binding = 0;
+            bindingDescription.stride = sizeof(Vertex);
+            bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+            return bindingDescription;
+        }
+
+        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+            attributeDescriptions[0].binding = 0;
+            attributeDescriptions[0].location = 0;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+            attributeDescriptions[1].binding = 0;
+            attributeDescriptions[1].location = 1;
+            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+            return attributeDescriptions;
+        }
+    };
+
+    const std::vector<Vertex> vertices = {
+            {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+            {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    };
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+        return attributeDescriptions;
+    }
 
     //STRUCTS-END--------------------------------------------------------------//
 
@@ -235,7 +278,7 @@ public:
         vkGlobalPool::currentFrame = currentFrame;
     }
 
-    const std::vector<VkFence>& getInFlightFences(int i) const {
+    const std::vector<VkFence>& getInFlightFences(int i) {
         return inFlightFences;
     }
 
@@ -243,7 +286,7 @@ public:
         vkGlobalPool::inFlightFences = _inFlightFences;
     }
 
-    const std::vector<VkFence> getImageInFlight() const {
+    const std::vector<VkFence> getImageInFlight() {
         return imagesInFlight;
     }
 
@@ -251,7 +294,7 @@ public:
         vkGlobalPool::imagesInFlight = _imagesInFlight;
     }
 
-    const SwapChainSupportDetails &getSwapChainSupportDetails() const {
+    const SwapChainSupportDetails &getSwapChainSupportDetails() {
         return swapChainSupportDetails;
     }
 
@@ -259,6 +302,13 @@ public:
         vkGlobalPool::swapChainSupportDetails = supportDetails;
     }
 
+    VkBuffer &getVertexBuffer() {
+        return vertexBuffer;
+    }
+
+    void setVertexBuffer(VkBuffer _vertexBuffer) {
+        vertexBuffer = _vertexBuffer;
+    }
 private:
     QueueFamilyIndices queueFamilyIndices;
 
@@ -285,6 +335,9 @@ private:
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     SwapChainSupportDetails swapChainSupportDetails;
+
+    ///Buffers-----------------------------------------///
+    VkBuffer vertexBuffer;
 
 private:
 

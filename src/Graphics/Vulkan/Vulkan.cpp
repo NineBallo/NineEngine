@@ -5,7 +5,6 @@
 #include "Vulkan.h"
 
 
-
 ///TODO fullscreen implementation.
 void Vulkan::initVulkan() {
     vulkanInstance = new VulkanInstance();
@@ -15,6 +14,7 @@ void Vulkan::initVulkan() {
     graphicsPipeline = new GraphicsPipeline();
 
     createCommandPool();
+    createVertexBuffer();
     createCommandBuffers();
     createSyncObjects();
 }
@@ -23,6 +23,18 @@ Vulkan::Vulkan(int width, int height, const char *title, bool resizableWindow, b
     initWindow(width, height, title, resizableWindow, resizableWindow);
     initVulkan();
     mainloop();
+}
+
+void Vulkan::createVertexBuffer() {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(vkGlobalPool::Get().vertices[0]) * vkGlobalPool::Get().vertices.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(vkGlobalPool::Get().getVkDevice(), &bufferInfo, nullptr, &vkGlobalPool::Get().getVertexBuffer()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create vertex buffer!");
+    }
 }
 
 Vulkan::~Vulkan() {
@@ -36,6 +48,7 @@ Vulkan::~Vulkan() {
     vkDestroyCommandPool(globalPool.getVkDevice(), globalPool.getCommandPool(), nullptr);
 
     delete swapchain;
+    vkDestroyBuffer(globalPool.getVkDevice(), globalPool.getVertexBuffer(), nullptr);
     delete graphicsPipeline;
     vkDestroySwapchainKHR(globalPool.getVkDevice(), globalPool.getSwapChain(), nullptr);
     delete device;
@@ -75,9 +88,7 @@ void Vulkan::createCommandPool() {
 void Vulkan::createCommandBuffers() {
     vkGlobalPool& globalPool = vkGlobalPool::Get();
 
-
     commandBuffers.resize(vkGlobalPool::Get().getSwapChainFrameBuffers().size());
-    std::cout << vkGlobalPool::Get().getSwapChainFrameBuffers().size();
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -127,15 +138,21 @@ void Vulkan::createCommandBuffers() {
 void Vulkan::drawFrame() {
     vkGlobalPool& globalPool = vkGlobalPool::Get();
 
+    ///Wait for the fence representing the image we want to render to finish submitting to the gpu before submitting another command buffer
     vkWaitForFences(globalPool.getVkDevice(), 1, &inFlightFences[globalPool.getCurrentFrame()], VK_TRUE, UINT64_MAX);
 
+    ///Get next position/index in swap buffer.
     uint32_t imageIndex;
     vkAcquireNextImageKHR(globalPool.getVkDevice(), globalPool.getSwapChain(), UINT64_MAX, globalPool.imageAvailableSemaphores[globalPool.getCurrentFrame()], VK_NULL_HANDLE, &imageIndex);
 
+    ///If image is being presented then wait for it to finish, if fence does not yet exist then skip.
     if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
         vkWaitForFences(globalPool.getVkDevice(), 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
     }
+
+    ///Assign the respective fence to a specific image.
     imagesInFlight[imageIndex] = inFlightFences[globalPool.getCurrentFrame()];
+
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -153,8 +170,10 @@ void Vulkan::drawFrame() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
+    ///Reset fence, prep it for display.
     vkResetFences(globalPool.getVkDevice(), 1, &inFlightFences[globalPool.getCurrentFrame()]);
 
+    ///Submit graphics queue and continue if successful
     if (vkQueueSubmit(globalPool.getGraphicsQueue(), 1, &submitInfo, inFlightFences[globalPool.getCurrentFrame()]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
@@ -172,6 +191,7 @@ void Vulkan::drawFrame() {
 
     presentInfo.pResults = nullptr;
 
+    ///Flip buffers, vibe.
     vkQueuePresentKHR(globalPool.getPresentQueue(), &presentInfo);
 
     globalPool.setCurrentFrame((globalPool.getCurrentFrame()+1) % globalPool.getMaxFramesInFlight());
@@ -199,8 +219,5 @@ void Vulkan::createSyncObjects() {
 
             throw std::runtime_error("failed to create semaphores for a frame!");
         }
-
-      //  inFlightFences[i] = fence;
-
     }
 }
