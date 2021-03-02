@@ -25,6 +25,22 @@ Vulkan::Vulkan(int width, int height, const char *title, bool resizableWindow, b
     mainloop();
 }
 
+
+
+
+uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(vkGlobalPool::Get().getVkPhysicalDevice(), &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("Failed to find suitable memory type!");
+}
+
 void Vulkan::createVertexBuffer() {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -33,12 +49,34 @@ void Vulkan::createVertexBuffer() {
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     if (vkCreateBuffer(vkGlobalPool::Get().getVkDevice(), &bufferInfo, nullptr, &vkGlobalPool::Get().getVertexBuffer()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
+        throw std::runtime_error("Failed to create vertex buffer!");
     }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getVertexBuffer(), &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize = memoryRequirements.size;
+    allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vkAllocateMemory(vkGlobalPool::Get().getVkDevice(), &allocateInfo, nullptr, &vkGlobalPool::Get().getVertexBufferMemory()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate vertex buffer memory!");
+    }
+
+    vkBindBufferMemory(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getVertexBuffer(), vkGlobalPool::Get().getVertexBufferMemory(), 0);
+
+    void* data;
+    vkMapMemory(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getVertexBufferMemory(), 0, bufferInfo.size, 0, &data);
+    memcpy(data, vkGlobalPool::Get().vertices.data(), (size_t) bufferInfo.size);
+    vkUnmapMemory(vkGlobalPool::Get().getVkDevice(), vkGlobalPool::Get().getVertexBufferMemory());
+
 }
+
 
 Vulkan::~Vulkan() {
     vkGlobalPool& globalPool = vkGlobalPool::Get();
+
 
     for (size_t i = 0; i < globalPool.getMaxFramesInFlight(); i++) {
         vkDestroySemaphore(globalPool.getVkDevice(), globalPool.renderFinishedSemaphores[i], nullptr);
@@ -49,6 +87,7 @@ Vulkan::~Vulkan() {
 
     delete swapchain;
     vkDestroyBuffer(globalPool.getVkDevice(), globalPool.getVertexBuffer(), nullptr);
+    vkFreeMemory(globalPool.getVkDevice(), globalPool.getVertexBufferMemory(), nullptr);
     delete graphicsPipeline;
     vkDestroySwapchainKHR(globalPool.getVkDevice(), globalPool.getSwapChain(), nullptr);
     delete device;
@@ -125,7 +164,11 @@ void Vulkan::createCommandBuffers() {
 
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, globalPool.getVkPipeline());
 
-        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+        VkBuffer vertexBuffers[] = {vkGlobalPool::Get().getVertexBuffer()};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+        vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vkGlobalPool::Get().vertices.size()), 1, 0, 0);
 
         vkCmdEndRenderPass(commandBuffers[i]);
 

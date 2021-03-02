@@ -90,16 +90,10 @@ public:
     };
 
     const std::vector<Vertex> vertices = {
-            {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-            {{0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-            {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+            {{0.0f, -0.5f}, {1.0f, 0.0f, 1.0f}},
+            {{0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+            {{-0.5f, 0.5f}, {1.0f, 0.0f, 5.0f}}
     };
-
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-
-        return attributeDescriptions;
-    }
 
     //STRUCTS-END--------------------------------------------------------------//
 
@@ -120,7 +114,7 @@ public:
         vkGlobalPool::window = _window;
     }
 
-    const VkDevice getVkDevice() const {
+    VkDevice getVkDevice() {
         return vkDevice;
     }
 
@@ -309,6 +303,15 @@ public:
     void setVertexBuffer(VkBuffer _vertexBuffer) {
         vertexBuffer = _vertexBuffer;
     }
+
+    VkDeviceMemory& getVertexBufferMemory() {
+        return vertexBufferMemory;
+    }
+
+    void setVertexBufferMemory( VkDeviceMemory _vertexBufferMemory) {
+        vertexBufferMemory = _vertexBufferMemory;
+    }
+
 private:
     QueueFamilyIndices queueFamilyIndices;
 
@@ -350,6 +353,13 @@ private:
     VkCommandPool commandPool;
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
+
+    VkDeviceMemory vertexBufferMemory;
+public:
+    const VkDeviceMemory_T *getVertexBufferMemory() const;
+
+    void setVertexBufferMemory(const VkDeviceMemory_T *vertexBufferMemory);
+
 
 
 public:
@@ -399,6 +409,7 @@ public:
 
 
 };
+
 
 
 #endif //NINEENGINE_VKGLOBALPOOL_H

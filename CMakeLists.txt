@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_BUILD_TYPE Debug)
 
+
+
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
 
 find_package(glfw3 REQUIRED FATAL_ERROR) # error
@@ -17,4 +19,4 @@ target_link_libraries (NineEngine glfw vulkan dl pthread X11 Xxf86vm Xrandr Xi)
 
 add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/src/Graphics/Vulkan/Shaders/* $<TARGET_FILE_DIR:NineEngine>/Shaders)
+        ${CMAKE_SOURCE_DIR}/src/Graphics/Vulkan/Shaders/glsl/compiled/* $<TARGET_FILE_DIR:NineEngine>/Shaders)
