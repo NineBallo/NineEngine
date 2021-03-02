@@ -89,10 +89,15 @@ public:
         }
     };
 
+    const std::vector<uint16_t> indices = {
+            0, 1, 2, 2, 3, 0
+    };
+
     const std::vector<Vertex> vertices = {
-            {{0.0f, -0.5f}, {1.0f, 0.0f, 1.0f}},
-            {{0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-            {{-0.5f, 0.5f}, {1.0f, 0.0f, 5.0f}}
+            {{-0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},
+            {{0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+            {{0.5f, 0.5f}, {1.0f, 0.0f, 5.0f}},
+            {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
     };
 
     //STRUCTS-END--------------------------------------------------------------//
@@ -304,10 +309,24 @@ public:
         vertexBuffer = _vertexBuffer;
     }
 
+    VkBuffer &getIndexBuffer() {
+        return indexBuffer;
+    }
+
+    void setIndexBuffer(VkBuffer _indexBuffer) {
+        vertexBuffer = _indexBuffer;
+    }
+
+    VkDeviceMemory& getIndexBufferMemory() {
+        return indexBufferMemory;
+    }
+    void setIndexBufferMemory( VkDeviceMemory _indexBufferMemory) {
+        indexBufferMemory = _indexBufferMemory;
+    }
+
     VkDeviceMemory& getVertexBufferMemory() {
         return vertexBufferMemory;
     }
-
     void setVertexBufferMemory( VkDeviceMemory _vertexBufferMemory) {
         vertexBufferMemory = _vertexBufferMemory;
     }
@@ -341,7 +360,10 @@ private:
 
     ///Buffers-----------------------------------------///
     VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
 
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
 private:
 
     ///Swapbuffer Vectors-----------------------------///
@@ -353,12 +375,6 @@ private:
     VkCommandPool commandPool;
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
-
-    VkDeviceMemory vertexBufferMemory;
-public:
-    const VkDeviceMemory_T *getVertexBufferMemory() const;
-
-    void setVertexBufferMemory(const VkDeviceMemory_T *vertexBufferMemory);
 
 
 
