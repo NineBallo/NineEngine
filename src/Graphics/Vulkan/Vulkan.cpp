@@ -6,14 +6,13 @@
 #include "LeStuff/Instance.h"
 
 Vulkan::Vulkan() {
-    debugMessenger = Instance::setupDebugMessenger();
-    instance = Instance::createInstance(true);
-
+    instance = createInstance(true);
+    debugMessenger = setupDebugMessenger(instance);
 }
 
 Vulkan::~Vulkan() {
-    Instance::DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-    Instance::destroyInstance(instance);
+    destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+    destroyInstance(instance);
 
 
 }

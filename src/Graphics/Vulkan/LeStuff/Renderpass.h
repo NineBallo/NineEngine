@@ -2,13 +2,14 @@
 // Created by nineball on 4/16/21.
 //
 
-#ifndef NINEENGINE_RENDERPASS_H
-#define NINEENGINE_RENDERPASS_H
+//
+// #ifndef NINEENGINE_RENDERPASS_H
+//#define NINEENGINE_RENDERPASS_H
 
 
-class Renderpass {
-
-};
+#include <iostream>
 
 
-#endif //NINEENGINE_RENDERPASS_H
+
+
+//#endif //NINEENGINE_RENDERPASS_H

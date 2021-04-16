@@ -10,37 +10,33 @@
 #ifndef NINEENGINE_INSTANCE_H
 #define NINEENGINE_INSTANCE_H
 
-namespace Instance{
+//namespace Instance{
 
 
-    VkInstance createInstance(int debugMessanger);
+    VkInstance createInstance(bool enableValidationLayers);
     bool destroyInstance(VkInstance instance);
 
     ///Validation layers
-    VkDebugUtilsMessengerEXT setupDebugMessenger();
+    VkDebugUtilsMessengerEXT setupDebugMessenger(VkInstance instance);
     VkDebugUtilsMessengerCreateInfoEXT populateDebugMessengerCreateInfo();
     bool checkValidationLayerSupport();
-    VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
                                           const VkAllocationCallbacks *pAllocator,
                                           VkDebugUtilsMessengerEXT *pDebugMessenger);
-    void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+
+    void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
                                     const VkAllocationCallbacks *pAllocator);
 
 
     ///Sub/Helper functions
-    std::vector<const char *> getRequiredExtensions();
+    std::vector<const char *> getRequiredExtensions(bool enableValidationLayers);
     VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                            VkDebugUtilsMessageTypeFlagsEXT messageType,
                            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 
 
 
-    ///Variables and structs i guess
-    std::vector<const char *> validationLayers = {
-            "VK_LAYER_KHRONOS_validation"
-    };
-
-}
+//}
 
 
 
