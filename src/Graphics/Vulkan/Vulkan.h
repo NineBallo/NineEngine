@@ -20,12 +20,12 @@ public:
     ~Vulkan();
 
 
-
+    GLFWwindow* windowHandle;
 private:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkDevice device;
-
+    VkSurfaceKHR surface;
 
 };
 

@@ -10,12 +10,9 @@
 #ifndef NINEENGINE_INSTANCE_H
 #define NINEENGINE_INSTANCE_H
 
-//namespace Instance{
-
-
+namespace VKBareAPI::Instance {
     VkInstance createInstance(bool enableValidationLayers);
     bool destroyInstance(VkInstance instance);
-
     ///Validation layers
     VkDebugUtilsMessengerEXT setupDebugMessenger(VkInstance instance);
     VkDebugUtilsMessengerCreateInfoEXT populateDebugMessengerCreateInfo();
@@ -23,20 +20,15 @@
     VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
                                           const VkAllocationCallbacks *pAllocator,
                                           VkDebugUtilsMessengerEXT *pDebugMessenger);
-
     void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
-                                    const VkAllocationCallbacks *pAllocator);
-
-
+                                       const VkAllocationCallbacks *pAllocator);
     ///Sub/Helper functions
     std::vector<const char *> getRequiredExtensions(bool enableValidationLayers);
     VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                            VkDebugUtilsMessageTypeFlagsEXT messageType,
                            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+    }
 
-
-
-//}
 
 
 

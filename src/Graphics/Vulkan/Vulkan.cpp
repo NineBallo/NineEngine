@@ -4,15 +4,25 @@
 
 #include "Vulkan.h"
 #include "LeStuff/Instance.h"
+#include "../Devices/Window.h"
+
+using namespace VKBareAPI;
 
 Vulkan::Vulkan() {
-    instance = createInstance(true);
-    debugMessenger = setupDebugMessenger(instance);
+
+    windowHandle = Graphics::Window::createWindow(600, 700, "googa booga", false);
+
+    instance = Instance::createInstance(true);
+    debugMessenger = Instance::setupDebugMessenger(instance);
+
+    surface = Surface::createSurface(instance, windowHandle);
 }
 
 Vulkan::~Vulkan() {
-    destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-    destroyInstance(instance);
+    Surface::destroySurface(instance, surface);
+    Graphics::Window::destroyWindow(windowHandle);
 
+    Instance::destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+    Instance::destroyInstance(instance);
 
 }

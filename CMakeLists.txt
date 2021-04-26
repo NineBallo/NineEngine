@@ -11,7 +11,7 @@ find_package(glfw3 REQUIRED FATAL_ERROR) # error
 find_package(glm REQUIRED FATAL_ERROR) # error
 
 
-add_executable(NineEngine src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/LeStuff/Pipeline.cpp src/Graphics/Vulkan/LeStuff/Pipeline.h src/Graphics/Vulkan/LeStuff/Swapchain.cpp src/Graphics/Vulkan/LeStuff/Swapchain.h src/Graphics/Vulkan/LeStuff/Renderpass.cpp src/Graphics/Vulkan/LeStuff/Renderpass.h src/Graphics/Vulkan/LeStuff/Device.cpp src/Graphics/Vulkan/LeStuff/Device.h src/Graphics/Vulkan/LeStuff/Instance.cpp src/Graphics/Vulkan/LeStuff/Instance.h src/main.cpp)
+add_executable(NineEngine src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/LeStuff/Pipeline.cpp src/Graphics/Vulkan/LeStuff/Pipeline.h src/Graphics/Vulkan/LeStuff/Swapchain.cpp src/Graphics/Vulkan/LeStuff/Swapchain.h src/Graphics/Vulkan/LeStuff/Renderpass.cpp src/Graphics/Vulkan/LeStuff/Renderpass.h src/Graphics/Vulkan/LeStuff/Device.cpp src/Graphics/Vulkan/LeStuff/Device.h src/Graphics/Vulkan/LeStuff/Instance.cpp src/Graphics/Vulkan/LeStuff/Instance.h src/Graphics/Devices/Window.cpp src/Graphics/Devices/Window.h Application/app.cpp Application/app.h)
 target_link_libraries (NineEngine glfw vulkan dl pthread X11 Xxf86vm Xrandr Xi)
 
 
