@@ -9,6 +9,9 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "Core/Instance.h"
+#include "Core/Device.h"
+
 ///TODO idk if ill need these lets see
 #include <set>
 #include <vector>
@@ -24,9 +27,11 @@ public:
 private:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkPhysicalDevice physicalDevice;
     VkDevice device;
     VkSurfaceKHR surface;
 
+    Device::DeviceQueues deviceQueues;
 };
 
 
