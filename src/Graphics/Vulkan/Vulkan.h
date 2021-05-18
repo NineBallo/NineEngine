@@ -11,11 +11,16 @@
 
 #include "Core/Instance.h"
 #include "Core/Device.h"
+#include "Core/Swapchain.h"
+#include "Core/Pipeline.h"
+#include "Core/Buffers.h"
 
 ///TODO idk if ill need these lets see
 #include <set>
 #include <vector>
 #include <array>
+
+using namespace VKBareAPI;
 
 class Vulkan {
 public:
@@ -23,15 +28,14 @@ public:
     ~Vulkan();
 
 
-    GLFWwindow* windowHandle;
-private:
+    Window::NEWindow windowVars;
+public:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-    VkSurfaceKHR surface;
 
-    Device::DeviceQueues deviceQueues;
+    Device::NEDevice deviceVars;
+    Swapchain::NESwapchain swapchainVars;
+    Pipeline::NEPipeline pipelineVars;
 };
 
 

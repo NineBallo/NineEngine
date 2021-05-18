@@ -3,7 +3,7 @@
 //
 
 #include "Vulkan.h"
-
+#include <unistd.h>
 #include "../Devices/Window.h"
 
 
@@ -11,29 +11,41 @@ using namespace VKBareAPI;
 
 Vulkan::Vulkan() {
 
-    windowHandle = Graphics::Window::createWindow(600, 700, "googa booga", false);
+    windowVars.window = Graphics::Window::createWindow(600, 700, "googa booga", false);
 
     ///initialize vulky
     instance = Instance::createInstance(true);
     debugMessenger = Instance::setupDebugMessenger(instance);
 
     ///Setup window with Vulkan
-    surface = Surface::createSurface(instance, windowHandle);
+    Window::createSurface(windowVars, instance);
 
     ///Setup Vulkan devices/queues
-    physicalDevice = Device::pickPhysicalDevice(instance, surface);
-    deviceQueues = Device::createLogicalDevice(physicalDevice, surface);
+    Device::createDevices(deviceVars, instance, windowVars.surface, swapchainVars.swapChainSupportDetails);
 
+    ///Setup swapchain
+    Swapchain::createSwapChain(swapchainVars, deviceVars, windowVars);
 
+    ///Setup pipeline
+    Pipeline::create(pipelineVars, deviceVars.device, swapchainVars);
 
-
+    ///Setup commandBuffer
+    Buffers::create(deviceVars, swapchainVars, pipelineVars);
 }
 
 Vulkan::~Vulkan() {
-    Device::destroy(deviceQueues.device);
 
-    Surface::destroySurface(instance, surface);
-    Graphics::Window::destroyWindow(windowHandle);
+    usleep(1000000);
+    Swapchain::destroy(swapchainVars, deviceVars);
+
+    Buffers::destroy(deviceVars);
+
+    Pipeline::destroy(pipelineVars, deviceVars.device, swapchainVars);
+
+    Device::destroy(deviceVars.device);
+
+    Window::destroySurface(instance, windowVars.surface);
+    Graphics::Window::destroyWindow(windowVars.window);
 
     Instance::destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     Instance::destroyInstance(instance);

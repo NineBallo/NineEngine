@@ -35,16 +35,13 @@ bool Graphics::Window::shouldExit(GLFWwindow* windowHandle){
 }
 
 
-VkSurfaceKHR VKBareAPI::Surface::createSurface(VkInstance instance, GLFWwindow *windowHandle) {
-    VkSurfaceKHR surface;
+void VKBareAPI::Window::createSurface(VKBareAPI::Window::NEWindow &windowVars, VkInstance instance) {
 
-    if (glfwCreateWindowSurface(instance, windowHandle, nullptr, &surface) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create window surface!");
+    if (glfwCreateWindowSurface(instance, windowVars.window, nullptr, &windowVars.surface) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create window surface!");
     }
-
-    return surface;
 }
 
-void VKBareAPI::Surface::destroySurface(VkInstance instance, VkSurfaceKHR surface) {
+void VKBareAPI::Window::destroySurface(VkInstance instance, VkSurfaceKHR surface) {
     vkDestroySurfaceKHR(instance, surface, nullptr);
 }

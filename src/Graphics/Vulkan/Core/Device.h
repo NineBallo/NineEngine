@@ -13,15 +13,17 @@
 #include <set>
 #include "SharedStructs.h"
 
-namespace Device {
+namespace VKBareAPI::Device {
+
+    void createDevices(NEDevice &devices, VkInstance instance, VkSurfaceKHR surface, Swapchain::SwapChainSupportDetails &swapChainSupportDetails);
 
     VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
-    DeviceQueues createLogicalDevice(VkPhysicalDevice device, VkSurfaceKHR surface);
+    NEDevice createLogicalDevice(VkPhysicalDevice device, VkSurfaceKHR surface);
 
     bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+    Swapchain::SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
 

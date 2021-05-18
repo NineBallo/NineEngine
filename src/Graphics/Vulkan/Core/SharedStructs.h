@@ -9,36 +9,132 @@
 #include <vector>
 #include <array>
 #include <set>
+#include <optional>
+#include <glm/glm.hpp>
 
+namespace VKBareAPI {
+    struct Vertex {
+        glm::vec2 pos;
+        glm::vec3 color;
 
-namespace Device {
+        static VkVertexInputBindingDescription getBindingDescription() {
+            VkVertexInputBindingDescription bindingDescription{};
+            bindingDescription.binding = 0;
+            bindingDescription.stride = sizeof(Vertex);
+            bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    struct QueueFamilyIndices {
-        std::optional<uint32_t> graphicsFamily;
-        std::optional<uint32_t> presentFamily;
+            return bindingDescription;
+        }
 
-        bool isComplete() {
-            return graphicsFamily.has_value();
+        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+            attributeDescriptions[0].binding = 0;
+            attributeDescriptions[0].location = 0;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+            attributeDescriptions[1].binding = 0;
+            attributeDescriptions[1].location = 1;
+            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+            return attributeDescriptions;
         }
     };
 
-    struct SwapChainSupportDetails {
-        VkSurfaceCapabilitiesKHR capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR> presentModes;
-    };
+    namespace Buffers {
+        struct NEBuffers{
+            VkBuffer indexBuffer;
+            VkBuffer vertexBuffer;
 
-    const std::vector<const char *> deviceExtensions = {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME
-    };
+            VkDeviceMemory indexBufferMemory;
+            VkDeviceMemory vertexBufferMemory;
+
+            std::vector<VkCommandBuffer> commandBuffers;
+        };
+
+        const std::vector<uint16_t> indices = {
+                0, 1, 2, 2, 3, 0
+        };
+
+        const std::vector<VKBareAPI::Vertex> vertices = {
+                {{-0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},
+                {{0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+                {{0.5f, 0.5f}, {1.0f, 0.0f, 5.0f}},
+                {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        };
+    }
+
+    namespace Device {
+        struct QueueFamilyIndices {
+            std::optional<uint32_t> graphicsFamily;
+            std::optional<uint32_t> presentFamily;
 
 
+            bool isComplete() {
+                return graphicsFamily.has_value();
+            }
+        };
 
-    struct DeviceQueues {
-        VkQueue GraphicsQueue;
-        VkQueue PresentQueue;
-        VkDevice device;
-        VkPhysicalDevice physicalDevice;
-    };
+        const std::vector<const char *> deviceExtensions = {
+                VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        };
+
+        struct NEDevice {
+            VkQueue graphicsQueue;
+            VkQueue presentQueue;
+            VkDevice device;
+            VkPhysicalDevice physicalDevice;
+            QueueFamilyIndices indices;
+            VkCommandPool commandPool;
+
+            VKBareAPI::Buffers::NEBuffers Buffers;
+        };
+    }
+
+    namespace Swapchain {
+        struct SwapChainSupportDetails {
+            VkSurfaceCapabilitiesKHR capabilities;
+            std::vector<VkSurfaceFormatKHR> formats;
+            std::vector<VkPresentModeKHR> presentModes;
+
+
+        };
+
+        struct NESwapchain {
+            int MAX_FRAMES_IN_FLIGHT = 2;
+            int currentFrame = 0;
+
+            VkSwapchainKHR swapchain;
+            VkFormat swapChainImageFormat;
+            VkExtent2D swapChainExtent;
+            SwapChainSupportDetails swapChainSupportDetails;
+
+            std::vector<VkImage> swapChainImages;
+            std::vector<VkImageView> swapChainImageViews;
+            std::vector<VkFramebuffer> swapChainFramebuffers;
+
+            std::vector<VkFence> inFlightFences;
+            std::vector<VkFence> imagesInFlight;
+
+            std::vector<VkSemaphore> imageAvailableSemaphores;
+            std::vector<VkSemaphore> renderFinishedSemaphores;
+        };
+    }
+
+    namespace Window {
+        struct NEWindow {
+            GLFWwindow* window;
+            VkSurfaceKHR surface;
+        };
+    }
+
+    namespace Pipeline {
+        struct NEPipeline {
+            VkPipelineLayout pipelineLayout;
+            VkPipeline pipeline;
+            VkRenderPass renderPass;
+        };
+    }
 }
 #endif //NINEENGINE_SHAREDSTRUCTS_H

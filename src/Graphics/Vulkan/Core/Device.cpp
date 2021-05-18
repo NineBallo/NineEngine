@@ -10,9 +10,12 @@
 std::vector<const char *> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
 };
+
 bool enableValidationLayers = false;
 
-namespace Device {
+
+
+namespace VKBareAPI::Device {
 
     VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
         VkPhysicalDevice physicalDevice;
@@ -44,7 +47,6 @@ namespace Device {
         }
     }
 
-
     bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
 
         QueueFamilyIndices indices = findQueueFamilies(device, surface);
@@ -54,7 +56,7 @@ namespace Device {
 
         bool swapChainAdequate = false;
         if (extensionsSupported) {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
+            Swapchain::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
             swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
 
@@ -62,8 +64,8 @@ namespace Device {
         return  indices.graphicsFamily.has_value() && extensionsSupported && swapChainAdequate;
     }
 
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
-        SwapChainSupportDetails details;
+    Swapchain::SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
+        Swapchain::SwapChainSupportDetails details;
 
         ///Thingy that gets surface capabilities
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
@@ -89,8 +91,7 @@ namespace Device {
         return details;
     }
 
-
-    DeviceQueues createLogicalDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+    NEDevice createLogicalDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
         VkDevice device;
 
@@ -111,7 +112,7 @@ namespace Device {
             queueCreateInfo.pQueuePriorities = &queuePriority;
 
             queueCreateInfos.push_back(queueCreateInfo);
-        };
+        }
 
         VkPhysicalDeviceFeatures deviceFeatures{};
         VkDeviceCreateInfo createInfo{};
@@ -138,17 +139,14 @@ namespace Device {
             throw std::runtime_error("failed to create logical device!");
         }
 
+        NEDevice deviceVars{};
+        deviceVars.physicalDevice = physicalDevice;
+        deviceVars.device = device;
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &deviceVars.graphicsQueue);
+        vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &deviceVars.presentQueue);
 
-
-        DeviceQueues deviceQueues{};
-        deviceQueues.physicalDevice = physicalDevice;
-        deviceQueues.device = device;
-        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &deviceQueues.GraphicsQueue);
-        vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &deviceQueues.PresentQueue);
-
-        return deviceQueues;
+        return deviceVars;
     }
-
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface){
 
@@ -179,7 +177,6 @@ namespace Device {
         return indices;
     }
 
-
     bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
         //Get all extensions
         uint32_t extensionCount;
@@ -200,9 +197,21 @@ namespace Device {
         return requiredExtensions.empty();
     }
 
+    void createDevices(NEDevice &devices, VkInstance instance, VkSurfaceKHR surface, Swapchain::SwapChainSupportDetails &swapChainSupportDetails) {
+        devices = createLogicalDevice(pickPhysicalDevice(instance, surface), surface);
+
+        devices.indices = findQueueFamilies(devices.physicalDevice, surface);
+        swapChainSupportDetails = querySwapChainSupport(devices.physicalDevice, surface);
+
+    }
+
     void destroy(VkDevice device){
         vkDestroyDevice(device, nullptr);
         std::cout << "Cleaned up devices :)\n";
     }
+
+
+
+
 }
 
