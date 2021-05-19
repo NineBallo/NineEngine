@@ -29,6 +29,10 @@ public:
 
 
     Window::NEWindow windowVars;
+
+    void mainLoop();
+
+
 public:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;

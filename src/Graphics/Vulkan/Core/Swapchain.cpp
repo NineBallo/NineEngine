@@ -143,12 +143,13 @@ namespace VKBareAPI::Swapchain {
     }
 
     void destroy(NESwapchain &swapchainVars, Device::NEDevice &deviceVars){
+        std::cout << "Destroying swapchain :(\n";
         for (size_t i = 0; i < swapchainVars.MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(deviceVars.device, swapchainVars.renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(deviceVars.device, swapchainVars.imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(deviceVars.device, swapchainVars.inFlightFences[i], nullptr);
         }
-        vkDestroyCommandPool(deviceVars.device, deviceVars.commandPool, nullptr);
+
 
         for (auto imageview : swapchainVars.swapChainImageViews){
             vkDestroyImageView(deviceVars.device, imageview, nullptr);

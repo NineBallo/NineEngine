@@ -9,8 +9,6 @@
 int main(){
     Vulkan crab;
 
-    while(!Graphics::Window::shouldExit(crab.windowVars.window)){
-        VKBareAPI::Swapchain::drawFrame(crab.swapchainVars, crab.deviceVars);
-    };
+
 
 }

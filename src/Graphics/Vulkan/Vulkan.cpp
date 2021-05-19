@@ -31,11 +31,12 @@ Vulkan::Vulkan() {
 
     ///Setup commandBuffer
     Buffers::create(deviceVars, swapchainVars, pipelineVars);
+
+    mainLoop();
 }
 
 Vulkan::~Vulkan() {
 
-    usleep(1000000);
     Swapchain::destroy(swapchainVars, deviceVars);
 
     Buffers::destroy(deviceVars);
@@ -44,13 +45,19 @@ Vulkan::~Vulkan() {
 
     Device::destroy(deviceVars.device);
 
+
     Window::destroySurface(instance, windowVars.surface);
-    Graphics::Window::destroyWindow(windowVars.window);
 
     Instance::destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     Instance::destroyInstance(instance);
 
-
-
+    Graphics::Window::destroyWindow(windowVars.window);
 }
 
+
+void Vulkan::mainLoop() {
+    while(!Graphics::Window::shouldExit(windowVars.window)){
+        VKBareAPI::Swapchain::drawFrame(swapchainVars, deviceVars);
+    }
+    vkDeviceWaitIdle(deviceVars.device);
+}
