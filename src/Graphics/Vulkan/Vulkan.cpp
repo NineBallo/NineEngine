@@ -3,7 +3,6 @@
 //
 
 #include "Vulkan.h"
-#include <unistd.h>
 #include "../Devices/Window.h"
 
 
@@ -11,7 +10,7 @@ using namespace VKBareAPI;
 
 Vulkan::Vulkan() {
 
-    windowVars.window = Graphics::Window::createWindow(600, 700, "googa booga", false);
+    windowVars.window = Graphics::Window::createWindow(600, 700, "why do i hate myself", true, this);
 
     ///initialize vulky
     instance = Instance::createInstance(true);
@@ -37,11 +36,13 @@ Vulkan::Vulkan() {
 
 Vulkan::~Vulkan() {
 
-    Swapchain::destroy(swapchainVars, deviceVars);
+    Swapchain::destroy(swapchainVars, deviceVars, pipelineVars);
+
+    vkDestroyDescriptorSetLayout(deviceVars.device, pipelineVars.descriptorSetLayout, nullptr);
 
     Buffers::destroy(deviceVars);
 
-    Pipeline::destroy(pipelineVars, deviceVars.device, swapchainVars);
+  //  Pipeline::destroy(pipelineVars, deviceVars.device, swapchainVars);
 
     Device::destroy(deviceVars.device);
 
@@ -57,7 +58,10 @@ Vulkan::~Vulkan() {
 
 void Vulkan::mainLoop() {
     while(!Graphics::Window::shouldExit(windowVars.window)){
-        VKBareAPI::Swapchain::drawFrame(swapchainVars, deviceVars);
+        VKBareAPI::Swapchain::drawFrame(swapchainVars, deviceVars, pipelineVars, windowVars);
     }
     vkDeviceWaitIdle(deviceVars.device);
 }
+
+
+

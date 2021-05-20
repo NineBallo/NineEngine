@@ -13,7 +13,7 @@
 #include <iostream>
 
 namespace VKBareAPI::Pipeline::Renderpass {
-    VkRenderPass createRenderPass(VkDevice device, VkFormat imageFormat);
+    void createRenderPass(VkRenderPass &renderPass, VkDevice device, VkFormat imageFormat);
     void destroy(VkRenderPass renderPass, VkDevice device);
 }
 

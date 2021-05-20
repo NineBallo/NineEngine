@@ -5,7 +5,8 @@
 #include "Window.h"
 #include <iostream>
 
-GLFWwindow * Graphics::Window::createWindow(int width, int height, const char *title, bool resizable) {
+
+GLFWwindow * Graphics::Window::createWindow(int width, int height, const char *title, bool resizable, Vulkan* vulkan) {
     glfwInit();
 
     ///Dont create an opengl context
@@ -17,7 +18,11 @@ GLFWwindow * Graphics::Window::createWindow(int width, int height, const char *t
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     }
 
-    return glfwCreateWindow(width, height, title, nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(width, height, title, nullptr, nullptr);
+    glfwSetWindowUserPointer(window, vulkan);
+    glfwSetFramebufferSizeCallback(window, VKBareAPI::Window::framebufferResizeCallback);
+
+    return window;
 }
 
 void Graphics::Window::destroyWindow(GLFWwindow *windowHandle) {
@@ -44,4 +49,9 @@ void VKBareAPI::Window::createSurface(VKBareAPI::Window::NEWindow &windowVars, V
 
 void VKBareAPI::Window::destroySurface(VkInstance instance, VkSurfaceKHR surface) {
     vkDestroySurfaceKHR(instance, surface, nullptr);
+}
+
+static void VKBareAPI::Window::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    auto app = reinterpret_cast<Vulkan*>(glfwGetWindowUserPointer(window));
+    app->swapchainVars.framebufferResized = true;
 }

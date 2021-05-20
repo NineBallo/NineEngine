@@ -9,7 +9,8 @@
 
 namespace VKBareAPI::Pipeline {
     VkPipeline create(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars) {
-        pipelineVars.renderPass = Renderpass::createRenderPass(device, swapvars.swapChainImageFormat);
+        Renderpass::createRenderPass(pipelineVars.renderPass, device, swapvars.swapChainImageFormat);
+        createDescriptorSetLayout(device, pipelineVars);
         createPipeline(pipelineVars, device, swapvars);
         createFrameBuffers(pipelineVars, device, swapvars);
     }
@@ -111,7 +112,7 @@ namespace VKBareAPI::Pipeline {
         rasterizer.lineWidth = 1.0f;
 
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f; // Optional
@@ -165,8 +166,8 @@ namespace VKBareAPI::Pipeline {
         ///Create pipeline layout
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0; // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+        pipelineLayoutInfo.setLayoutCount = 1; // Optional
+        pipelineLayoutInfo.pSetLayouts = &pipelineVars.descriptorSetLayout; // Optional
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -261,6 +262,22 @@ namespace VKBareAPI::Pipeline {
             throw std::runtime_error("Failed to create shader module!");
         }
         return shaderModule;
-    };
+    }
 
+    void createDescriptorSetLayout(VkDevice device, NEPipeline &pipelineVars) {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &pipelineVars.descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
+        }
+    }
 }

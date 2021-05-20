@@ -7,7 +7,7 @@
 
 namespace VKBareAPI::Pipeline::Renderpass{
 
-    VkRenderPass createRenderPass(VkDevice device, VkFormat imageFormat) {
+    void createRenderPass(VkRenderPass &renderPass, VkDevice device, VkFormat imageFormat) {
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
@@ -64,11 +64,10 @@ namespace VKBareAPI::Pipeline::Renderpass{
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        VkRenderPass renderPass;
+
         if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass!");
         }
-        return renderPass;
     }
 
     void destroy(VkRenderPass renderPass, VkDevice device) {

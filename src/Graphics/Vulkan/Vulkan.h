@@ -32,7 +32,6 @@ public:
 
     void mainLoop();
 
-
 public:
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;

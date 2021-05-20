@@ -28,6 +28,13 @@ namespace VKBareAPI::Buffers {
     uint32_t findMemoryType(uint32_t typeFilter, VkPhysicalDevice physicalDevice, VkMemoryPropertyFlags properties);
 
     void createSyncObjects(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars);
+
+    void createUniformBuffers(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars);
+
+    void updateUniformBuffer(uint32_t currentImage, Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars);
+
+    void createDescriptorPool(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars);
+    void createDescriptorSets(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars, Pipeline::NEPipeline &pipeline);
 }
 
 #endif //NINEENGINE_BUFFERS_H

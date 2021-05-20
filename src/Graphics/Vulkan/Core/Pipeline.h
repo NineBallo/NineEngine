@@ -18,5 +18,7 @@ namespace VKBareAPI::Pipeline {
     void createFrameBuffers(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars);
     static std::vector<char> readFile(const std::string& filename);
     VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
+
+    void createDescriptorSetLayout(VkDevice device, NEPipeline &pipelineVars);
 }
 

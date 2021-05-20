@@ -12,7 +12,7 @@
 
 namespace VKBareAPI::Instance {
     VkInstance createInstance(bool enableValidationLayers);
-    bool destroyInstance(VkInstance instance);
+    void destroyInstance(VkInstance instance);
     ///Validation layers
     VkDebugUtilsMessengerEXT setupDebugMessenger(VkInstance instance);
     VkDebugUtilsMessengerCreateInfoEXT populateDebugMessengerCreateInfo();

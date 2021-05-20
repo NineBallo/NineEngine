@@ -5,8 +5,15 @@
 #include "Swapchain.h"
 #include <iostream>
 
+#include "Pipeline.h"
+#include "Buffers.h"
+#include "Renderpass.h"
+
+#include "unistd.h"
+
 namespace VKBareAPI::Swapchain {
-    void createSwapChain(NESwapchain &swapchainVars, Device::NEDevice deviceVars, Window::NEWindow windowVars){
+    void createSwapChain(NESwapchain &swapchainVars, Device::NEDevice deviceVars, Window::NEWindow &windowVars){
+        swapchainVars.swapChainSupportDetails = querySwapChainSupport(deviceVars.physicalDevice, windowVars.surface);
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapchainVars.swapChainSupportDetails.formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(swapchainVars.swapChainSupportDetails.presentModes);
@@ -17,7 +24,6 @@ namespace VKBareAPI::Swapchain {
         if (swapchainVars.swapChainSupportDetails.capabilities.maxImageCount > 0 && imageCount > swapchainVars.swapChainSupportDetails.capabilities.maxImageCount) {
             imageCount = swapchainVars.swapChainSupportDetails.capabilities.maxImageCount;
         }
-        std::cout << "Rendering to " << imageCount << " images\n";
 
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -59,9 +65,6 @@ namespace VKBareAPI::Swapchain {
 
         if (vkCreateSwapchainKHR(deviceVars.device, &createInfo, nullptr, &swapchainVars.swapchain) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create swap chain!");
-        }
-        else {
-            std::cout << "SwapChain probably successfully created.\n";
         }
 
         ///Populate swapchainVar struct
@@ -114,10 +117,10 @@ namespace VKBareAPI::Swapchain {
 
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities, Window::NEWindow windowVars) {
         if (capabilities.currentExtent.width != UINT32_MAX) {
+            std::cout << capabilities.currentExtent.width << "X" << capabilities.currentExtent.height << "\n";
             return capabilities.currentExtent;
         } else {
             int width, height;
-
             glfwGetFramebufferSize(windowVars.window, &width, &height);
 
             VkExtent2D actualExtent = {
@@ -127,7 +130,7 @@ namespace VKBareAPI::Swapchain {
 
             actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
             actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
-
+            std::cout << actualExtent.width << "X" << actualExtent.height << "\n";
             return actualExtent;
         }
     }
@@ -142,36 +145,40 @@ namespace VKBareAPI::Swapchain {
         return VK_PRESENT_MODE_FIFO_KHR;
     }
 
-    void destroy(NESwapchain &swapchainVars, Device::NEDevice &deviceVars){
+    void destroy(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars){
         std::cout << "Destroying swapchain :(\n";
+        cleanupSwapChain(swapchainVars, deviceVars, pipelineVars);
+
         for (size_t i = 0; i < swapchainVars.MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(deviceVars.device, swapchainVars.renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(deviceVars.device, swapchainVars.imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(deviceVars.device, swapchainVars.inFlightFences[i], nullptr);
         }
-
-
-        for (auto imageview : swapchainVars.swapChainImageViews){
-            vkDestroyImageView(deviceVars.device, imageview, nullptr);
-        }
-        vkDestroySwapchainKHR(deviceVars.device, swapchainVars.swapchain, nullptr);
     }
 
 
-    void drawFrame(NESwapchain &swapchainVars, Device::NEDevice &deviceVars){
+    void drawFrame(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars, Window::NEWindow &windowVars){
 
         ///Wait for the fence representing the image we want to render to finish submitting to the gpu before submitting another command buffer
         vkWaitForFences(deviceVars.device, 1, &swapchainVars.inFlightFences[swapchainVars.currentFrame], VK_TRUE, UINT64_MAX);
 
         ///Get next position/index in swap buffer.
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(deviceVars.device, swapchainVars.swapchain, UINT64_MAX, swapchainVars.imageAvailableSemaphores[swapchainVars.currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(deviceVars.device, swapchainVars.swapchain, UINT64_MAX, swapchainVars.imageAvailableSemaphores[swapchainVars.currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            recreateSwapChain(swapchainVars, deviceVars, pipelineVars, windowVars);
+            return;
+        } else if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to acquire swap chain image!");
+        }
+
+        Buffers::updateUniformBuffer(imageIndex, deviceVars, swapchainVars);
 
         ///If image is being presented then wait for it to finish, if fence does not yet exist then skip.
         if (swapchainVars.imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
             vkWaitForFences(deviceVars.device, 1, &swapchainVars.imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
         }
-
         ///Assign the respective fence to a specific image.
         swapchainVars.imagesInFlight[imageIndex] = swapchainVars.inFlightFences[swapchainVars.currentFrame];
 
@@ -197,7 +204,7 @@ namespace VKBareAPI::Swapchain {
 
         ///Submit graphics queue and continue if successful
         if (vkQueueSubmit(deviceVars.graphicsQueue, 1, &submitInfo, swapchainVars.inFlightFences[swapchainVars.currentFrame]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to submit draw command buffer!");
+            throw std::runtime_error("Failed to submit draw command buffer!");
         }
 
         VkPresentInfoKHR presentInfo{};
@@ -214,8 +221,88 @@ namespace VKBareAPI::Swapchain {
         presentInfo.pResults = nullptr;
 
         ///Flip buffers, vibe.
-        vkQueuePresentKHR(deviceVars.presentQueue, &presentInfo);
+        result = vkQueuePresentKHR(deviceVars.presentQueue, &presentInfo);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || swapchainVars.framebufferResized) {
+            swapchainVars.framebufferResized = false;
+            recreateSwapChain(swapchainVars, deviceVars, pipelineVars, windowVars);
+        } else if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to present swap chain image!");
+        }
 
         swapchainVars.currentFrame = (swapchainVars.currentFrame+1) % swapchainVars.MAX_FRAMES_IN_FLIGHT;
+    }
+
+    void cleanupSwapChain(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars) {
+
+        for (auto framebuffer : swapchainVars.swapChainFramebuffers) {
+            vkDestroyFramebuffer(deviceVars.device, framebuffer, nullptr);
+        }
+
+        vkFreeCommandBuffers(deviceVars.device, deviceVars.commandPool, static_cast<uint32_t>(deviceVars.Buffers.commandBuffers.size()), deviceVars.Buffers.commandBuffers.data());
+
+        vkDestroyPipeline(deviceVars.device, pipelineVars.pipeline, nullptr);
+        vkDestroyPipelineLayout(deviceVars.device, pipelineVars.pipelineLayout, nullptr);
+        vkDestroyRenderPass(deviceVars.device, pipelineVars.renderPass, nullptr);
+
+        for (auto imageView : swapchainVars.swapChainImageViews) {
+            vkDestroyImageView(deviceVars.device, imageView, nullptr);
+        }
+
+        vkDestroySwapchainKHR(deviceVars.device, swapchainVars.swapchain, nullptr);
+
+        for (size_t i = 0; i < swapchainVars.swapChainImages.size(); i++) {
+            vkDestroyBuffer(deviceVars.device, deviceVars.Buffers.uniformBuffers[i], nullptr);
+            vkFreeMemory(deviceVars.device, deviceVars.Buffers.uniformBuffersMemory[i], nullptr);
+        }
+        vkDestroyDescriptorPool(deviceVars.device, deviceVars.descriptorPool, nullptr);
+    }
+
+    void recreateSwapChain(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars, Window::NEWindow &windowVars) {
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(windowVars.window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(windowVars.window, &width, &height);
+            glfwWaitEvents();
+        }
+
+        vkDeviceWaitIdle(deviceVars.device);
+
+        cleanupSwapChain(swapchainVars, deviceVars, pipelineVars);
+
+        Swapchain::createSwapChain(swapchainVars, deviceVars, windowVars);
+        Pipeline::Renderpass::createRenderPass(pipelineVars.renderPass, deviceVars.device, swapchainVars.swapChainImageFormat);
+        Pipeline::createPipeline(pipelineVars, deviceVars.device, swapchainVars);
+        Pipeline::createFrameBuffers(pipelineVars, deviceVars.device, swapchainVars);
+        Buffers::createUniformBuffers(deviceVars, swapchainVars);
+        Buffers::createDescriptorPool(deviceVars, swapchainVars);
+        Buffers::createDescriptorSets(deviceVars, swapchainVars, pipelineVars);
+        Buffers::createCommandBuffers(deviceVars, swapchainVars, pipelineVars);
+
+        swapchainVars.imagesInFlight.resize(swapchainVars.swapChainImages.size(), VK_NULL_HANDLE);
+    }
+
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
+        SwapChainSupportDetails details;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+        if (formatCount != 0) {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0) {
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        }
+
+        return details;
     }
 }
