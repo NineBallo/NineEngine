@@ -11,8 +11,8 @@
 #include "SharedStructs.h"
 
 namespace VKBareAPI::Pipeline {
-    void destroy(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars);
-    VkPipeline create(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars);
+    void destroy(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars);
+    VkPipeline create(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars);
 
     void createPipeline(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars);
     void createFrameBuffers(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars);
@@ -20,5 +20,7 @@ namespace VKBareAPI::Pipeline {
     VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device);
 
     void createDescriptorSetLayout(VkDevice device, NEPipeline &pipelineVars);
+
+    void createTextureSampler(VkSampler &textureSampler, VkDevice device, VkPhysicalDevice physicalDevice);
 }
 

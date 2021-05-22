@@ -35,6 +35,17 @@ namespace VKBareAPI::Buffers {
 
     void createDescriptorPool(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars);
     void createDescriptorSets(Device::NEDevice &deviceVars, Swapchain::NESwapchain &swapchainVars, Pipeline::NEPipeline &pipeline);
+
+
+
+    VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool, VkDevice device);
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue);
+
+
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
+                               VkCommandPool commandPool, VkDevice device, VkQueue graphicsQueue);
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandPool commandPool,
+                           VkDevice device, VkQueue graphicsQueue);
 }
 
 #endif //NINEENGINE_BUFFERS_H

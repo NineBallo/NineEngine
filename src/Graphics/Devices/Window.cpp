@@ -22,6 +22,7 @@ GLFWwindow * Graphics::Window::createWindow(int width, int height, const char *t
     glfwSetWindowUserPointer(window, vulkan);
     glfwSetFramebufferSizeCallback(window, VKBareAPI::Window::framebufferResizeCallback);
 
+    vulkan->windowVars.title = title;
     return window;
 }
 

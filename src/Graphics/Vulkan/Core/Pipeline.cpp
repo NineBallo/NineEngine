@@ -8,24 +8,27 @@
 
 
 namespace VKBareAPI::Pipeline {
-    VkPipeline create(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars) {
-        Renderpass::createRenderPass(pipelineVars.renderPass, device, swapvars.swapChainImageFormat);
-        createDescriptorSetLayout(device, pipelineVars);
-        createPipeline(pipelineVars, device, swapvars);
-        createFrameBuffers(pipelineVars, device, swapvars);
+    VkPipeline create(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars) {
+        Renderpass::createRenderPass(pipelineVars.renderPass, deviceVars.device, swapvars.swapChainImageFormat);
+        createDescriptorSetLayout(deviceVars.device, pipelineVars);
+        createPipeline(pipelineVars, deviceVars.device, swapvars);
+        createFrameBuffers(pipelineVars, deviceVars.device, swapvars);
+
     }
 
-    void destroy(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars) {
+    void destroy(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars) {
 
+        vkDestroySampler(deviceVars.device, pipelineVars.textureSampler, nullptr);
+        vkDestroyImageView(deviceVars.device, deviceVars.Buffers.textureImageView, nullptr);
 
         for (auto framebuffer : swapvars.swapChainFramebuffers) {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
+            vkDestroyFramebuffer(deviceVars.device, framebuffer, nullptr);
         }
 
-        vkDestroyPipeline(device, pipelineVars.pipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineVars.pipelineLayout, nullptr);
+        vkDestroyPipeline(deviceVars.device, pipelineVars.pipeline, nullptr);
+        vkDestroyPipelineLayout(deviceVars.device, pipelineVars.pipelineLayout, nullptr);
 
-        Renderpass::destroy(pipelineVars.renderPass, device);
+        Renderpass::destroy(pipelineVars.renderPass, deviceVars.device);
         std::cout << "The pipeline had a family... They are also dead. :(\n";
     }
 
@@ -272,12 +275,55 @@ namespace VKBareAPI::Pipeline {
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
+        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+        samplerLayoutBinding.binding = 1;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());;
+        layoutInfo.pBindings = bindings.data();
         if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &pipelineVars.descriptorSetLayout) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create descriptor set layout!");
+        }
+    }
+
+
+    void createTextureSampler(VkSampler &textureSampler, VkDevice device, VkPhysicalDevice physicalDevice) {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+        ///Repeat, Mirrored repeat, Clamp to edge(repeat last know pixel), clamp to border
+        ///FOr handling what happens when the texture is too small
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+        samplerInfo.anisotropyEnable = VK_TRUE;
+        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;;
+
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+
+
+        if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture sampler!");
         }
     }
 }

@@ -4,7 +4,6 @@
 
 #include "app.h"
 #include "../src/Graphics/Vulkan/Vulkan.h"
-#include "../src/Graphics/Devices/Window.h"
 
 int main(){
     Vulkan crab;

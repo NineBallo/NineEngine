@@ -28,6 +28,7 @@ namespace VKBareAPI::Swapchain {
     void cleanupSwapChain(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars);
 
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+    VkImageView createImageView(VkImage image, VkFormat format, VkDevice device);
 }
 
 

@@ -11,9 +11,9 @@ find_package(glfw3 REQUIRED FATAL_ERROR) # error
 find_package(glm REQUIRED FATAL_ERROR) # error
 
 
-add_executable(NineEngine src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/Core/Pipeline.cpp src/Graphics/Vulkan/Core/Pipeline.h src/Graphics/Vulkan/Core/Swapchain.cpp src/Graphics/Vulkan/Core/Swapchain.h src/Graphics/Vulkan/Core/Renderpass.cpp src/Graphics/Vulkan/Core/Renderpass.h src/Graphics/Vulkan/Core/Device.cpp src/Graphics/Vulkan/Core/Device.h src/Graphics/Vulkan/Core/Instance.cpp src/Graphics/Vulkan/Core/Instance.h src/Graphics/Devices/Window.cpp src/Graphics/Devices/Window.h Application/app.cpp Application/app.h src/Graphics/Vulkan/Core/SharedStructs.h src/Graphics/Vulkan/Core/Buffers.cpp src/Graphics/Vulkan/Core/Buffers.h)
+add_executable(NineEngine src/Graphics/Vulkan/Vulkan.cpp src/Graphics/Vulkan/Vulkan.h src/Graphics/Vulkan/Core/Pipeline.cpp src/Graphics/Vulkan/Core/Pipeline.h src/Graphics/Vulkan/Core/Swapchain.cpp src/Graphics/Vulkan/Core/Swapchain.h src/Graphics/Vulkan/Core/Renderpass.cpp src/Graphics/Vulkan/Core/Renderpass.h src/Graphics/Vulkan/Core/Device.cpp src/Graphics/Vulkan/Core/Device.h src/Graphics/Vulkan/Core/Instance.cpp src/Graphics/Vulkan/Core/Instance.h src/Graphics/Devices/Window.cpp src/Graphics/Devices/Window.h Application/app.cpp Application/app.h src/Graphics/Vulkan/Core/SharedStructs.h src/Graphics/Vulkan/Core/Buffers.cpp src/Graphics/Vulkan/Core/Buffers.h src/ThirdParty/stb_image.h src/Graphics/Vulkan/Extra/Loader.cpp src/Graphics/Vulkan/Extra/Loader.h)
 target_link_libraries (NineEngine glfw vulkan dl pthread X11 Xxf86vm Xrandr Xi)
-
+target_include_directories(NineEngine PRIVATE src/ThirdParty)
 
 add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy

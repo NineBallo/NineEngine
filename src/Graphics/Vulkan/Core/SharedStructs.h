@@ -11,6 +11,8 @@
 #include <set>
 #include <optional>
 #include <glm/glm.hpp>
+#include <chrono>
+#include <string>
 
 namespace VKBareAPI {
 
@@ -23,6 +25,7 @@ namespace VKBareAPI {
     struct Vertex {
         glm::vec2 pos;
         glm::vec3 color;
+        glm::vec2 texCoord;
 
         static VkVertexInputBindingDescription getBindingDescription() {
             VkVertexInputBindingDescription bindingDescription{};
@@ -33,8 +36,9 @@ namespace VKBareAPI {
             return bindingDescription;
         }
 
-        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+
             attributeDescriptions[0].binding = 0;
             attributeDescriptions[0].location = 0;
             attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -45,8 +49,14 @@ namespace VKBareAPI {
             attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
             attributeDescriptions[1].offset = offsetof(Vertex, color);
 
+            attributeDescriptions[2].binding = 0;
+            attributeDescriptions[2].location = 2;
+            attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
             return attributeDescriptions;
         }
+
     };
 
     namespace Buffers {
@@ -56,6 +66,10 @@ namespace VKBareAPI {
 
             VkDeviceMemory indexBufferMemory;
             VkDeviceMemory vertexBufferMemory;
+
+            VkImage textureImage;
+            VkDeviceMemory textureImageMemory;
+            VkImageView textureImageView;
 
             std::vector<VkCommandBuffer> commandBuffers;
 
@@ -68,11 +82,11 @@ namespace VKBareAPI {
                 0, 1, 2, 2, 3, 0
         };
 
-        const std::vector<VKBareAPI::Vertex> vertices = {
-                {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
-                {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-                {{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-                {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        const std::vector<Vertex> vertices = {
+                {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+                {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+                {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+                {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
         };
     }
 
@@ -140,6 +154,8 @@ namespace VKBareAPI {
         struct NEWindow {
             GLFWwindow* window;
             VkSurfaceKHR surface;
+            std::chrono::time_point<std::chrono::system_clock> start, end;
+            std::string title;
         };
     }
 
@@ -147,7 +163,7 @@ namespace VKBareAPI {
         struct NEPipeline {
             VkPipelineLayout pipelineLayout;
             VkDescriptorSetLayout descriptorSetLayout;
-
+            VkSampler textureSampler;
             VkPipeline pipeline;
             VkRenderPass renderPass;
         };

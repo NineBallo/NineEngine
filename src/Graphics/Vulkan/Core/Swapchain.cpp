@@ -8,8 +8,8 @@
 #include "Pipeline.h"
 #include "Buffers.h"
 #include "Renderpass.h"
-
-#include "unistd.h"
+#include "cstring"
+#include <cmath>
 
 namespace VKBareAPI::Swapchain {
     void createSwapChain(NESwapchain &swapchainVars, Device::NEDevice deviceVars, Window::NEWindow &windowVars){
@@ -83,26 +83,32 @@ namespace VKBareAPI::Swapchain {
         swapchainVars.swapChainImageViews.resize(swapchainVars.swapChainImages.size());
 
         for(size_t i = 0; i < swapchainVars.swapChainImages.size(); i++){
-            VkImageViewCreateInfo  createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            createInfo.image = swapchainVars.swapChainImages[i];
-            ////TODO 3D???!?!?
-            createInfo.viewType =  VK_IMAGE_VIEW_TYPE_2D;
-            createInfo.format = swapchainVars.swapChainImageFormat;
-            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            createInfo.subresourceRange.baseMipLevel = 0;
-            createInfo.subresourceRange.levelCount = 1;
-            createInfo.subresourceRange.baseArrayLayer = 0;
-            createInfo.subresourceRange.layerCount = 1;
-
-            if(vkCreateImageView(device, &createInfo, nullptr, &swapchainVars.swapChainImageViews[i]) != VK_SUCCESS){
-                throw std::runtime_error("Failed to create image views!");
-            }
+            swapchainVars.swapChainImageViews[i] = createImageView(swapchainVars.swapChainImages[i], swapchainVars.swapChainImageFormat, device);
         }
+    }
+
+    VkImageView createImageView(VkImage image, VkFormat format, VkDevice device) {
+        VkImageViewCreateInfo  createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = image;
+
+        createInfo.viewType =  VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = format;
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView;
+        if(vkCreateImageView(device, &createInfo, nullptr, &imageView) != VK_SUCCESS){
+            throw std::runtime_error("Failed to create image view!");
+        }
+        return imageView;
     }
 
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
@@ -149,6 +155,8 @@ namespace VKBareAPI::Swapchain {
         std::cout << "Destroying swapchain :(\n";
         cleanupSwapChain(swapchainVars, deviceVars, pipelineVars);
 
+        vkDestroySampler(deviceVars.device, pipelineVars.textureSampler, nullptr);
+
         for (size_t i = 0; i < swapchainVars.MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(deviceVars.device, swapchainVars.renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(deviceVars.device, swapchainVars.imageAvailableSemaphores[i], nullptr);
@@ -158,6 +166,17 @@ namespace VKBareAPI::Swapchain {
 
 
     void drawFrame(NESwapchain &swapchainVars, Device::NEDevice &deviceVars, Pipeline::NEPipeline &pipelineVars, Window::NEWindow &windowVars){
+
+///_________________________________________________________________FPS SHIT///
+        windowVars.end = std::chrono::system_clock::now();
+        if (windowVars.start < windowVars.end)
+        {
+            std::chrono::duration<double> elapsed_seconds = windowVars.end - windowVars.start;
+            std::string title = windowVars.title + " [FPS: " + std::to_string((int)(floor(1 / elapsed_seconds.count()))) + " ]";
+            glfwSetWindowTitle(windowVars.window, title.c_str());
+        }
+        windowVars.start = std::chrono::system_clock::now();
+///-----------------------------------------------------------------FPS SHIT///
 
         ///Wait for the fence representing the image we want to render to finish submitting to the gpu before submitting another command buffer
         vkWaitForFences(deviceVars.device, 1, &swapchainVars.inFlightFences[swapchainVars.currentFrame], VK_TRUE, UINT64_MAX);

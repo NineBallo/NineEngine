@@ -6,6 +6,7 @@
 #include "../Devices/Window.h"
 
 
+
 using namespace VKBareAPI;
 
 Vulkan::Vulkan() {
@@ -26,10 +27,21 @@ Vulkan::Vulkan() {
     Swapchain::createSwapChain(swapchainVars, deviceVars, windowVars);
 
     ///Setup pipeline
-    Pipeline::create(pipelineVars, deviceVars.device, swapchainVars);
+    Pipeline::create(pipelineVars, deviceVars, swapchainVars);
 
     ///Setup commandBuffer
     Buffers::create(deviceVars, swapchainVars, pipelineVars);
+
+    VKExtraAPI::Texture::createTextureImage(deviceVars);
+    VKExtraAPI::Texture::createTextureImageView(deviceVars.Buffers.textureImage, deviceVars.Buffers.textureImageView,  deviceVars.device);
+
+    VKBareAPI::Pipeline::createTextureSampler(pipelineVars.textureSampler, deviceVars.device, deviceVars.physicalDevice);
+
+    VKBareAPI::Buffers::createDescriptorSets(deviceVars, swapchainVars, pipelineVars);
+    VKBareAPI::Buffers::createCommandBuffers(deviceVars, swapchainVars, pipelineVars);
+
+
+
 
     mainLoop();
 }
@@ -38,14 +50,16 @@ Vulkan::~Vulkan() {
 
     Swapchain::destroy(swapchainVars, deviceVars, pipelineVars);
 
+    vkDestroyImageView(deviceVars.device, deviceVars.Buffers.textureImageView, nullptr);
+    vkDestroyImage(deviceVars.device, deviceVars.Buffers.textureImage, nullptr);
+    vkFreeMemory(deviceVars.device, deviceVars.Buffers.textureImageMemory, nullptr);
+
+
     vkDestroyDescriptorSetLayout(deviceVars.device, pipelineVars.descriptorSetLayout, nullptr);
 
     Buffers::destroy(deviceVars);
 
-  //  Pipeline::destroy(pipelineVars, deviceVars.device, swapchainVars);
-
     Device::destroy(deviceVars.device);
-
 
     Window::destroySurface(instance, windowVars.surface);
 
