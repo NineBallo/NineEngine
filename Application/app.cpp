@@ -6,8 +6,6 @@
 #include "../src/Graphics/Vulkan/Vulkan.h"
 
 int main(){
-    Vulkan crab;
-
-
-
+    NEVK::Vulkan crab;
+    crab.mainLoop();
 }

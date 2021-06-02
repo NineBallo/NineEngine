@@ -1,46 +1,25 @@
-﻿//
-// Created by nineball on 4/16/21.
+//
+// Created by nineball on 5/30/21.
 //
 
-#include "Pipeline.h"
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "NEPipeline.h"
+#include "fstream"
 
-
-namespace VKBareAPI::Pipeline {
-    VkPipeline create(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars) {
-        Renderpass::createRenderPass(pipelineVars.renderPass, deviceVars.device, swapvars.swapChainImageFormat);
-        createDescriptorSetLayout(deviceVars.device, pipelineVars);
-        createPipeline(pipelineVars, deviceVars.device, swapvars);
-        createFrameBuffers(pipelineVars, deviceVars.device, swapvars);
-
+namespace NEVK {
+    NEPipeline::NEPipeline(NEDevice* device_, std::shared_ptr<NERenderpass>& renderpass_, std::shared_ptr<NEWindow>& window_)
+    : device(device_), renderpass(renderpass_), window(window_) {
+        createDescriptorSetLayout();
+        createPipeline();
     }
 
-    void destroy(NEPipeline &pipelineVars, Device::NEDevice &deviceVars, VKBareAPI::Swapchain::NESwapchain& swapvars) {
-
-        vkDestroySampler(deviceVars.device, pipelineVars.textureSampler, nullptr);
-        vkDestroyImageView(deviceVars.device, deviceVars.Buffers.textureImageView, nullptr);
-
-        for (auto framebuffer : swapvars.swapChainFramebuffers) {
-            vkDestroyFramebuffer(deviceVars.device, framebuffer, nullptr);
-        }
-
-        vkDestroyPipeline(deviceVars.device, pipelineVars.pipeline, nullptr);
-        vkDestroyPipelineLayout(deviceVars.device, pipelineVars.pipelineLayout, nullptr);
-
-        Renderpass::destroy(pipelineVars.renderPass, deviceVars.device);
-        std::cout << "The pipeline had a family... They are also dead. :(\n";
-    }
-
-
-    void createPipeline(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars) {
+    void NEPipeline::createPipeline() {
         //Read Shaders to buffer
         auto vertShaderCode = readFile("Shaders/vert.spv");
         auto fragShaderCode = readFile("Shaders/frag.spv");
 
         //Create shader Modules
-        VkShaderModule vertShader = createShaderModule(vertShaderCode, device);
-        VkShaderModule fragShader = createShaderModule(fragShaderCode, device);
+        VkShaderModule vertShader = createShaderModule(vertShaderCode);
+        VkShaderModule fragShader = createShaderModule(fragShaderCode);
 
         ///Assign shader to specific pipeline stage
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -86,15 +65,15 @@ namespace VKBareAPI::Pipeline {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float) swapvars.swapChainExtent.width;
-        viewport.height = (float) swapvars.swapChainExtent.height;
+        viewport.width = (float) window->getSwapchain()->getExtent().width;
+        viewport.height = (float) window->getSwapchain()->getExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         ///Filter  thing
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = swapvars.swapChainExtent;
+        scissor.extent = window->getExtent();
 
         ///Combine them into a viewport state.
         VkPipelineViewportStateCreateInfo viewportState{};
@@ -170,12 +149,12 @@ namespace VKBareAPI::Pipeline {
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1; // Optional
-        pipelineLayoutInfo.pSetLayouts = &pipelineVars.descriptorSetLayout; // Optional
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
 
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineVars.pipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(*device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
 
@@ -193,49 +172,24 @@ namespace VKBareAPI::Pipeline {
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = nullptr; // Optional
 
-        pipelineInfo.layout = pipelineVars.pipelineLayout;
-        pipelineInfo.renderPass = pipelineVars.renderPass;
+        pipelineInfo.layout = pipelineLayout;
+        pipelineInfo.renderPass = *renderpass;
         pipelineInfo.subpass = 0;
 
         ///Used to create a new pipeline derived off another.
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
         pipelineInfo.basePipelineIndex = -1; // Optional
 
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipelineVars.pipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(*device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
 
-        vkDestroyShaderModule(device, fragShader, nullptr);
-        vkDestroyShaderModule(device, vertShader, nullptr);
+        vkDestroyShaderModule(*device, fragShader, nullptr);
+        vkDestroyShaderModule(*device, vertShader, nullptr);
+
     }
 
-
-    void createFrameBuffers(NEPipeline &pipelineVars, VkDevice device, VKBareAPI::Swapchain::NESwapchain& swapvars) {
-        std::vector<VkFramebuffer>& swapChainFramebuffers = swapvars.swapChainFramebuffers;
-
-        swapChainFramebuffers.resize(swapvars.swapChainImageViews.size());
-
-        for (size_t i = 0; i < swapvars.swapChainImageViews.size(); i++) {
-            VkImageView attachments[] = {
-                    swapvars.swapChainImageViews[i]
-            };
-
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = pipelineVars.renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
-            framebufferInfo.width = swapvars.swapChainExtent.width;
-            framebufferInfo.height = swapvars.swapChainExtent.height;
-            framebufferInfo.layers = 1;
-
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
-            }
-        }
-    }
-
-    static std::vector<char> readFile(const std::string& filename){
+    std::vector<char> NEPipeline::readFile(const std::string &filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
         if (!file.is_open()) {
@@ -252,22 +206,55 @@ namespace VKBareAPI::Pipeline {
 
         file.close();
         return buffer;
-    };
+    }
 
-    VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice device) {
+    VkShaderModule NEPipeline::createShaderModule(const std::vector<char> &code) {
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+        if (vkCreateShaderModule(*device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create shader module!");
         }
         return shaderModule;
     }
 
-    void createDescriptorSetLayout(VkDevice device, NEPipeline &pipelineVars) {
+    void NEPipeline::createTextureSampler() {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+        ///Repeat, Mirrored repeat, Clamp to edge(repeat last know pixel), clamp to border
+        ///FOr handling what happens when the texture is too small
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);
+        samplerInfo.anisotropyEnable = VK_TRUE;
+        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;;
+
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+
+
+        if (vkCreateSampler(*device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture sampler!");
+        }
+    }
+
+    void NEPipeline::createDescriptorSetLayout() {
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -288,42 +275,12 @@ namespace VKBareAPI::Pipeline {
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());;
         layoutInfo.pBindings = bindings.data();
-        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &pipelineVars.descriptorSetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(*device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create descriptor set layout!");
         }
     }
 
 
-    void createTextureSampler(VkSampler &textureSampler, VkDevice device, VkPhysicalDevice physicalDevice) {
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
 
-        ///Repeat, Mirrored repeat, Clamp to edge(repeat last know pixel), clamp to border
-        ///FOr handling what happens when the texture is too small
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;;
-
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
-
-
-        if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
-    }
 }
+

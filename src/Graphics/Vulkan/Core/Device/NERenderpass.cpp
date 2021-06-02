@@ -1,13 +1,13 @@
 //
-// Created by nineball on 4/16/21.
+// Created by nineball on 5/30/21.
 //
 
-#include "Renderpass.h"
+#include "NERenderpass.h"
 
 
-namespace VKBareAPI::Pipeline::Renderpass{
 
-    void createRenderPass(VkRenderPass &renderPass, VkDevice device, VkFormat imageFormat) {
+namespace NEVK {
+    NERenderpass::NERenderpass(VkDevice device_, VkFormat imageFormat) : device{device_} {
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
@@ -65,12 +65,12 @@ namespace VKBareAPI::Pipeline::Renderpass{
         renderPassInfo.pDependencies = &dependency;
 
 
-        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderpass) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass!");
         }
     }
 
-    void destroy(VkRenderPass renderPass, VkDevice device) {
-        vkDestroyRenderPass(device, renderPass, nullptr);
+    NERenderpass::~NERenderpass() {
+        vkDestroyRenderPass(device, renderpass, nullptr);
     }
 }
