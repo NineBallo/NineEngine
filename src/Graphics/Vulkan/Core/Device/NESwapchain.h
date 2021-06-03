@@ -19,7 +19,7 @@ namespace NEVK {
 
     class NESwapchain {
     public:
-        NESwapchain(NEDevice* device_, NEWindow* window_);
+        NESwapchain(NEDevice* device_, VkExtent2D extent, VkSurfaceKHR surface);
         ~NESwapchain();
 
         void startFrame();
@@ -32,18 +32,14 @@ namespace NEVK {
 
         std::vector<VkFramebuffer> framebuffers;
 
-        VkExtent2D getExtent() {return extent;}
     private:
         void createSwapChain();
         void createSyncObjects();
 
-
-        void updateUniformBuffer(int currentImage);
         void createImageViews();
 
         VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
-        VkExtent2D chooseSwapExtent();
 
         std::vector<VkImage> swapChainImages;
         std::vector<VkImageView> swapChainImageViews;
@@ -64,6 +60,9 @@ namespace NEVK {
 
         VkQueue graphicsQueue;
         VkQueue presentQueue;
+        VkExtent2D mExtent;
+        VkSurfaceKHR mSurface;
+        VkFormat mFormat;
 
         VkSwapchainKHR swapchain;
 

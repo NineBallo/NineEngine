@@ -13,6 +13,7 @@
 #include "memory"
 
 
+
 class Vulkan {
 public:
     Vulkan();
@@ -22,7 +23,7 @@ public:
     void mainLoop();
 
 private:
-    std::shared_ptr<NERenderer> renderer;
+    std::shared_ptr<NEVK::NERenderer> renderer;
 };
 
 

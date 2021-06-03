@@ -6,9 +6,7 @@
 #define NINEENGINE_APP_H
 
 
-class app {
 
-};
 
 
 #endif //NINEENGINE_APP_H

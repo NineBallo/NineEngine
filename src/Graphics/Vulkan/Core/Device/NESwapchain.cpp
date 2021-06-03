@@ -13,7 +13,7 @@
 #include <cmath>
 
 namespace NEVK {
-    NESwapchain::NESwapchain(NEDevice* device_, NEWindow* window_) : device{device_}, window{window_} {
+    NESwapchain::NESwapchain(NEDevice* device_, VkExtent2D extent, VkSurfaceKHR surface) : device{device_}, mExtent(extent), mSurface(surface) {
         vkGetDeviceQueue(*device, device->getIndices().presentFamily.value(), 0, &presentQueue);
         vkGetDeviceQueue(*device, device->getIndices().graphicsFamily.value(), 0, &graphicsQueue);
         createSwapChain();
@@ -32,8 +32,6 @@ namespace NEVK {
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(device->getSwapChainDetails().formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(device->getSwapChainDetails().presentModes);
         VkSurfaceCapabilitiesKHR capabilities = device->getSwapChainDetails().capabilities;
-        window.setExtent = chooseSwapExtent();
-
         device->setFormat(surfaceFormat.format);
 
         ///How many images are in the swapchain
@@ -48,7 +46,7 @@ namespace NEVK {
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
+        createInfo.imageExtent = window->getExtent();
         ///always one unless stereoscopic 3D
         createInfo.imageArrayLayers = 1;
         ///     For rendering directly to image we do this, for post processing it will be changed to
@@ -92,7 +90,7 @@ namespace NEVK {
         vkGetSwapchainImagesKHR(*device, swapchain, &imageCount, images.data());
 
 
-        format = surfaceFormat.format;
+        mFormat = surfaceFormat.format;
 
         createImageViews();
     }
@@ -108,8 +106,8 @@ namespace NEVK {
             framebufferInfo.renderPass = *device->getRenderpass();
             framebufferInfo.attachmentCount = 1;
             framebufferInfo.pAttachments = attachments;
-            framebufferInfo.width = extent.width;
-            framebufferInfo.height = extent.height;
+            framebufferInfo.width = mExtent.width;
+            framebufferInfo.height = mExtent.height;
             framebufferInfo.layers = 1;
             if (vkCreateFramebuffer(*device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
@@ -122,7 +120,7 @@ namespace NEVK {
         imageViews.resize(images.size());
 
         for (size_t i = 0; i < images.size(); i++) {
-            imageViews[i] = createImageView(images[i], format);
+            imageViews[i] = createImageView(images[i], mFormat);
         }
     }
 
@@ -161,29 +159,7 @@ namespace NEVK {
         return availableFormats[0];
     }
 
-    VkExtent2D NESwapchain::chooseSwapExtent() {
-        VkSurfaceCapabilitiesKHR capabilities = device->getSwapChainDetails().capabilities;
 
-        if (capabilities.currentExtent.width != UINT32_MAX) {
-            std::cout << capabilities.currentExtent.width << "X" << capabilities.currentExtent.height << "\n";
-            return capabilities.currentExtent;
-        } else {
-            int width, height;
-            glfwGetFramebufferSize(*window, &width, &height);
-
-            VkExtent2D actualExtent = {
-                    static_cast<uint32_t>(width),
-                    static_cast<uint32_t>(height)
-            };
-
-            actualExtent.width = std::max(capabilities.minImageExtent.width,
-                                          std::min(capabilities.maxImageExtent.width, actualExtent.width));
-            actualExtent.height = std::max(capabilities.minImageExtent.height,
-                                           std::min(capabilities.maxImageExtent.height, actualExtent.height));
-            std::cout << actualExtent.width << "X" << actualExtent.height << "\n";
-            return actualExtent;
-        }
-    }
 
     VkPresentModeKHR NESwapchain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes) {
         for (const auto &availablePresentMode : availablePresentModes) {
@@ -310,7 +286,7 @@ namespace NEVK {
         ///Assign the respective fence to a specific image.
         imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-        updateUniformBuffer(imageIndex);
+ //       updateUniformBuffer(imageIndex);
     }
 
     void NESwapchain::submitCommandBuffer(VkCommandBuffer commandBuffer) {

@@ -14,20 +14,27 @@ class NEDevice;
 namespace NEVK {
     class NEWindow {
     public:
-        NEWindow(int width_, int height_, std::string title_, bool resizable_, NEInstance& instance);
+        NEWindow(int width_, int height_, std::string title_, bool resizable_, NEInstance& instance, NEDevice* device);
         ~NEWindow();
 
         operator GLFWwindow*() const { return window; }
 
-        void createSwapchain(NEDevice* device);
+    public:
+        void recreateSwapchain();
+
+
         void createSurface();
         VkSurfaceKHR getSurface();
         bool shouldExit();
 
+        void setExtent(VkExtent2D);
         VkExtent2D getExtent();
         NESwapchain* getSwapchain();
+
+
     private:
         std::shared_ptr<NESwapchain> swapchain;
+        VkExtent2D chooseSwapExtent();
 
     private:
         int width;
@@ -41,6 +48,7 @@ namespace NEVK {
         VkSurfaceKHR surface = VK_NULL_HANDLE;
         GLFWwindow* window;
 
+        NEDevice* mDevice;
         NEInstance& instance;
     };
 }

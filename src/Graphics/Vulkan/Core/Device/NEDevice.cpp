@@ -12,7 +12,7 @@ namespace NEVK {
         createWindow();
         pickPhysicalDevice();
         createLogicalDevice();
-        window->createSwapchain(this);
+        window->recreateSwapchain();
         renderpass = std::make_shared<NERenderpass>(device, format);
         pipeline = std::make_shared<NEPipeline>(this, renderpass, window);
 
@@ -25,7 +25,7 @@ namespace NEVK {
 
 
     void NEDevice::createWindow() {
-        window = std::make_shared<NEWindow>(900, 600, "gooba googa", false, *instance);
+        window = std::make_shared<NEWindow>(900, 600, "gooba googa", false, *instance, this);
         window->createSurface();
     }
 

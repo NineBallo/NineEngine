@@ -7,62 +7,80 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <bitset>
 #include "array"
 #include "queue"
-#include "../Graphics/Vulkan/Vulkan.h"
+//#include "Entity.h"
 
-class Entity {
+
+#define MAX_ENTITIES 5000
+#define MAX_COMPONENTS 8
+
+using Entity = size_t;
+using ComponentType = unsigned short;
+using Signature = std::bitset<MAX_COMPONENTS>;
+
+class EntityManager
+{
 public:
-    Entity();
-    ~Entity();
-    virtual void draw();
-    virtual void update();
-};
+    EntityManager()
+    {
+        // Initialize the queue with all possible entity IDs
+        for (int entity = 0; entity < MAX_ENTITIES; ++entity)
+        {
+            mAvailableEntities.push(entity);
+        }
+    }
 
-class VkEntity : public Entity {
-    virtual void draw();
-    virtual void update();
+    int CreateEntity()
+    {
+        assert(mLivingEntityCount < MAX_ENTITIES && "Too many entities in existence.");
+
+        // Take an ID from the front of the queue
+        int id = mAvailableEntities.front();
+        mAvailableEntities.pop();
+        ++mLivingEntityCount;
+
+        return id;
+    }
+
+    void DestroyEntity(int entity)
+    {
+        assert(entity < MAX_ENTITIES && "Entity out of range.");
+
+        // Invalidate the destroyed entity's signature
+        mSignatures[entity].reset();
+
+        // Put the destroyed ID at the back of the queue
+        mAvailableEntities.push(entity);
+        --mLivingEntityCount;
+    }
+
+    void SetSignature(int entity, Signature signature)
+    {
+        assert(entity < MAX_ENTITIES && "Entity out of range.");
+
+        // Put this entity's signature into the array
+        mSignatures[entity] = signature;
+    }
+
+    Signature GetSignature(int entity)
+    {
+        assert(entity < MAX_ENTITIES && "Entity out of range.");
+
+        // Get this entity's signature from the array
+        return mSignatures[entity];
+    }
 
 private:
-    VkBuffer indexBuffer;
-    VkBuffer vertexBuffer;
+    // Queue of unused entity IDs
+    std::queue<int> mAvailableEntities{};
 
-    VkDeviceMemory indexBufferMemory;
-    VkDeviceMemory vertexBufferMemory;
+    // Array of signatures where the index corresponds to the entity ID
+    std::array<Signature, MAX_ENTITIES> mSignatures{};
 
-    VkImage textureImage;
-    VkDeviceMemory textureImageMemory;
-    VkImageView textureImageView;
-
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-
-};
-
-
-class EntityManager {
-public:
-    static EntityManager& Get();
-
-    void addEntity(Entity* entity);
-    void removeEntity(Entity* entity);
-
-    void addRenderer(Vulkan* vulkan);
-
-public:
-    EntityManager(EntityManager const&) = delete;
-    void operator=(EntityManager const&) = delete;
-
-private:
-    EntityManager() {};
-    static EntityManager instance;
-
-
-
-private:
-    std::queue<Entity> AvailableEntitys{};
-    std::array<uint32_t, 50> entityList;
-    uint32_t LivingEntityCount{};
+    // Total living entities - used to keep limits on how many exist
+    uint32_t mLivingEntityCount{};
 };
 
 

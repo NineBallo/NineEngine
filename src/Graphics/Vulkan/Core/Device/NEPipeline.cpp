@@ -65,8 +65,8 @@ namespace NEVK {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float) window->getSwapchain()->getExtent().width;
-        viewport.height = (float) window->getSwapchain()->getExtent().height;
+        viewport.width = (float) window->getExtent().width;
+        viewport.height = (float) window->getExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 

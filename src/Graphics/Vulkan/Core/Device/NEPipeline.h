@@ -19,8 +19,15 @@ namespace NEVK {
     class NEPipeline {
     public:
         NEPipeline(NEDevice* device, std::shared_ptr<NERenderpass>& renderpass, std::shared_ptr<NEWindow>& window);
-        VkDescriptorSetLayout descriptorSetLayout;
+
         operator VkPipeline() const { return pipeline; }
+
+        VkPipelineLayout getPipelineLayout() {return pipelineLayout;}
+
+
+        VkDescriptorSetLayout descriptorSetLayout;
+
+
     private:
         void createPipeline();
       //  void createFrameBuffers();
@@ -28,7 +35,7 @@ namespace NEVK {
         VkShaderModule createShaderModule(const std::vector<char>& code);
       //  void createDescriptorSets();
         void createTextureSampler();
-        void createDescriptorSetLayout();
+        void createDescriptorSetLayout();;
 
         VkPipeline pipeline;
         VkPipelineLayout pipelineLayout;

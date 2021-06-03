@@ -7,7 +7,7 @@
 
 
 Vulkan::Vulkan() {
-    renderer = std::make_shared<NERenderer>();
+    renderer = std::make_shared<NEVK::NERenderer>();
 }
 
 void Vulkan::mainLoop() {

@@ -11,6 +11,14 @@
 #include "memory"
 #include "NEInstance.h"
 #include "Device/NEDevice.h"
+#include "../../../Managers/Coordinator.h"
+#include "../../../Managers/Shared.h"
+
+class VkRenderer : public System {
+public:
+    void draw();
+};
+
 
 namespace NEVK {
     class NERenderer {
@@ -23,8 +31,10 @@ namespace NEVK {
     private:
         void drawFrame();
 
-        void createCommandBuffers();
-        void updateUniformBuffers();
+        void createCommandBuffers(size_t entity);
+
+        void updateUniformBuffers(size_t entity, int currentImage);
+
         void createUniformBuffers();
 
 
@@ -33,10 +43,15 @@ namespace NEVK {
         void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
                                      VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
     private:
-        std::shared_ptr<NEInstance> instance;
+        Coordinator& coordinator = Coordinator::Get();
+
+        std::shared_ptr<VkRenderer> renderer;
         std::shared_ptr<NEDevice> device;
+        std::shared_ptr<NEInstance> instance;
         NESwapchain* swapchain;
         NEPipeline* pipeline;
+
+
 
         VkCommandPool commandPool;
         std::vector<VkCommandBuffer> commandBuffers;
