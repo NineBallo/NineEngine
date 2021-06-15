@@ -176,11 +176,7 @@ void NEDisplay::recreateSwapchain() {
     ////A new SwapChain needs to be created for each window resize.
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    auto CreateSwapchainKHR = reinterpret_cast<PFN_vkCreateSwapchainKHR>(vkGetDeviceProcAddr(device, "vkCreateSwapchainKHR"));
-
-    std::cout << CreateSwapchainKHR << std::endl;
-
-    if (CreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swapchain!");
     }
     std::cout << "swapchain is good\n";
@@ -205,12 +201,13 @@ void NEDisplay::createSurface() {
 
 void NEDisplay::chooseSwapExtent() {
 
-    if (capabilities.currentExtent.width != UINT32_MAX) {
+    if (false){//capabilities.currentExtent.width != UINT32_MAX) {
         std::cout << capabilities.currentExtent.width << "X" << capabilities.currentExtent.height << "\n";
         extent = capabilities.currentExtent;
     } else {
 
         glfwGetFramebufferSize(window, &width, &height);
+        std::cout << "width: " << width << " height: " << height << std::endl;
 
         VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),

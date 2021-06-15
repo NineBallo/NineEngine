@@ -69,11 +69,11 @@ void NEDevice::createLogicalDevice() {
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {queueFamilys.graphicsFamily.value(), queueFamilys.presentFamily.value()};
 
-    for (uint32_t QueueFamily : uniqueQueueFamilies) {
+    for (uint32_t queueFamily : uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
 
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamilys.graphicsFamily.value();
+        queueCreateInfo.queueFamilyIndex = queueFamily;
         //The most interesting option here, I wonder if multiple queues have a perf/latency impact.
         queueCreateInfo.queueCount = 1;
 
