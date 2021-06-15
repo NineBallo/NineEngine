@@ -18,10 +18,10 @@ public:
     Coordinator(const Coordinator&) = delete;
 
     static Coordinator& Get(){
-        return coordinator;
+        static Coordinator coordinator1;
+        return coordinator1;
     }
 
-    static Coordinator coordinator;
 
     void Init()
     {
@@ -45,6 +45,8 @@ public:
         mComponentManager->EntityDestroyed(entity);
 
         mSystemManager->EntityDestroyed(entity);
+
+
     }
 
 
@@ -109,6 +111,8 @@ private:
     std::unique_ptr<ComponentManager> mComponentManager;
     std::unique_ptr<EntityManager> mEntityManager;
     std::unique_ptr<SystemManager> mSystemManager;
+    static Coordinator coordinator;
+    Coordinator(){};
 };
 
 

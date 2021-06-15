@@ -30,11 +30,12 @@ public:
         {
             mAvailableEntities.push(entity);
         }
+        std::cout << MAX_ENTITIES << "aa\n";
     }
 
     int CreateEntity()
     {
-        assert(mLivingEntityCount < MAX_ENTITIES && "Too many entities in existence.");
+    //    assert(mLivingEntityCount < MAX_ENTITIES && "Too many entities in existence.");
 
         // Take an ID from the front of the queue
         int id = mAvailableEntities.front();
@@ -46,7 +47,7 @@ public:
 
     void DestroyEntity(int entity)
     {
-        assert(entity < MAX_ENTITIES && "Entity out of range.");
+      //  assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Invalidate the destroyed entity's signature
         mSignatures[entity].reset();
@@ -58,7 +59,7 @@ public:
 
     void SetSignature(int entity, Signature signature)
     {
-        assert(entity < MAX_ENTITIES && "Entity out of range.");
+     //   assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Put this entity's signature into the array
         mSignatures[entity] = signature;
@@ -66,7 +67,7 @@ public:
 
     Signature GetSignature(int entity)
     {
-        assert(entity < MAX_ENTITIES && "Entity out of range.");
+     //   assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Get this entity's signature from the array
         return mSignatures[entity];

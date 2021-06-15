@@ -10,53 +10,46 @@
 #include "vector"
 #include "memory"
 #include "NEInstance.h"
-#include "Device/NEDevice.h"
+#include "NEDevice.h"
+#include "NEDisplay.h"
 #include "../../../Managers/Coordinator.h"
 #include "../../../Managers/Shared.h"
 
-class VkRenderer : public System {
+
+class NERenderer : public System {
 public:
-    void draw();
+    NERenderer();
+    ~NERenderer();
+
+    bool renderFrame();
+
+private:
+    void drawFrame();
+
+    void updateUniformBuffers(size_t entity, int currentImage);
+
+    void createCommandBuffers(VkRenderable &VKEntity);
+
+    void loadTexture(VkImage &textureImage, VkImageView &textureImageView, VkDeviceMemory &textureImageMemory);
+    void loadModel(VkRenderable &VKEntity);
+
+    void createTextureImage(VkImage& textureImage, VkDeviceMemory& textureImageMemory);
+    void createTextureImageView(VkImage &image, VkImageView &imageView);
+    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+                                 VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+
+    VkRenderable createEntity();
+private:
+    Coordinator& coordinator = Coordinator::Get();
+
+    std::shared_ptr<NEInstance> instance;
+
+    NEDevice* device;
+    NEDisplay* display;
+    NEPipeline* pipeline;
+
 };
 
-
-namespace NEVK {
-    class NERenderer {
-    public:
-        NERenderer();
-        ~NERenderer();
-
-        void renderFrame();
-
-    private:
-        void drawFrame();
-
-        void createCommandBuffers(size_t entity);
-
-        void updateUniformBuffers(size_t entity, int currentImage);
-
-        void createUniformBuffers();
-
-
-        void createTextureImage(VkImage& textureImage, VkDeviceMemory& textureImageMemory);
-        void createTextureImageView(VkImage &image, VkImageView &imageView);
-        void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-                                     VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-    private:
-        Coordinator& coordinator = Coordinator::Get();
-
-        std::shared_ptr<VkRenderer> renderer;
-        std::shared_ptr<NEDevice> device;
-        std::shared_ptr<NEInstance> instance;
-        NESwapchain* swapchain;
-        NEPipeline* pipeline;
-
-
-
-        VkCommandPool commandPool;
-        std::vector<VkCommandBuffer> commandBuffers;
-    };
-}
 
 
 #endif //NINEENGINE_RENDERER_H

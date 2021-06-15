@@ -38,18 +38,24 @@ struct Forces {
 struct VkRenderable
 {
     ///Generic buffers
-    VkDeviceMemory indexBufferMemory;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkBuffer vertexBuffer;
-    ///Uniform buffers
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer indexBuffer = VK_NULL_HANDLE;
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+
+    std::string texturePath;
+    std::string modelPath;
+
+
+
+    std::vector<VkCommandBuffer> commandBuffers;
 
     ///Texture
-    VkImage textureImage;
-    VkDeviceMemory textureImageMemory;
-    VkImageView textureImageView;
+    VkImage textureImage = VK_NULL_HANDLE;
+    VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+
+
+    bool hidden = 1;
 };
 
 

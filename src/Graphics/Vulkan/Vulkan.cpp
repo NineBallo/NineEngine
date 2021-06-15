@@ -7,11 +7,22 @@
 
 
 Vulkan::Vulkan() {
-    renderer = std::make_shared<NEVK::NERenderer>();
+    Coordinator& coordinator = Coordinator::Get();
+    renderer = coordinator.RegisterSystem<NERenderer>();
+    {
+        Signature signature;
+        signature.set(coordinator.GetComponentType<Transform>());
+        signature.set(coordinator.GetComponentType<Forces>());
+        signature.set(coordinator.GetComponentType<VkRenderable>());
+        coordinator.SetSystemSignature<NERenderer>(signature);
+    }
 }
 
 void Vulkan::mainLoop() {
-    renderer->renderFrame();
+    while (renderer->renderFrame()) {
+
+    };
+
 }
 
 

@@ -23,7 +23,7 @@ public:
     void mainLoop();
 
 private:
-    std::shared_ptr<NEVK::NERenderer> renderer;
+    std::shared_ptr<NERenderer> renderer;
 };
 
 
