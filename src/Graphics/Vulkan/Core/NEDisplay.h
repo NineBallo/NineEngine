@@ -4,36 +4,43 @@
 
 #ifndef NINEENGINE_NEDISPLAY_H
 #define NINEENGINE_NEDISPLAY_H
-#include "string"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include "vector"
+#include <vector>
+#include <string>
 #include "NEShared.h"
+#include "NEDevice.h"
+class NEDevice;
 
 class NEDisplay {
 public:
-    NEDisplay(int _width, int _height, std::string _title, bool _resizable, uint32_t _deviceIndex);
+    NEDisplay(int width, int height, std::string title, bool resizable, VkInstance instance);
     ~NEDisplay();
+
+   NEDisplay(const NEDisplay&) = delete;
+   NEDisplay& operator = (const NEDisplay&) = delete;
 
     bool shouldExit();
     void startFrame();
     void endFrame();
-    void recreateSwapchain();
+    void recreateSwapchain(NEDevice *device);
 
 public:
-    uint32_t getImageIndex();
-    int getFrame();
-    std::vector<VkSemaphore> getImageAvailableSemaphores();
-    std::vector<VkSemaphore> getRenderFinishedSemaphores();
-    std::vector<VkFence> getInFlightFences();
-    VkSurfaceKHR getSurface();
-    uint8_t getFramebufferSize();
-    VkExtent2D getExtent();
-    std::vector<VkFramebuffer> getFrameBuffers();
-    std::vector<VkImageView> getImageViews();
-    std::vector<VkImage> getImages();
+    uint32_t imageIndex();
+    int currentFrame();
+    std::vector<VkSemaphore> imageAvailableSemaphores();
+    std::vector<VkSemaphore> renderFinishedSemaphores();
+    std::vector<VkFence> inFlightFences();
+    VkSurfaceKHR surface();
+    uint8_t framebufferSize();
+    VkExtent2D extent();
+    std::vector<VkFramebuffer> frameBuffers();
+    std::vector<VkImageView> imageViews();
+    std::vector<VkImage> images();
 
-    void setFrameBuffers(std::vector<VkFramebuffer>);
+    void createFrameBuffers();
+
 private:
     void createWindow();
     void createSurface();
@@ -42,40 +49,49 @@ private:
 
 private:
     uint8_t MAX_FRAMES_IN_FLIGHT = 2;
-    int currentFrame = 0;
-    bool framebufferResized = false;
-    uint32_t imageIndex;
+    int mCurrentFrame = 0;
+    bool mFramebufferResized = false;
+    uint32_t mImageIndex;
 
 private:
-    uint32_t deviceIndex;
-    VkDevice device;
-    VkQueue presentQueue;
+    VkPhysicalDevice mPhysicalDevice;
+    QueueFamilyIndices mQueueFamilys;
+    VkDevice mDevice;
+    VkQueue mPresentQueue;
+    VkRenderPass mRenderpass;
+    VkInstance mInstance;
+    NEDevice mNEDevice;
 
 private:
-    VkSurfaceKHR surface;
-    VkFormat format;
-    VkExtent2D extent;
-    VkSurfaceCapabilitiesKHR capabilities;
-    GLFWwindow* window;
+    VkSurfaceKHR mSurface;
+    VkFormat mFormat;
+    VkExtent2D mExtent;
+    VkSurfaceCapabilitiesKHR mCapabilities;
+    GLFWwindow* mWindow;
 
-    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    std::vector<VkImage> images;
-    std::vector<VkImageView> imageViews;
-    std::vector<VkFramebuffer> framebuffers;
+    VkSwapchainKHR mSwapchain = VK_NULL_HANDLE;
+    VkSwapchainKHR mLastSwapchain = VK_NULL_HANDLE;
 
-private:
-    std::vector<VkFence> inFlightFences;
-    std::vector<VkFence> imagesInFlight;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-
-    SwapChainSupportDetails supportDetails;
+    std::vector<VkImage> mImages;
+    std::vector<VkImageView> mImageViews;
+    std::vector<VkFramebuffer> mFramebuffers;
 
 private:
-    int width;
-    int height;
-    bool resizable;
-    std::string title;
+    std::vector<VkFence> mInFlightFences;
+    std::vector<VkFence> mImagesInFlight;
+    std::vector<VkSemaphore> mImageAvailableSemaphores;
+    std::vector<VkSemaphore> mRenderFinishedSemaphores;
+
+    SwapChainSupportDetails mSupportDetails;
+
+
+    std::vector<VkCommandBuffer> commandBuffers;
+
+private:
+    int mWidth;
+    int mHeight;
+    bool mResizable;
+    std::string mTitle;
 };
 
 

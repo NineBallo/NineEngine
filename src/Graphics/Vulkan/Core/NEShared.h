@@ -21,35 +21,14 @@ struct SwapChainSupportDetails {
     std::vector<VkPresentModeKHR> presentModes;
 };
 
-#include "NEDisplay.h"
-class NEDisplay;
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
-#include "NEDevice.h"
-class NEDevice;
-
-
-struct VKContext {
-    VkInstance instance;
-
-    std::vector<NEDevice> devices;
-    std::vector<NEDisplay> displays;
-
-    VkPipeline pipeline;
-    VkRenderPass renderpass;
-
-    VkSampler textureSampler;
-
-
-
-    VkImageView textureImageView;
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-
-    VkImage defaultImage;
-    VkImageView defaultImageView;
-    VkDeviceMemory defaultImageMemory;
+    bool isComplete() {
+        return graphicsFamily.has_value() && presentFamily.has_value();
+    }
 };
-
 
 struct UniformBufferObject {
     glm::mat4 model;
@@ -92,8 +71,6 @@ struct Vertex {
         return attributeDescriptions;
     }
 };
-
-extern VKContext vkContext;
 
 const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 

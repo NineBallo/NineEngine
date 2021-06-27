@@ -33,12 +33,12 @@ public:
 
 
     // Entity methods
-    size_t CreateEntity()
+    size_t CreateEntity(uint32_t display)
     {
-        return mEntityManager->CreateEntity();
+        return mEntityManager->CreateEntity(display);
     }
 
-    void DestroyEntity(size_t entity)
+    void DestroyEntity(uint32_t entity)
     {
         mEntityManager->DestroyEntity(entity);
 
@@ -58,7 +58,7 @@ public:
     }
 
     template<typename T>
-    void AddComponent(size_t entity, T component)
+    void AddComponent(uint32_t entity, T component)
     {
         mComponentManager->AddComponent<T>(entity, component);
 
@@ -70,7 +70,7 @@ public:
     }
 
     template<typename T>
-    void RemoveComponent(size_t entity)
+    void RemoveComponent(uint32_t entity)
     {
         mComponentManager->RemoveComponent<T>(entity);
 
@@ -82,7 +82,7 @@ public:
     }
 
     template<typename T>
-    T& GetComponent(size_t entity)
+    T& GetComponent(uint32_t entity)
     {
         return mComponentManager->GetComponent<T>(entity);
     }

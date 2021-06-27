@@ -12,27 +12,24 @@
 #include "../../Helper/Device.h"
 #include "../../Helper/Display.h"
 
-NEDevice::NEDevice(std::shared_ptr<NEInstance>& instance_) {
-    display = &vkContext.displays[0];
+NEDevice::NEDevice(VkInstance instance, VkSurfaceKHR surface, short frameBufferSize) {
     pickPhysicalDevice();
     createLogicalDevice();
+    createBuffers(frameBufferSize);
 }
 
 NEDevice::~NEDevice() {
-    vkDestroyDevice(device, nullptr);
+    vkDestroyDevice(mDevice, nullptr);
 }
 
 
-void NEDevice::createBuffers() {
+void NEDevice::createBuffers(short frameBufferSize) {
     createCommandPool();
-    createDescriptorPool(display->getFramebufferSize());
+    createDescriptorPool(frameBufferSize);
     createUniformBuffers();
 
     createTextureImage(vkContext.defaultImage, vkContext.defaultImageMemory, "Textures/image0.jpg");
     createTextureImageView(vkContext.defaultImage, vkContext.defaultImageView);
-
-    renderpass = std::make_shared<NERenderpass>(device, VK_FORMAT_B8G8R8A8_SRGB);
-    pipeline = std::make_shared<NEPipeline>();
 }
 
 void NEDevice::pickPhysicalDevice() {
@@ -51,36 +48,33 @@ void NEDevice::pickPhysicalDevice() {
     for (const auto &candidate : devices) {
         std::cout << candidate << std::endl;
         if (isDeviceSuitable(candidate, display->getSurface())) {
-            physicalDevice = candidate;
+            mPhysicalDevice = candidate;
             break;
         }
     }
 
-    if (physicalDevice == VK_NULL_HANDLE) {
+    if (mPhysicalDevice == VK_NULL_HANDLE) {
         throw std::runtime_error("Failed to find a suitable GPU!");
     }
 }
 
 void NEDevice::createLogicalDevice() {
     //Filling in vulkan info to create the Present and Graphics queues
-    queueFamilys = findQueueFamilies(physicalDevice, display->getSurface());
-    swapChainSupportDetails = querySwapChainSupport(physicalDevice, display->getSurface());
+    mQueueFamilys = findQueueFamilies(mPhysicalDevice, display->getSurface());
+    mSwapChainSupportDetails = querySwapChainSupport(mPhysicalDevice, display->getSurface());
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = {queueFamilys.graphicsFamily.value(), queueFamilys.presentFamily.value()};
+    std::set<uint32_t> uniqueQueueFamilies = {mQueueFamilys.graphicsFamily.value(), mQueueFamilys.presentFamily.value()};
+
+    //0.0f-1.0f range for queue priority
 
     for (uint32_t queueFamily : uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
-
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
         //The most interesting option here, I wonder if multiple queues have a perf/latency impact.
         queueCreateInfo.queueCount = 1;
-
-        //0.0f-1.0f range for queue priority
-        float queuePriority = 1.0f;
         queueCreateInfo.pQueuePriorities = &queuePriority;
-
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
@@ -108,12 +102,12 @@ void NEDevice::createLogicalDevice() {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+    if (vkCreateDevice(mPhysicalDevice, &createInfo, nullptr, &mDevice) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
     else {
-        vkGetDeviceQueue(device, queueFamilys.graphicsFamily.value(), 0, &graphicsQueue);
-        vkGetDeviceQueue(device, queueFamilys.presentFamily.value(), 0, &presentQueue);
+        vkGetDeviceQueue(mDevice, mQueueFamilys.graphicsFamily.value(), 0, &mGraphicsQueue);
+        vkGetDeviceQueue(mDevice, mQueueFamilys.presentFamily.value(), 0, &mPresentQueue);
     }
 }
 
@@ -196,11 +190,11 @@ VkCommandBuffer NEDevice::beginSingleTimeCommands() {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = commandPool;
+    allocInfo.commandPool = mCommandPool;
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    vkAllocateCommandBuffers(mDevice, &allocInfo, &commandBuffer);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -219,10 +213,10 @@ void NEDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(graphicsQueue);
+    vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(mGraphicsQueue);
 
-    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    vkFreeCommandBuffers(mDevice, mCommandPool, 1, &commandBuffer);
 }
 
 VkBuffer NEDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
@@ -233,23 +227,23 @@ VkBuffer NEDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(mDevice, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create buffer!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+    vkGetBufferMemoryRequirements(mDevice, buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, mPhysicalDevice);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(mDevice, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(device, buffer, bufferMemory, 0);
+    vkBindBufferMemory(mDevice, buffer, bufferMemory, 0);
 }
 
 
@@ -257,10 +251,10 @@ VkBuffer NEDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
 void NEDevice::createCommandPool() {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilys.graphicsFamily.value();
+    poolInfo.queueFamilyIndex = mQueueFamilys.graphicsFamily.value();
     poolInfo.flags = 0; // Optional
 
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(mDevice, &poolInfo, nullptr, &mCommandPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command pool!");
     }
 }
@@ -278,7 +272,7 @@ void NEDevice::createDescriptorPool(short size) {
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(size);
 
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(mDevice, &poolInfo, nullptr, &mDescriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
@@ -306,23 +300,23 @@ void NEDevice::createImage(uint32_t width, uint32_t height, VkFormat format, VkI
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0; // Optional
 
-    if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+    if (vkCreateImage(mDevice, &imageInfo, nullptr, &image) != VK_SUCCESS) {
         throw std::runtime_error("failed to create image!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(device, image, &memRequirements);
+    vkGetImageMemoryRequirements(mDevice, image, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, mPhysicalDevice);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(mDevice, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate image memory!");
     }
 
-    vkBindImageMemory(device, image, imageMemory, 0);
+    vkBindImageMemory(mDevice, image, imageMemory, 0);
 }
 
 void NEDevice::createTextureImage(VkImage &textureImage, VkDeviceMemory &textureImageMemory, const std::string& texPath) {
@@ -337,9 +331,9 @@ void NEDevice::createTextureImage(VkImage &textureImage, VkDeviceMemory &texture
     VkDeviceMemory stagingBufferMemory;
     createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
     void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+    vkMapMemory(mDevice, stagingBufferMemory, 0, imageSize, 0, &data);
     memcpy(data, pixels, static_cast<size_t>(imageSize));
-    vkUnmapMemory(device, stagingBufferMemory);
+    vkUnmapMemory(mDevice, stagingBufferMemory);
     stbi_image_free(pixels);
 
     createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
@@ -352,12 +346,12 @@ void NEDevice::createTextureImage(VkImage &textureImage, VkDeviceMemory &texture
     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
+    vkFreeMemory(mDevice, stagingBufferMemory, nullptr);
 }
 
 void NEDevice::createTextureImageView(VkImage &image, VkImageView &imageView) {
-    imageView = createImageView(image, VK_FORMAT_R8G8B8A8_SRGB, device);
+    imageView = createImageView(image, VK_FORMAT_R8G8B8A8_SRGB, mDevice);
 }
 
 void NEDevice::createVertexBuffers(VkDeviceMemory &vertexBufferMemory, VkBuffer &vertexBuffer, const std::vector<Vertex>& vertices) {
@@ -370,16 +364,16 @@ void NEDevice::createVertexBuffers(VkDeviceMemory &vertexBufferMemory, VkBuffer 
                  stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(mDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, vertices.data(), (size_t) bufferSize);
-    vkUnmapMemory(device, stagingBufferMemory);
+    vkUnmapMemory(mDevice, stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
     copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
+    vkFreeMemory(mDevice, stagingBufferMemory, nullptr);
 }
 
 void NEDevice::createIndexBuffers(VkDeviceMemory &indexBufferMemory, VkBuffer &indexBuffer, std::vector<uint16_t> indexes) {
@@ -393,22 +387,22 @@ void NEDevice::createIndexBuffers(VkDeviceMemory &indexBufferMemory, VkBuffer &i
                  stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(mDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, indexes.data(), (size_t) bufferSize);
-    vkUnmapMemory(device, stagingBufferMemory);
+    vkUnmapMemory(mDevice, stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer,indexBufferMemory);
 
     copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
+    vkFreeMemory(mDevice, stagingBufferMemory, nullptr);
 }
 
 void NEDevice::createUniformBuffers() {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-    size_t size = display->getFramebufferSize();
+    size_t size = display->framebufferSize();
 
     vkContext.uniformBuffers.resize(size);
     vkContext.uniformBuffersMemory.resize(size);
@@ -427,7 +421,7 @@ void NEDevice::submitCommandBuffer(VkCommandBuffer commandBuffer) {
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = {display->getImageAvailableSemaphores()[display->getFrame()]};
+    VkSemaphore waitSemaphores[] = {display->imageAvailableSemaphores()[display->currentFrame()]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -436,24 +430,37 @@ void NEDevice::submitCommandBuffer(VkCommandBuffer commandBuffer) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    VkSemaphore signalSemaphores[] = {display->getRenderFinishedSemaphores()[display->getFrame()]};
+    VkSemaphore signalSemaphores[] = {display->renderFinishedSemaphores()[display->currentFrame()]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-
-
+    
     ///Submit graphics queue and continue if successful
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, display->getInFlightFences()[display->getFrame()]) != VK_SUCCESS) {
+    if (vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, display->inFlightFences()[display->currentFrame()]) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer!");
     }
 }
 
-NERenderpass* NEDevice::getRenderpass() {return renderpass.get();}
-NEPipeline * NEDevice::getPipeline() {return pipeline.get();}
+std::vector<VkCommandBuffer> NEDevice::createCommandBuffer(uint32_t count) {
+    std::vector<VkCommandBuffer> cmd;
 
-VkPhysicalDevice NEDevice::getGPU() {return physicalDevice;}
-VkQueue NEDevice::getPresentQueue(){return presentQueue;};
-SwapChainSupportDetails NEDevice::getSupportDetails() {return swapChainSupportDetails;};
-QueueFamilyIndices NEDevice::getQueueFamilys() {return queueFamilys;};
-VkDescriptorPool NEDevice::getDescriptorPool(){ return descriptorPool;};
-VkCommandPool NEDevice::getCommandPool() {return commandPool;}
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = mCommandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = count;
+    if (vkAllocateCommandBuffers(mDevice, &allocInfo, cmd.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate command buffers!");
+    }
+}
+
+VkRenderPass NEDevice::renderpass() {return *mRenderpass;}
+NEPipeline * NEDevice::pipeline() {return mPipeline.get();}
+
+VkPhysicalDevice NEDevice::GPU() {return mPhysicalDevice;}
+VkQueue NEDevice::presentQueue(){return mPresentQueue;};
+VkQueue NEDevice::graphicsQueue(){return mGraphicsQueue;};
+SwapChainSupportDetails NEDevice::supportDetails() {return mSwapChainSupportDetails;};
+QueueFamilyIndices NEDevice::queueFamilys() {return mQueueFamilys;};
+VkDescriptorPool NEDevice::descriptorPool(){ return mDescriptorPool;};
+VkCommandPool NEDevice::commandPool() {return mCommandPool;}

@@ -13,8 +13,14 @@ public:
     NERenderpass(VkDevice device, VkFormat imageFormat);
     ~NERenderpass();
 
+    NERenderpass(const NERenderpass&) = delete;
+    NERenderpass& operator = (const NERenderpass&) = delete;
+
+    operator VkRenderPass() const { return mRenderPass;}
+
 private:
-    VkDevice device;
+    VkRenderPass mRenderPass;
+    VkDevice mDevice;
 };
 
 

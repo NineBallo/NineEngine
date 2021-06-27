@@ -12,7 +12,6 @@ Vulkan::Vulkan() {
     {
         Signature signature;
         signature.set(coordinator.GetComponentType<Transform>());
-        signature.set(coordinator.GetComponentType<Forces>());
         signature.set(coordinator.GetComponentType<VkRenderable>());
         coordinator.SetSystemSignature<NERenderer>(signature);
     }

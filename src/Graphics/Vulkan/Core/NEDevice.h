@@ -24,25 +24,19 @@ class NEPipeline;
 struct Vertex;
 struct SwapChainSupportDetails;
 
-
-struct QueueFamilyIndices {
-    std::optional<uint32_t> graphicsFamily;
-    std::optional<uint32_t> presentFamily;
-
-    bool isComplete() {
-        return graphicsFamily.has_value() && presentFamily.has_value();
-    }
-};
-
 class NEDevice {
 public:
-    NEDevice(std::shared_ptr<NEInstance>& instance);
+
+    NEDevice(VkInstance instance, VkSurfaceKHR surface, short frameBufferSize);
     ~NEDevice();
 
-    operator VkDevice() const { if(device) return device; else return VK_NULL_HANDLE;}
+    operator VkDevice() const { if(mDevice) return mDevice; else return VK_NULL_HANDLE;}
+
+    NEDevice(const NEDevice&) = delete;
+    NEDevice& operator = (const NEDevice&) = delete;
 
 public:
-    void createBuffers();
+    void createBuffers(short frameBufferSize);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     VkBuffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 
@@ -56,6 +50,8 @@ public:
     void createVertexBuffers(VkDeviceMemory &vertexBufferMemory, VkBuffer &vertexBuffer, const std::vector<Vertex>& vertices);
     void createIndexBuffers(VkDeviceMemory &indexBufferMemory, VkBuffer &indexBuffer, std::vector<uint16_t> index);
 
+    std::vector<VkCommandBuffer> createCommandBuffer(uint32_t count)
+
     void createTextureImage(VkImage &textureImage, VkDeviceMemory &textureImageMemory, const std::string& texPath);
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
             VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
@@ -64,46 +60,49 @@ public:
     void pickPhysicalDevice();
     void createLogicalDevice();
 
-    NERenderpass* getRenderpass();
-    NEPipeline* getPipeline();
-    VkQueue getPresentQueue();
-    SwapChainSupportDetails getSupportDetails();
-    QueueFamilyIndices getQueueFamilys();
-    VkDescriptorPool getDescriptorPool();
-    VkPhysicalDevice getGPU();
-    VkCommandPool getCommandPool();
-    VkDevice getDevice() {return device;}
+    VkRenderPass renderpass();
+    NEPipeline* pipeline();
+    VkQueue presentQueue();
+    VkQueue graphicsQueue();
+    SwapChainSupportDetails supportDetails();
+    QueueFamilyIndices queueFamilys();
+    VkDescriptorPool descriptorPool();
+    VkPhysicalDevice GPU();
+    VkCommandPool commandPool();
+
 private:
     void createCommandPool();
     void createDescriptorPool(short size);
     void createUniformBuffers();
 
 private:
-    VkDevice device = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-    VkQueue graphicsQueue = VK_NULL_HANDLE;
-    VkQueue presentQueue = VK_NULL_HANDLE;
+    VkDevice mDevice = VK_NULL_HANDLE;
+    VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
+    VkCommandPool mCommandPool = VK_NULL_HANDLE;
+    VkDescriptorPool mDescriptorPool = VK_NULL_HANDLE;
+    VkQueue mGraphicsQueue = VK_NULL_HANDLE;
+    VkQueue mPresentQueue = VK_NULL_HANDLE;
 
 private:
-    VkImage defaultImage = VK_NULL_HANDLE;
-    VkImageView defaultImageView = VK_NULL_HANDLE;
-    VkDeviceMemory defaultImageMemory = VK_NULL_HANDLE;
+    VkImage mDefaultImage = VK_NULL_HANDLE;
+    VkImageView mDefaultImageView = VK_NULL_HANDLE;
+    VkDeviceMemory mDefaultImageMemory = VK_NULL_HANDLE;
 
 private:
-    VkImageView textureImageView = VK_NULL_HANDLE;
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    VkImageView mTextureImageView = VK_NULL_HANDLE;
+    std::vector<VkBuffer> mUniformBuffers;
+    std::vector<VkDeviceMemory> mUniformBuffersMemory;
 
-    QueueFamilyIndices queueFamilys;
-    SwapChainSupportDetails swapChainSupportDetails;
+    QueueFamilyIndices mQueueFamilys;
+    SwapChainSupportDetails mSwapChainSupportDetails;
 
 private:
+    float queuePriority = 1.0f;
     bool enableValidationLayers = true;
     NEDisplay* display;
-    std::shared_ptr<NERenderpass> renderpass;
-    std::shared_ptr<NEPipeline> pipeline;
+
+    std::shared_ptr<NERenderpass> mRenderpass;
+    std::shared_ptr<NEPipeline> mPipeline;
 
     const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 

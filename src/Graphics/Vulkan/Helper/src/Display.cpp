@@ -6,14 +6,14 @@
 #include <vector>
 #include "../../Core/NEShared.h"
 
-void createImageViews(std::vector<VkImageView> &imageViews, VkFormat format, VkDevice device) {
-    NEDisplay& display = vkContext.displays[0];
-    short size = display.getImages().size();
+void createImageViews(std::vector<VkImageView> &imageViews, std::vector<VkImage> &images, VkFormat format, VkDevice device) {
+
+    short size = images.size();
     //Want them to be the same length. 1 view, 1 image.
     imageViews.resize(size);
 
     for(size_t i = 0; i < size; i++){
-        imageViews[i] = createImageView(display.getImages()[i], format, device);
+        imageViews[i] = createImageView(images[i], format, device);
     }
 };
 

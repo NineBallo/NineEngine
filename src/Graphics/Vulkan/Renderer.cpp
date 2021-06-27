@@ -2,20 +2,18 @@
 // Created by nineball on 5/29/21.
 //
 //
-#include "../../Helper/Device.h"
-#include "../../Helper/Display.h"
-#include "../Renderer.h"
+#include "Helper/Device.h"
+#include "Helper/Display.h"
+#include "Renderer.h"
 #include "chrono"
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstring>
-#include "../NEShared.h"
+#include "Core/NEShared.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
-VKContext vkContext;
 
 const std::vector<uint16_t> indices = {
         0, 1, 2, 2, 3, 0,
@@ -39,144 +37,57 @@ NERenderer::NERenderer() {
     std::cout << "renderer starting...\n";
     instance = std::make_shared<NEInstance>(true);
 
-    vkContext.displays.emplace_back(NEDisplay(900, 600, "gooba googa", false, 0));
-    display = &vkContext.displays[0];
+    new (&display) NEDisplay(900, 600, "gooba googa", false, 0);;
+    new (&device) NEDevice(instance);
 
-    vkContext.devices.emplace_back(NEDevice(instance));
-    device = &vkContext.devices[0];
+    display = &vkContext.display;
+    device = &vkContext.device;
 
     display->recreateSwapchain();
-    device->createBuffers();
-    pipeline = device->getPipeline();
-
-
-    size_t entity = coordinator.CreateEntity();
-    coordinator.AddComponent(
-            entity,
-            Transform{
-                    .position = glm::vec3(0, 0, 0),
-                    .rotation = glm::vec3(0, 0, 0),
-                    .scale = 1
-            });
-    coordinator.AddComponent(
-            entity,
-            Forces{
-                    .velocity = glm::vec3(0, 0, 0),
-                    .acceleration = glm::vec3(0, 0, 0)
-            });
-    coordinator.AddComponent(
-            entity,
-            createEntity()
-    );
+    device->createBuffers(display->framebufferSize());
+    pipeline = device->pipeline();
 }
 
 NERenderer::~NERenderer() {
 
 }
 
-VkRenderable NERenderer::createEntity() {
-    VkRenderable vkEntity;
-    loadTexture(vkEntity.textureImage, vkContext.textureImageView, vkEntity.textureImageMemory);
-    loadModel(vkEntity);
-    createCommandBuffers(vkEntity);
-    return vkEntity;
-}
-
 bool NERenderer::renderFrame() {
+    uint32_t i = 0;
+
+    for (auto display : displays)
     if (!display->shouldExit()) {
-        vkContext.displays[0].startFrame();
-        drawFrame();
-        vkContext.displays[0].endFrame();
-        return true;
-    } else {
-        return false;
+        display->startFrame();
+        drawFrame(i);
+        display->endFrame();
+        i++;
     }
 }
 
-void NERenderer::drawFrame() {
-    for (auto const &entity : mEntities) {
-        auto &VKEntity = coordinator.GetComponent<VkRenderable>(entity);
-        if (VKEntity.hidden) {
-            device->submitCommandBuffer(VKEntity.commandBuffers[vkContext.displays[0].getFrame()]);
-            updateUniformBuffers(entity, vkContext.displays[0].getFramebufferSize());
-        } else {
-            loadTexture(VKEntity.textureImage, vkContext.textureImageView, VKEntity.textureImageMemory);
-            loadModel(VKEntity);
-            createCommandBuffers(VKEntity);
-            VKEntity.hidden = false;
-        }
-    }
+void NERenderer::drawFrame(uint32_t display) {
+    vkCmdBeginRenderpass()
 }
 
-void NERenderer::loadModel(VkRenderable &VKEntity) {
-    device->createVertexBuffers(VKEntity.vertexBufferMemory, VKEntity.vertexBuffer, vertices);
-    device->createIndexBuffers(VKEntity.indexBufferMemory, VKEntity.indexBuffer, indices);
+void NERenderer::drawObject(VkRenderable entity) {
+
 }
 
-void
+
+void NERenderer::loadModel(VkDeviceMemory &vertexMemory, VkBuffer &vertexBuffer, VkDeviceMemory &indexMemory, VkBuffer &indexBuffer) {
+    device->createVertexBuffers(vertexMemory, vertexBuffer, vertices);
+    device->createIndexBuffers(indexMemory, indexBuffer, indices);
+}
+
+VkRenderable NERenderer::loadEntityObjects(std::string texture, std::string model) {
+    VkRenderable entity;
+    loadModel(entity.vertexBufferMemory, entity.vertexBuffer, entity.indexBufferMemory, entity.indexBuffer);
+    loadTexture(entity.textureImage, entity.textureImageView, entity.textureImageMemory);
+}
+
+
 NERenderer::loadTexture(VkImage &textureImage, VkImageView &textureImageView, VkDeviceMemory &textureImageMemory) {
     createTextureImage(textureImage, textureImageMemory);
     createTextureImageView(textureImage, textureImageView);
-}
-
-
-
-void NERenderer::createCommandBuffers(VkRenderable &VKEntity) {
-
-    VKEntity.commandBuffers.resize(display->getFramebufferSize());
-
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = vkContext.devices[0].getCommandPool();
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t) VKEntity.commandBuffers.size();
-
-    if (vkAllocateCommandBuffers(*device, &allocInfo, VKEntity.commandBuffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate command buffers!");
-    }
-
-    for (size_t i = 0; i < VKEntity.commandBuffers.size(); i++) {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-
-        if (vkBeginCommandBuffer(VKEntity.commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to begin recording command buffer!");
-        }
-
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = vkContext.renderpass;
-        renderPassInfo.framebuffer = display->getFrameBuffers()[i];
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = vkContext.displays[0].getExtent();
-
-        VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
-
-        vkCmdBeginRenderPass(VKEntity.commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-        vkCmdBindPipeline(VKEntity.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
-
-        VkBuffer vertexBuffers[] = {VKEntity.vertexBuffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(VKEntity.commandBuffers[i], 0, 1, vertexBuffers, offsets);
-
-        vkCmdBindIndexBuffer(VKEntity.commandBuffers[i], VKEntity.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-
-        vkCmdBindDescriptorSets(VKEntity.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline->getPipelineLayout(), 0, 1, &pipeline->getDescriptorSets()[i], 0, nullptr);
-
-        vkCmdDrawIndexed(VKEntity.commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(VKEntity.commandBuffers[i]);
-
-        if (vkEndCommandBuffer(VKEntity.commandBuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record command buffer!");
-        }
-    }
 }
 
 void NERenderer::updateUniformBuffers(size_t entity, int currentImage) {
@@ -196,7 +107,7 @@ void NERenderer::updateUniformBuffers(size_t entity, int currentImage) {
     //change camera position to 45degrees above
     ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-    ubo.proj = glm::perspective(glm::radians(45.0f), display->getExtent().width / (float) display->getExtent().width, 0.1f,
+    ubo.proj = glm::perspective(glm::radians(45.0f), display->extent().width / (float) display->extent().width, 0.1f,
                                 10.0f);
     //was made for opengl, need to flip scaling factor of y
     ubo.proj[1][1] *= -1;
@@ -206,6 +117,7 @@ void NERenderer::updateUniformBuffers(size_t entity, int currentImage) {
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(*device, vkContext.uniformBuffersMemory[currentImage]);
 }
+
 void NERenderer::createTextureImage(VkImage& textureImage, VkDeviceMemory& textureImageMemory) {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load("Textures/image0.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -278,7 +190,7 @@ void NERenderer::createImage(uint32_t width, uint32_t height, VkFormat format, V
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, device->getGPU());
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, device->GPU());
 
     if (vkAllocateMemory(*device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate image memory!");
@@ -290,4 +202,8 @@ void NERenderer::createImage(uint32_t width, uint32_t height, VkFormat format, V
 
 void NERenderer::createTextureImageView(VkImage &image, VkImageView &imageView) {
     imageView = createImageView(image, VK_FORMAT_R8G8B8A8_SRGB, *device);
+}
+
+void NERenderer::createPipeline() {
+    pipelines[pipelineSize] = NEPipeline();
 }

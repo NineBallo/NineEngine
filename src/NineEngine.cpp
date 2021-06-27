@@ -4,7 +4,7 @@
 
 #include "NineEngine.h"
 #include "../src/Graphics/Vulkan/Vulkan.h"
-#include "Managers/Coordinator.h"
+#include "Managers/ECS/Coordinator.h"
 
 
 int main(){

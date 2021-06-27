@@ -33,7 +33,7 @@ public:
         std::cout << MAX_ENTITIES << "aa\n";
     }
 
-    int CreateEntity()
+    int CreateEntity(uint32_t display)
     {
     //    assert(mLivingEntityCount < MAX_ENTITIES && "Too many entities in existence.");
 
@@ -42,43 +42,52 @@ public:
         mAvailableEntities.pop();
         ++mLivingEntityCount;
 
+        mEntityToDisplay[id] = display;
         return id;
     }
 
-    void DestroyEntity(int entity)
+    void DestroyEntity(uint32_t entity)
     {
       //  assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Invalidate the destroyed entity's signature
-        mSignatures[entity].reset();
+        mDisplays[mEntityToDisplay[entity]] [entity].reset();
 
         // Put the destroyed ID at the back of the queue
         mAvailableEntities.push(entity);
         --mLivingEntityCount;
     }
 
-    void SetSignature(int entity, Signature signature)
+    void SetSignature(uint32_t entity, Signature signature)
     {
      //   assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Put this entity's signature into the array
-        mSignatures[entity] = signature;
+
+        mDisplays[mEntityToDisplay[entity]] [entity] = signature;
     }
 
-    Signature GetSignature(int entity)
+    Signature GetSignature(uint32_t entity)
     {
      //   assert(entity < MAX_ENTITIES && "Entity out of range.");
 
         // Get this entity's signature from the array
-        return mSignatures[entity];
+
+        return mDisplays[mEntityToDisplay[entity]][entity];
     }
 
 private:
     // Queue of unused entity IDs
     std::queue<int> mAvailableEntities{};
 
-    // Array of signatures where the index corresponds to the entity ID
-    std::array<Signature, MAX_ENTITIES> mSignatures{};
+    //// Array of signatures where the index corresponds to the entity ID
+    //std::array<Signature, MAX_ENTITIES> mSignatures{};
+
+    //Array of displays, each display array contains the entity's in itself.
+    std::array<std::array<Signature, MAX_ENTITIES>, 10> mDisplays{};
+    //The index is a entity the value is its display
+    std::array<uint32_t, MAX_ENTITIES> mEntityToDisplay{};
+
 
     // Total living entities - used to keep limits on how many exist
     uint32_t mLivingEntityCount{};

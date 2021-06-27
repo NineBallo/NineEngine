@@ -20,7 +20,7 @@ using Entity = size_t;
 class System
 {
 public:
-    std::set<Entity> mEntities;
+    std::array<std::set<Entity>, 10> mEntities;
 };
 
 struct Transform
@@ -43,19 +43,12 @@ struct VkRenderable
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
 
-    std::string texturePath;
-    std::string modelPath;
-
-
-
-    std::vector<VkCommandBuffer> commandBuffers;
-
     ///Texture
     VkImage textureImage = VK_NULL_HANDLE;
     VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+    VkImageView textureImageView = VK_NULL_HANDLE;
 
-
-    bool hidden = 1;
+    uint32_t pipeline = 0;
 };
 
 

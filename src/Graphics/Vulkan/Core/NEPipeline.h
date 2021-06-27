@@ -8,19 +8,25 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
-#include "../../../Managers/Coordinator.h"
+#include "../../../Managers/ECS/Coordinator.h"
+#include "NEDevice.h"
+
+class NEDevice;
 
 class NEPipeline {
 public:
-    NEPipeline();
-    operator VkPipeline() const { return pipeline; }
+    NEPipeline(NEDevice *device, VkExtent2D extent, const std::string& vertShader, const std::string& fragShader);
+    operator VkPipeline() const { return mPipeline; }
 
-    VkPipelineLayout getPipelineLayout() {return pipelineLayout;}
-    void recreateFrameBuffers();
-    std::vector<VkDescriptorSet> getDescriptorSets();
+    NEPipeline(const NEPipeline&) = delete;
+    NEPipeline& operator = (const NEPipeline&) = delete;
+
+
+    VkPipelineLayout pipelineLayout();
+    std::vector<VkDescriptorSet> descriptorSets();
 
 private:
-    void createPipeline();
+    void createPipeline(std::string vertShaderPath, std::string fragShaderPath);
     void createTextureSampler();
     void createDescriptorSetLayout();
     void createDescriptorSets(short size);
@@ -28,16 +34,20 @@ private:
     static std::vector<char> readFile(const std::string& filename);
     VkShaderModule createShaderModule(const std::vector<char>& code);
 private:
-    uint32_t deviceIndex = 0;
-    uint32_t displayIndex = 0;
-    VkDevice device = VK_NULL_HANDLE;
 
-    VkDescriptorSetLayout descriptorSetLayout;
-    std::vector<VkDescriptorSet> descriptorSets;
+    VkExtent2D mExtent;
+    VkDevice mDevice = VK_NULL_HANDLE;
+    VkRenderPass mRenderPass = VK_NULL_HANDLE;
 
-    VkPipeline pipeline;
-    VkPipelineLayout pipelineLayout;
-    VkSampler textureSampler;
+    VkDescriptorPool mDescriptorPool;
+    VkPhysicalDevice mPhysicalDevice;
+
+    VkDescriptorSetLayout mDescriptorSetLayout;
+    std::vector<VkDescriptorSet> mDescriptorSets;
+
+    VkPipeline mPipeline;
+    VkPipelineLayout mPipelineLayout;
+    VkSampler mTextureSampler;
 };
 
 

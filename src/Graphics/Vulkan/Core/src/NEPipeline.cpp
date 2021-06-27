@@ -3,24 +3,24 @@
 //
 
 #include "../NEPipeline.h"
-#include "fstream"
-#include "../NEShared.h"
-//#include "../NEDevice.h"
-//#include "../NERenderpass.h"
-//#include "../NEDisplay.h"
 
-NEPipeline::NEPipeline() {
+#include <utility>
+#include "fstream"
+#include "../NEShared.h""
+
+NEPipeline::NEPipeline(NEDevice* device, VkExtent2D extent, const std::string& vertShaderPath, const std::string& fragShaderPath) :
+                       mDevice{*device}, mPhysicalDevice{device->GPU()}, mDescriptorPool{device->descriptorPool()}, mExtent{extent}, mRenderPass{device->renderpass()} {
+
     createDescriptorSetLayout();
-    createPipeline();
+    createPipeline(vertShaderPath, fragShaderPath);
     createTextureSampler();
     createDescriptorSets(3);
-    recreateFrameBuffers();
 }
 
-void NEPipeline::createPipeline() {
+void NEPipeline::createPipeline(std::string vertShaderPath, std::string fragShaderPath) {
     //Read Shaders to buffer
-    auto vertShaderCode = readFile("Shaders/vert.spv");
-    auto fragShaderCode = readFile("Shaders/frag.spv");
+    auto vertShaderCode = readFile(std::move(vertShaderPath));
+    auto fragShaderCode = readFile(std::move(fragShaderPath));
 
     //Create shader Modules
     VkShaderModule vertShader = createShaderModule(vertShaderCode);
@@ -70,15 +70,15 @@ void NEPipeline::createPipeline() {
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) vkContext.displays[0].getExtent().width;
-    viewport.height = (float) vkContext.displays[0].getExtent().height;
+    viewport.width = (float) mExtent.width;
+    viewport.height = (float) mExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     ///Filter  thing
     VkRect2D scissor{};
     scissor.offset = {0, 0};
-    scissor.extent = vkContext.displays[0].getExtent();
+    scissor.extent = mExtent;
 
     ///Combine them into a viewport state.
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -141,25 +141,26 @@ void NEPipeline::createPipeline() {
 
     VkDynamicState dynamicStates[] = {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_LINE_WIDTH
+            VK_DYNAMIC_STATE_LINE_WIDTH,
+            VK_DYNAMIC_STATE_SCISSOR
     };
 
 
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 2;
+    dynamicState.dynamicStateCount = 3;
     dynamicState.pDynamicStates = dynamicStates;
 
     ///Create pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1; // Optional
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
+    pipelineLayoutInfo.pSetLayouts = &mDescriptorSetLayout; // Optional
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
 
-    if (vkCreatePipelineLayout(vkContext.devices[deviceIndex], &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(mDevice, &pipelineLayoutInfo, nullptr, &mPipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
@@ -177,24 +178,24 @@ void NEPipeline::createPipeline() {
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = nullptr; // Optional
 
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = vkContext.renderpass;
+    pipelineInfo.layout = mPipelineLayout;
+    pipelineInfo.renderPass = mRenderPass;
     pipelineInfo.subpass = 0;
 
     ///Used to create a new pipeline derived off another.
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(mDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
 
-    vkDestroyShaderModule(device, fragShader, nullptr);
-    vkDestroyShaderModule(device, vertShader, nullptr);
+    vkDestroyShaderModule(mDevice, fragShader, nullptr);
+    vkDestroyShaderModule(mDevice, vertShader, nullptr);
 
 }
 
-std::vector<char> NEPipeline::readFile(const std::string &filename) {
+std::vector<char> NEPipeline::readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
@@ -220,7 +221,7 @@ VkShaderModule NEPipeline::createShaderModule(const std::vector<char> &code) {
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+    if (vkCreateShaderModule(mDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create shader module!");
     }
     return shaderModule;
@@ -239,7 +240,7 @@ void NEPipeline::createTextureSampler() {
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(vkContext.devices[0].getGPU(), &properties);
+    vkGetPhysicalDeviceProperties(mPhysicalDevice, &properties);
     samplerInfo.anisotropyEnable = VK_TRUE;
     samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;;
 
@@ -254,7 +255,7 @@ void NEPipeline::createTextureSampler() {
     samplerInfo.maxLod = 0.0f;
 
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+    if (vkCreateSampler(mDevice, &samplerInfo, nullptr, &mTextureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
     }
 }
@@ -280,90 +281,60 @@ void NEPipeline::createDescriptorSetLayout() {
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());;
     layoutInfo.pBindings = bindings.data();
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(mDevice, &layoutInfo, nullptr, &mDescriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor set layout!");
     }
 }
 
 void NEPipeline::createDescriptorSets(short size) {
-    Coordinator& coordinator = Coordinator::Get();
-
-    std::vector<VkDescriptorSetLayout> layouts(size, descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(size, mDescriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = vkContext.devices[0].getDescriptorPool();
+    allocInfo.descriptorPool = mDescriptorPool;
     allocInfo.descriptorSetCount = static_cast<uint32_t>(size);
     allocInfo.pSetLayouts = layouts.data();
 
-    descriptorSets.resize(size);
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+    mDescriptorSets.resize(size);
+    if (vkAllocateDescriptorSets(mDevice, &allocInfo, mDescriptorSets.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-  //  for (auto& entity : renderSystem->mEntities) {
-        for (size_t i = 0; i < size; i++) {
-          //  auto& renderable = coordinator.GetComponent<VkRenderable>(entity);
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = vkContext.uniformBuffers[i];
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = vkContext.defaultImageView;
-            imageInfo.sampler = textureSampler;
-
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = descriptorSets[i];
-            descriptorWrites[0].dstBinding = 0;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = descriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-        }
+      //  for (size_t i = 0; i < size; i++) {
+      //      VkDescriptorBufferInfo bufferInfo{};
+      //      bufferInfo.buffer = uniformBuffers[i];
+      //      bufferInfo.offset = 0;
+      //      bufferInfo.range = sizeof(UniformBufferObject);
+//
+      //      VkDescriptorImageInfo imageInfo{};
+      //      imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      //      imageInfo.imageView = defaultImageView;
+      //      imageInfo.sampler = mTextureSampler;
+//
+      //      std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+//
+      //      descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      //      descriptorWrites[0].dstSet = mDescriptorSets[i];
+      //      descriptorWrites[0].dstBinding = 0;
+      //      descriptorWrites[0].dstArrayElement = 0;
+      //      descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      //      descriptorWrites[0].descriptorCount = 1;
+      //      descriptorWrites[0].pBufferInfo = &bufferInfo;
+//
+      //      descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      //      descriptorWrites[1].dstSet = mDescriptorSets[i];
+      //      descriptorWrites[1].dstBinding = 1;
+      //      descriptorWrites[1].dstArrayElement = 0;
+      //      descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      //      descriptorWrites[1].descriptorCount = 1;
+      //      descriptorWrites[1].pImageInfo = &imageInfo;
+//
+      //      vkUpdateDescriptorSets(mDevice, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+      //  }
 }
 
-void NEPipeline::recreateFrameBuffers() {
-    NEDisplay& display = vkContext.displays[0];
 
-    std::vector<VkFramebuffer> framebuffers = display.getFrameBuffers();
 
-    framebuffers.resize(display.getImageViews().size());
-
-    for (size_t i = 0; i < display.getImageViews().size(); i++) {
-        VkImageView attachments[] = {
-                display.getImageViews()[i]
-        };
-
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = vkContext.renderpass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = display.getExtent().width;
-        framebufferInfo.height = display.getExtent().height;
-        framebufferInfo.layers = 1;
-
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
-        display.setFrameBuffers(framebuffers);
-    }
-}
-
-std::vector<VkDescriptorSet> NEPipeline::getDescriptorSets() {return descriptorSets;}
+std::vector<VkDescriptorSet> NEPipeline::descriptorSets() {return mDescriptorSets;}
 
 
 

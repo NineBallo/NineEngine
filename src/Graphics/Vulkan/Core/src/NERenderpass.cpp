@@ -7,7 +7,7 @@
 
 
 
-NERenderpass::NERenderpass(VkDevice device_, VkFormat imageFormat) : device{device_} {
+NERenderpass::NERenderpass(VkDevice device, VkFormat imageFormat) : mDevice{device} {
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
@@ -65,11 +65,11 @@ NERenderpass::NERenderpass(VkDevice device_, VkFormat imageFormat) : device{devi
     renderPassInfo.pDependencies = &dependency;
 
 
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &vkContext.renderpass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &mRenderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }
 
 NERenderpass::~NERenderpass() {
-    vkDestroyRenderPass(device, vkContext.renderpass, nullptr);
+    vkDestroyRenderPass(mDevice, mRenderPass, nullptr);
 }

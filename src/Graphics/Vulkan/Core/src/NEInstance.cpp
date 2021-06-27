@@ -5,7 +5,6 @@
 #include "../NEInstance.h"
 #include <iostream>
 #include <cstring>
-#include "../NEShared.h"
 
 
 const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -15,8 +14,8 @@ NEInstance::NEInstance(bool enableValidationLayers) {
     setupDebugMessenger();
 }
 NEInstance::~NEInstance() {
-    vkDestroyInstance(vkContext.instance, nullptr);
-    destroyDebugUtilsMessengerEXT(debugMessenger, nullptr);
+    vkDestroyInstance(mInstance, nullptr);
+    destroyDebugUtilsMessengerEXT(mDebugMessenger, nullptr);
 }
 
 void NEInstance::createInstance(bool enableValidationLayers) {
@@ -60,7 +59,7 @@ void NEInstance::createInstance(bool enableValidationLayers) {
     }
 
     ///haha error check go brrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
-    if (vkCreateInstance(&createInfo, nullptr, &vkContext.instance) != VK_SUCCESS) {
+    if (vkCreateInstance(&createInfo, nullptr, &mInstance) != VK_SUCCESS) {
         throw std::runtime_error("failed to create instance");
     } else {
         std::cout << "Vulkan instance probably successfully created.\n";
@@ -72,7 +71,7 @@ void NEInstance::setupDebugMessenger() {
     createInfo = populateDebugMessengerCreateInfo();
 
     ///do the thing (create the extension)
-    if (createDebugUtilsMessengerEXT(&createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+    if (createDebugUtilsMessengerEXT(&createInfo, nullptr, &mDebugMessenger) != VK_SUCCESS) {
         throw std::runtime_error("failed to set up debug messenger!");
     } else {
         std::cout << "Debug Messenger started\n";
@@ -83,10 +82,10 @@ VkResult NEInstance::createDebugUtilsMessengerEXT(const VkDebugUtilsMessengerCre
                                                   const VkAllocationCallbacks *pAllocator,
                                                   VkDebugUtilsMessengerEXT *pDebugMessenger) {
 
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(vkContext.instance,
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(mInstance,
                                                                            "vkCreateDebugUtilsMessengerEXT");
     if (func != nullptr) {
-        return func(vkContext.instance, pCreateInfo, pAllocator, pDebugMessenger);
+        return func(mInstance, pCreateInfo, pAllocator, pDebugMessenger);
     } else {
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
@@ -150,9 +149,9 @@ bool NEInstance::checkValidationLayerSupport() {
 
 void NEInstance::destroyDebugUtilsMessengerEXT(VkDebugUtilsMessengerEXT debugMessenger,
                                                const VkAllocationCallbacks *pAllocator) {
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(vkContext.instance,"vkDestroyDebugUtilsMessengerEXT");
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(mInstance,"vkDestroyDebugUtilsMessengerEXT");
     if (func != nullptr) {
-        func(vkContext.instance, debugMessenger, pAllocator);
+        func(mInstance, debugMessenger, pAllocator);
     }
 }
 

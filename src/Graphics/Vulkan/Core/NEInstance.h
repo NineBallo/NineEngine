@@ -9,32 +9,36 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 
-
-
 class NEInstance {
 public:
     NEInstance(bool enableValidationLayers);
     ~NEInstance();
 
+    operator VkInstance() const { return mInstance;}
+
+    NEInstance(const NEInstance&) = delete;
+    NEInstance& operator = (const NEInstance&) = delete;
+
 private:
     void createInstance(bool enableValidationLayers);
     void setupDebugMessenger();
+
     VkDebugUtilsMessengerCreateInfoEXT populateDebugMessengerCreateInfo();
-    bool checkValidationLayerSupport();
+
     VkResult createDebugUtilsMessengerEXT(const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
                                           const VkAllocationCallbacks *pAllocator,
                                           VkDebugUtilsMessengerEXT *pDebugMessenger);
+
     void destroyDebugUtilsMessengerEXT(VkDebugUtilsMessengerEXT debugMessenger,
                                        const VkAllocationCallbacks *pAllocator);
+
     ///Sub/Helper functions
     std::vector<const char *> getRequiredExtensions(bool enableValidationLayers);
-
-
+    bool checkValidationLayerSupport();
 private:
-    VkDebugUtilsMessengerEXT debugMessenger;
+    VkDebugUtilsMessengerEXT mDebugMessenger;
+    VkInstance mInstance;
 };
-
-
 
 
 #endif //NINEENGINE_NEINSTANCE_H
