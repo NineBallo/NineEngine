@@ -19,7 +19,7 @@
 #include "NEInstance.h"
 
 
-class NEWindow;
+class NEDisplay;
 class NEPipeline;
 struct Vertex;
 struct SwapChainSupportDetails;
@@ -50,14 +50,14 @@ public:
     void createVertexBuffers(VkDeviceMemory &vertexBufferMemory, VkBuffer &vertexBuffer, const std::vector<Vertex>& vertices);
     void createIndexBuffers(VkDeviceMemory &indexBufferMemory, VkBuffer &indexBuffer, std::vector<uint16_t> index);
 
-    std::vector<VkCommandBuffer> createCommandBuffer(uint32_t count)
+    std::vector<VkCommandBuffer> createCommandBuffer(uint32_t count);
 
     void createTextureImage(VkImage &textureImage, VkDeviceMemory &textureImageMemory, const std::string& texPath);
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
             VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
     void createTextureImageView(VkImage &image, VkImageView &imageView);
 
-    void pickPhysicalDevice();
+    void pickPhysicalDevice(VkInstance pT);
     void createLogicalDevice();
 
     VkRenderPass renderpass();
@@ -99,13 +99,13 @@ private:
 private:
     float queuePriority = 1.0f;
     bool enableValidationLayers = true;
-    NEDisplay* display;
+
+    NEDisplay *RootDisplay;
 
     std::shared_ptr<NERenderpass> mRenderpass;
     std::shared_ptr<NEPipeline> mPipeline;
 
     const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-
 };
 
 

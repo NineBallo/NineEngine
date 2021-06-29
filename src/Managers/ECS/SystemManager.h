@@ -45,7 +45,7 @@ public:
         mSignatures.insert({typeName, signature});
     }
 
-    void EntityDestroyed(size_t entity)
+    void EntityDestroyed(uint32_t entity, uint32_t display)
     {
         // Erase a destroyed entity from all system lists
         // mEntities is a set so no check needed
@@ -53,11 +53,11 @@ public:
         {
             auto const& system = pair.second;
 
-            system->mEntities.erase(entity);
+            system->mEntities[display].erase(entity);
         }
     }
 
-    void EntitySignatureChanged(size_t entity, Signature entitySignature)
+    void EntitySignatureChanged(uint32_t entity, uint32_t display, Signature entitySignature)
     {
         // Notify each system that an entity's signature changed
         for (auto const& pair : mSystems)
@@ -69,12 +69,12 @@ public:
             // Entity signature matches system signature - insert into set
             if ((entitySignature & systemSignature) == systemSignature)
             {
-                system->mEntities.insert(entity);
+                system->mEntities[display].insert(entity);
             }
                 // Entity signature does not match system signature - erase from set
             else
             {
-                system->mEntities.erase(entity);
+                system->mEntities[display].erase(entity);
             }
         }
     }

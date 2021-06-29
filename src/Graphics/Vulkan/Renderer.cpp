@@ -44,7 +44,7 @@ NERenderer::NERenderer() {
     device = &vkContext.device;
 
     display->recreateSwapchain();
-    device->createBuffers(display->framebufferSize());
+    device->createBuffers(dispvkBootstrap librarylay->framebufferSize());
     pipeline = device->pipeline();
 }
 
@@ -55,20 +55,40 @@ NERenderer::~NERenderer() {
 bool NERenderer::renderFrame() {
     uint32_t i = 0;
 
-    for (auto display : displays)
-    if (!display->shouldExit()) {
-        display->startFrame();
-        drawFrame(i);
-        display->endFrame();
-        i++;
+    for (auto display : displays) {
+        if (!display->shouldExit()) {
+            display->startFrame();
+            drawFrame(i);
+            display->endFrame();
+            i++;
+        }
     }
+
 }
 
 void NERenderer::drawFrame(uint32_t display) {
-    vkCmdBeginRenderpass()
+
 }
 
-void NERenderer::drawObject(VkRenderable entity) {
+void NERenderer::drawObjects(uint32_t display, VkCommandBuffer cmd) {
+    uint32_t i = 0;
+    for (auto entityID : mEntities[display]) {
+        
+        VkRenderable entity = coordinator.GetComponent<VkRenderable>(entityID);
+
+        if (boundPipeline != entity.pipeline) {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipelines[entity.pipeline]);
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, 1, objectdescriptorset);
+
+            if (entity.textureImage != VK_NULL_HANDLE) {
+
+            }
+        }
+
+        vkCmdDraw(cmd, 4, 1, 0, i);
+        i++;
+    }
 
 }
 

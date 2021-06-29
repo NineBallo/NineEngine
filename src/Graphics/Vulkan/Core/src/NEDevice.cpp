@@ -13,7 +13,7 @@
 #include "../../Helper/Display.h"
 
 NEDevice::NEDevice(VkInstance instance, VkSurfaceKHR surface, short frameBufferSize) {
-    pickPhysicalDevice();
+    pickPhysicalDevice(instance);
     createLogicalDevice();
     createBuffers(frameBufferSize);
 }
@@ -28,26 +28,26 @@ void NEDevice::createBuffers(short frameBufferSize) {
     createDescriptorPool(frameBufferSize);
     createUniformBuffers();
 
-    createTextureImage(vkContext.defaultImage, vkContext.defaultImageMemory, "Textures/image0.jpg");
-    createTextureImageView(vkContext.defaultImage, vkContext.defaultImageView);
+    createTextureImage(mDefaultImage, mDefaultImageMemory, "Textures/image0.jpg");
+    createTextureImageView(mDefaultImage, mDefaultImageView);
 }
 
-void NEDevice::pickPhysicalDevice() {
+void NEDevice::pickPhysicalDevice(VkInstance instance) {
     ///Get all devices
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
     if (deviceCount == 0) {
         throw std::runtime_error("Failed to find GPUs with vulkan support. LMAO, loser.");
     } else {
         std::cout << deviceCount << " Device(s) Found!\n";
     }
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, devices.data());
+    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
     ///Check if device can be used
     for (const auto &candidate : devices) {
         std::cout << candidate << std::endl;
-        if (isDeviceSuitable(candidate, display->getSurface())) {
+        if (isDeviceSuitable(candidate, RootDisplay->surface())) {
             mPhysicalDevice = candidate;
             break;
         }
@@ -60,8 +60,8 @@ void NEDevice::pickPhysicalDevice() {
 
 void NEDevice::createLogicalDevice() {
     //Filling in vulkan info to create the Present and Graphics queues
-    mQueueFamilys = findQueueFamilies(mPhysicalDevice, display->getSurface());
-    mSwapChainSupportDetails = querySwapChainSupport(mPhysicalDevice, display->getSurface());
+    mQueueFamilys = findQueueFamilies(mPhysicalDevice, RootDisplay->surface());
+    mSwapChainSupportDetails = querySwapChainSupport(mPhysicalDevice, RootDisplay->surface());
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {mQueueFamilys.graphicsFamily.value(), mQueueFamilys.presentFamily.value()};
@@ -402,7 +402,7 @@ void NEDevice::createIndexBuffers(VkDeviceMemory &indexBufferMemory, VkBuffer &i
 
 void NEDevice::createUniformBuffers() {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-    size_t size = display->framebufferSize();
+    size_t size = RootDisplay->framebufferSize();
 
     vkContext.uniformBuffers.resize(size);
     vkContext.uniformBuffersMemory.resize(size);
@@ -413,8 +413,8 @@ void NEDevice::createUniformBuffers() {
                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                              vkContext.uniformBuffers[i], vkContext.uniformBuffersMemory[i]);
     }
-
 }
+
 void NEDevice::submitCommandBuffer(VkCommandBuffer commandBuffer) {
     //Buffers::updateUniformBuffer(imageIndex, deviceVars, swapchainVars);
 

@@ -34,7 +34,7 @@ public:
 
 private:
     void drawFrame(uint32_t display);
-    void drawObject(VkRenderable entity);
+    void drawObjects(uint32_t display, VkCommandBuffer cmd);
 
 
     void loadModel(VkDeviceMemory &vertexMemory, VkBuffer &vertexBuffer, VkDeviceMemory &indexMemory, VkBuffer &indexBuffer);

@@ -60,7 +60,6 @@ private:
     VkQueue mPresentQueue;
     VkRenderPass mRenderpass;
     VkInstance mInstance;
-    NEDevice mNEDevice;
 
 private:
     VkSurfaceKHR mSurface;

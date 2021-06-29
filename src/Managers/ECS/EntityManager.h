@@ -76,6 +76,11 @@ public:
         return mDisplays[mEntityToDisplay[entity]][entity];
     }
 
+    uint32_t getEntityDisplay(uint32_t entity) {
+        return mEntityToDisplay[entity];
+    }
+
+
 private:
     // Queue of unused entity IDs
     std::queue<int> mAvailableEntities{};

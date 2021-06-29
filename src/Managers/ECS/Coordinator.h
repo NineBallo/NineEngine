@@ -44,7 +44,7 @@ public:
 
         mComponentManager->EntityDestroyed(entity);
 
-        mSystemManager->EntityDestroyed(entity);
+        mSystemManager->EntityDestroyed(entity, mEntityManager->getEntityDisplay(entity));
 
 
     }
@@ -66,7 +66,7 @@ public:
         signature.set(mComponentManager->GetComponentType<T>(), true);
         mEntityManager->SetSignature(entity, signature);
 
-        mSystemManager->EntitySignatureChanged(entity, signature);
+        mSystemManager->EntitySignatureChanged(entity, mEntityManager->getEntityDisplay(entity), signature);
     }
 
     template<typename T>
@@ -78,7 +78,7 @@ public:
         signature.set(mComponentManager->GetComponentType<T>(), false);
         mEntityManager->SetSignature(entity, signature);
 
-        mSystemManager->EntitySignatureChanged(entity, signature);
+        mSystemManager->EntitySignatureChanged(entity, mEntityManager->getEntityDisplay(entity), signature);
     }
 
     template<typename T>
