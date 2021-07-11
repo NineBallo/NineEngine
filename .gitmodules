@@ -1,0 +1,3 @@
+[submodule "src/Modules/Graphics/Vulkan/ThirdParty/vk-bootstrap"]
+	path = src/Modules/Graphics/Vulkan/ThirdParty/vk-bootstrap
+	url = https://github.com/charles-lunarg/vk-bootstrap

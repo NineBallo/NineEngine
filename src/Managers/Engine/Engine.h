@@ -7,7 +7,6 @@
 
 #include <optional>
 #include <string>
-#include "../../Graphics/Vulkan/Renderer.h"
 
 
 
@@ -40,12 +39,8 @@ public:
 
 
     std::string getRendererType();
-    NERenderer* getVKRenderer();
-
 private:
     Engine();
-
-    std::optional<NERenderer> VKRenderer;
 };
 
 

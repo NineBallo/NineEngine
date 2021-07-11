@@ -3,9 +3,8 @@
 //
 
 #include "NineEngine.h"
-#include "../src/Graphics/Vulkan/Vulkan.h"
 #include "Managers/ECS/Coordinator.h"
-
+#include "Modules/Graphics/Vulkan/include/Vulkan.h"
 
 int main(){
     Coordinator& coordinator = Coordinator::Get();
@@ -14,7 +13,7 @@ int main(){
     coordinator.RegisterComponent<VkRenderable>();
     coordinator.RegisterComponent<Forces>();
 
-    Vulkan vulkan;
-    vulkan.mainLoop();
+    Vulkan renderer{};
 
+    renderer.tick();
 }

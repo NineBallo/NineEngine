@@ -30,7 +30,7 @@ public:
         {
             mAvailableEntities.push(entity);
         }
-        std::cout << MAX_ENTITIES << "aa\n";
+        std::cout << "MAX ENTITY'S: " << MAX_ENTITIES << std::endl;
     }
 
     int CreateEntity(uint32_t display)
