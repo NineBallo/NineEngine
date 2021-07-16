@@ -9,6 +9,9 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <deque>
+#include <functional>
+
 #include "Types.h"
 
 struct displayCreateInfo {
@@ -21,20 +24,23 @@ struct displayCreateInfo {
     VkPhysicalDevice GPU = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     VkQueue queue = VK_NULL_HANDLE;
+    VmaAllocator *allocator = nullptr;
 };
 
-class Display {
-public:
-    Display(const displayCreateInfo& createInfo);
-    ~Display();
 
-    Display(const Display&) = delete;
-    Display& operator = (const Display&) = delete;
+
+class NEDisplay {
+public:
+    NEDisplay(const displayCreateInfo& createInfo);
+    ~NEDisplay();
+
+    NEDisplay(const NEDisplay&) = delete;
+    NEDisplay& operator = (const NEDisplay&) = delete;
 
 
     //Initialization methods (Necessary that all of these are done before the render methods are called)
     void createSurface(VkInstance);
-    void createSwapchain(VkDevice, VkPhysicalDevice, VkQueue presentQueue);
+    void createSwapchain(VkDevice, VkPhysicalDevice, VkQueue presentQueue, VmaAllocator *allocator);
 
     void createFramebuffers(VkRenderPass renderpass);
     void createSyncStructures();
@@ -51,9 +57,15 @@ public:
     uint16_t frameNumber();
     VkFormat format();
     VkExtent2D extent();
+    GLFWwindow* window();
 
 private:
     void createWindow(VkExtent2D extent, const std::string& title, bool resizable);
+
+    //Depth
+    VkImageView mDepthImageView;
+    AllocatedImage mDepthImage;
+    VkFormat mDepthFormat;
 
     //Swapchain variables
     VkSwapchainKHR mSwapchain = VK_NULL_HANDLE;
@@ -83,6 +95,7 @@ private:
     //Mainly destruction variables
     VkDevice mDevice = VK_NULL_HANDLE;
     VkInstance mInstance = VK_NULL_HANDLE;
+    DeletionQueue mDeletionQueue;
 };
 
 

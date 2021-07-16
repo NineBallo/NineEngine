@@ -6,9 +6,6 @@
 #define NINEENGINE_NINEENGINE_H
 
 
-class NineEngine {
-
-};
 
 
 #endif //NINEENGINE_NINEENGINE_H

@@ -8,7 +8,7 @@
 #include <math.h>
 #include <Initializers.h>
 
-Display::Display(const displayCreateInfo& createInfo) {
+NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
 
     if(createInfo.instance != VK_NULL_HANDLE) {
@@ -16,26 +16,16 @@ Display::Display(const displayCreateInfo& createInfo) {
     }
 
     if(createInfo.device != VK_NULL_HANDLE && createInfo.GPU != VK_NULL_HANDLE && createInfo.queue != VK_NULL_HANDLE) {
-        createSwapchain(createInfo.device, createInfo.GPU, createInfo.queue);
+        createSwapchain(createInfo.device, createInfo.GPU, createInfo.queue, createInfo.allocator);
     }
 
     mExtent = createInfo.extent;
     mInstance = createInfo.instance;
 }
 
-Display::~Display() {
-    vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
-
-    if(mRenderpass != VK_NULL_HANDLE) {
-        vkDestroyRenderPass(mDevice, mRenderpass, nullptr);;
-    }
-
-    if(!mFramebuffers.empty() && !mImageViews.empty()) {
-        for(int i = 0; i < mFramebuffers.size(); i++) {
-            vkDestroyFramebuffer(mDevice, mFramebuffers[i], nullptr);
-            vkDestroyImageView(mDevice, mImageViews[i], nullptr);
-        }
-    }
+NEDisplay::~NEDisplay() {
+    vkWaitForFences(mDevice, 1, &mRenderFence, true, 1000000000);
+    mDeletionQueue.flush();
 
     if(mSurface != VK_NULL_HANDLE) {
         vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
@@ -45,7 +35,7 @@ Display::~Display() {
     glfwTerminate();
 }
 
-void Display::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
+void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
     glfwInit();
 
     ///Dont create an opengl context
@@ -63,13 +53,13 @@ void Display::createWindow(VkExtent2D extent, const std::string& title, bool res
     //  glfwSetFramebufferSizeCallback(window, VKBareAPI::Window::framebufferResizeCallback);
 }
 
-void Display::createSurface(VkInstance instance) {
+void NEDisplay::createSurface(VkInstance instance) {
     if (glfwCreateWindowSurface(instance, mWindow, nullptr, &mSurface) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create window surface!\n");
     }
 }
 
-void Display::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue presentQueue) {
+void NEDisplay::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue presentQueue, VmaAllocator *allocator) {
     vkb::SwapchainBuilder swapchainBuilder{GPU, device, mSurface};
     vkb::Swapchain vkbSwapchain = swapchainBuilder
             .use_default_format_selection()
@@ -86,9 +76,38 @@ void Display::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue pre
     mDevice = device;
 
     mPresentQueue = presentQueue;
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
+    });
+
+    VkExtent3D depthImageExtent = {
+            mExtent.width,
+            mExtent.height,
+            1
+    };
+
+    mDepthFormat = VK_FORMAT_D32_SFLOAT;
+    VkImageCreateInfo dimg_info = init::image_create_info(mDepthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent);
+
+    VmaAllocationCreateInfo dimg_allocinfo = {};
+    dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    vmaCreateImage(*allocator, &dimg_info, &dimg_allocinfo, &mDepthImage.mImage, &mDepthImage.mAllocation, nullptr);
+
+    VkImageViewCreateInfo dview_info = init::imageview_create_info(mDepthFormat, mDepthImage.mImage, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    vkCreateImageView(mDevice, &dview_info, nullptr, &mDepthImageView);
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroyImageView(mDevice, mDepthImageView, nullptr);
+        vmaDestroyImage(*allocator, mDepthImage.mImage, mDepthImage.mAllocation);
+    });
+
 }
 
-void Display::createFramebuffers(VkRenderPass renderpass) {
+void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
     mRenderpass = renderpass;
     VkFramebufferCreateInfo fb_info = {};
     fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -107,14 +126,25 @@ void Display::createFramebuffers(VkRenderPass renderpass) {
     //Create a corresponding framebuffer for each image
     for (int i = 0; i < swapchain_imagecount; i++) {
 
-        fb_info.pAttachments = &mImageViews[i];
+        VkImageView attachments[2];
+        attachments[0] = mImageViews[i];
+        attachments[1] = mDepthImageView;
+
+        fb_info.pAttachments = &attachments[0];
+        fb_info.attachmentCount = 2;
+
         if(vkCreateFramebuffer(mDevice, &fb_info, nullptr, &mFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");
         };
+
+        mDeletionQueue.push_function([=]() {
+            vkDestroyFramebuffer(mDevice, mFramebuffers[i], nullptr);
+            vkDestroyImageView(mDevice, mImageViews[i], nullptr);
+        });
     }
 }
 
-void Display::createSyncStructures() {
+void NEDisplay::createSyncStructures() {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.pNext = nullptr;
@@ -124,6 +154,11 @@ void Display::createSyncStructures() {
     if (vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
     };
+
+    //Queue fence for eventual deletion
+    mDeletionQueue.push_function([=]() {
+        vkDestroyFence(mDevice, mRenderFence, nullptr);
+    });
 
     //For the semaphores we don't need any flags
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
@@ -137,10 +172,16 @@ void Display::createSyncStructures() {
 
     if (vkCreateSemaphore(mDevice, &semaphoreCreateInfo, nullptr, &mRenderSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render semaphore\n");
-    }
+    };
+
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroySemaphore(mDevice, mPresentSemaphore, nullptr);
+        vkDestroySemaphore(mDevice, mRenderSemaphore, nullptr);
+    });
 }
 
-void Display::createCommandBuffer(VkCommandPool cmdPool) {
+void NEDisplay::createCommandBuffer(VkCommandPool cmdPool) {
     //Create Command Buffer
     VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(cmdPool, 1);
     if (vkAllocateCommandBuffers(mDevice, &cmdAllocInfo, &mPrimaryCommandBuffer) != VK_SUCCESS) {
@@ -148,7 +189,7 @@ void Display::createCommandBuffer(VkCommandPool cmdPool) {
     }
 }
 
-VkCommandBuffer Display::startFrame() {
+VkCommandBuffer NEDisplay::startFrame() {
     //Wait for frame to be ready/(returned to "back")
     vkWaitForFences(mDevice, 1, &mRenderFence, true, 1000000000);
     vkResetFences(mDevice, 1, &mRenderFence);
@@ -172,6 +213,9 @@ VkCommandBuffer Display::startFrame() {
     float flash = abs(sin(mFrameNumber / 120.f));
     clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
 
+    VkClearValue depthClear;
+    depthClear.depthStencil.depth = 1.f;
+
     //Lets start painting
     VkRenderPassBeginInfo rpInfo = {};
     rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -184,8 +228,9 @@ VkCommandBuffer Display::startFrame() {
     rpInfo.framebuffer = mFramebuffers[mSwapchainImageIndex];
 
     //Set the value to clear to in renderpass
-    rpInfo.clearValueCount = 1;
-    rpInfo.pClearValues = &clearValue;
+    rpInfo.clearValueCount = 2;
+    VkClearValue clearValues[] = { clearValue, depthClear };
+    rpInfo.pClearValues = &clearValues[0];
 
     vkCmdBeginRenderPass(mPrimaryCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -204,7 +249,7 @@ VkCommandBuffer Display::startFrame() {
     return mPrimaryCommandBuffer;
 }
 
-void Display::endFrame() {
+void NEDisplay::endFrame() {
     //Though wise men at their end know dark is right,
     //Because their words had forked no lightning they
     //Do not go gentle into that good night.
@@ -255,7 +300,7 @@ void Display::endFrame() {
 }
 
 
-bool Display::shouldExit() {
+bool NEDisplay::shouldExit() {
     if (!glfwWindowShouldClose(mWindow)) {
         glfwPollEvents();
         return false;
@@ -265,7 +310,8 @@ bool Display::shouldExit() {
 }
 
 
-VkSurfaceKHR Display::surface() {return mSurface;}
-uint16_t Display::frameNumber() {return mFrameNumber;}
-VkFormat Display::format() {return mFormat;}
-VkExtent2D Display::extent() {return mExtent;}
+VkSurfaceKHR NEDisplay::surface() {return mSurface;}
+uint16_t NEDisplay::frameNumber() {return mFrameNumber;}
+VkFormat NEDisplay::format() {return mFormat;}
+VkExtent2D NEDisplay::extent() {return mExtent;}
+GLFWwindow *NEDisplay::window() {return mWindow;}

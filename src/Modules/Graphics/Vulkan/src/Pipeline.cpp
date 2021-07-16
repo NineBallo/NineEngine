@@ -31,6 +31,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pNext = nullptr;
 
+    pipelineInfo.pDepthStencilState = &mDepthStencil;
     pipelineInfo.stageCount = mShaderStages.size();
     pipelineInfo.pStages = mShaderStages.data();
     pipelineInfo.pVertexInputState = &mVertexInputInfo;
@@ -45,18 +46,17 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    //it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
+
     VkPipeline newPipeline;
     if (vkCreateGraphicsPipelines(
             device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-        std::cout << "failed to create pipeline\n";
+        std::cout << "Failed to create pipeline\n";
         return VK_NULL_HANDLE; // failed to create graphics pipeline
     }
     else
     {
         return newPipeline;
     }
-
 }
 
 VkPipelineShaderStageCreateInfo vkinit::pipeline_shader_stage_create_info(VkShaderStageFlagBits stage, VkShaderModule shaderModule) {
@@ -156,8 +156,9 @@ VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info() {
 }
 
 VkPipelineDynamicStateCreateInfo vkinit::dynamic_state_create_info(VkDynamicState dynamicStates[]) {
-    VkPipelineDynamicStateCreateInfo dynamicState{};
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 2;
-    dynamicState.pDynamicStates = dynamicStates;
+    VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo{};
+    dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicStateCreateInfo.dynamicStateCount = 2;
+    dynamicStateCreateInfo.pDynamicStates = dynamicStates;
+    return dynamicStateCreateInfo;
 }

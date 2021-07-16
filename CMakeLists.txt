@@ -1,12 +1,120 @@
 cmake_minimum_required(VERSION 3.8)
 project(NineEngine)
 
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_BUILD_TYPE Debug)
+find_package(Vulkan REQUIRED FATAL_ERROR) # error
+find_package(glfw3 REQUIRED FATAL_ERROR) # error
+find_package(glm REQUIRED FATAL_ERROR) # error
 
-add_subdirectory(src/Modules/Graphics/Vulkan)
+#VK_BOOTSTRAP
+include(FetchContent)
 
-add_executable(NineEngine src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/ECS/EntityManager.h src/Managers/ECS/ComponentArray.h src/Managers/ECS/Shared.h src/Managers/ECS/ComponentManager.h src/Managers/ECS/SystemManager.h src/Managers/ECS/Coordinator.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp)
-target_link_libraries (NineEngine NEVK)
-target_include_directories(NineEngine PRIVATE src/ThirdParty src/Handler/include src/Managers/ECS/ src/Managers/Engine)
+FetchContent_Declare(
+        vk_bootstrap
+        GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
+        GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(vk_bootstrap)
+
+FetchContent_Declare(
+        vma
+        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+        GIT_TAG        v2.3.0   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(vma)
+
+FetchContent_Declare(
+        obj
+        GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
+        GIT_TAG        v1.0.6   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(obj)
+
+FetchContent_Declare(
+        spirv-headers
+        GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers.git
+        GIT_TAG master
+        GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(spirv-headers)
+
+FetchContent_Declare(
+        spirv-tools
+        GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools
+        GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+
+FetchContent_MakeAvailable(spirv-tools)
+
+
+file(GLOB_RECURSE GLSL_SOURCE_FILES
+        "${PROJECT_SOURCE_DIR}/shaders/*.frag"
+        "${PROJECT_SOURCE_DIR}/shaders/*.vert"
+        "${PROJECT_SOURCE_DIR}/shaders/*.comp"
+        )
+
+
+message(STATUS "GIT modules fetched")
+
+add_executable(NineEngine src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp)
+target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan)
+
+target_include_directories(NineEngine PUBLIC
+        ${vma_SOURCE_DIR}/src ${obj_SOURCE_DIR})
+
+
+if(NOT (EXISTS ${CMAKE_BINARY_DIR}/shaders))
+    message(STATUS "Shader dir not found, generating...")
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
+endif()
+
+
+if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models))
+    message(STATUS "Model dir not found, generating...")
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/models)
+endif()
+
+add_custom_command(TARGET NineEngine PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/* ${CMAKE_BINARY_DIR}/models)
+
+#SHADER STUFF
+message(STATUS "Building shaders")
+find_program(GLSLC glslc HINTS /usr/bin /usr/local/bin)
+
+file(GLOB_RECURSE GLSL_SOURCE_FILES
+        "${CMAKE_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/*.frag"
+        "${CMAKE_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/*.vert"
+        "${CMAKE_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/*.comp"
+        )
+
+
+## iterate each shader
+foreach(GLSL ${GLSL_SOURCE_FILES})
+    message(STATUS "BUILDING SHADER")
+    get_filename_component(FILE_NAME ${GLSL} NAME)
+    set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+    message(STATUS ${GLSL})
+    message(STATUS ${SPIRV})
+
+    ##execute glslang command to compile that specific shader
+    add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${GLSLC} ${GLSL} -o ${SPIRV}
+            DEPENDS ${GLSL})
+    list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(GLSL)
+
+add_custom_target(
+        Shaders
+        DEPENDS ${SPIRV_BINARY_FILES}
+)
+
+add_dependencies(NineEngine Shaders)
+
+target_include_directories(NineEngine PRIVATE src/Modules/Graphics/Vulkan/include src/Modules/Graphics/Vulkan/include/src/ThirdParty src/Handler/include src/Managers/ECS/ src/Managers/Engine)

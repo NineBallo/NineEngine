@@ -22,6 +22,7 @@ public:
     VkPipelineMultisampleStateCreateInfo mMultisampling;
     VkPipelineLayout mPipelineLayout;
     VkPipelineDynamicStateCreateInfo mDynamicState;
+    VkPipelineDepthStencilStateCreateInfo mDepthStencil;
 
     VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
 };

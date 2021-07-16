@@ -4,7 +4,7 @@
 #include <iostream>
 #include <utility>
 
-#include "Coordinator.h"
+
 #include "Engine.h"
 
 //void Engine::setRenderer(const std::string& renderer) {
