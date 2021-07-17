@@ -219,8 +219,7 @@ VkCommandBuffer NEDisplay::startFrame() {
 
     //Clear framebuffer
     VkClearValue clearValue;
-    float flash = abs(sin(mFrameNumber / 120.f));
-    clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
+    clearValue.color = { { 0.01f, 0.01f, 0.01f, 1.f}};
 
     VkClearValue depthClear;
     depthClear.depthStencil.depth = 1.f;
@@ -287,9 +286,6 @@ void NEDisplay::endFrame() {
     vkQueueSubmit(mDevice->presentQueue(), 1, &submit, mRenderFence);
 
 
-    //Grave men, near death, who see with blinding sight
-    //Blind eyes could blaze like meteors and be gay,
-    //Rage, rage against the dying of the light.
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext = nullptr;
@@ -302,9 +298,10 @@ void NEDisplay::endFrame() {
 
     presentInfo.pImageIndices = &mSwapchainImageIndex;
 
+
     vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
 
-
+    //Rage, rage against the dying of the light.
     mFrameNumber++;
 }
 

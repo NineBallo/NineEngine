@@ -21,11 +21,6 @@
 //Im sure this breaks a few design patterns lol
 #include "../../../../Managers/ECS/ECS.h"
 
-struct Position {
-    glm::vec3 Pos {};
-    float scalar = 0;
-};
-
 struct Camera {
     //x (left to right), y (up down), z (forwards and back)
     glm::vec3 Pos {0, 0, 0};
@@ -101,7 +96,7 @@ private:
     Entity mCameraEntity = 0;
 
     ///Engine deletion queue
-    DeletionQueue mMainDeletionQueue;
+    DeletionQueue mDeletionQueue;
 };
 
 #endif //NINEENGINE_VULKAN_H

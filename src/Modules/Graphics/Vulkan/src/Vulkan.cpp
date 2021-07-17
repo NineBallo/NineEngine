@@ -29,10 +29,13 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
     };
 
     ECS::Get().registerComponent<Mesh>();
+    ECS::Get().registerComponent<Position>();
+
     ECS::Get().registerSystem<Vulkan>(subscribeData);
 
     Signature systemSig {};
     systemSig.set(ECS::Get().getComponentType<Mesh>());
+    systemSig.set(ECS::Get().getComponentType<Position>());
 
     ECS::Get().setSystemSignature<Vulkan>(systemSig);
 
@@ -49,7 +52,7 @@ Vulkan::~Vulkan(){
     //vkDestroyPipelineLayout(mDevice, mTrianglePipelineLayout, nullptr);
 
 
-    mDevice.reset();
+    mDeletionQueue.flush();
 
     vkb::destroy_debug_utils_messenger(mInstance, mDebugMessenger);
     vkDestroyInstance(mInstance, nullptr);
@@ -61,9 +64,6 @@ void Vulkan::init() {
 
     ///Create Swapchain, Finalize root display
     mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_FIFO_KHR);
-
-   /////Create primary command buffers
-   //mDevice->createCommandPool(mDevice->presentQueueFamily());
 
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
     mDevice->createDefaultRenderpass(mRootDisplay->format());
@@ -107,7 +107,6 @@ void Vulkan::init_vulkan() {
 
 
 
-
 void Vulkan::init_pipelines() {
     VkShaderModule triangleFragShader;
     if (!loadShaderModule("./shaders/triangle.frag.spv", triangleFragShader))
@@ -147,7 +146,6 @@ void Vulkan::init_pipelines() {
     PipelineBuilder builder;
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, meshVertexShader));
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
-
 
 
     builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
@@ -279,11 +277,6 @@ void Vulkan::draw() {
 
 
     //Camera setup
-    //glm::vec3 camPos = { 0.f,-3.f,-2.f };
-    //glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
-    //glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-    //projection[1][1] *= -1;
-
     auto& camera = ECS::Get().getComponent<Camera>(mCameraEntity);
 
     //x = pitch, y = yaw, z = roll
@@ -300,15 +293,18 @@ void Vulkan::draw() {
     glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect, camera.znear, camera.zfar);
     projection[1][1] *= -1;
 
-  //  for(Entity i = 0; i > mEntityListSize; i++) {
-      //  Entity currentEntity = mEntityToPos
 
-        auto& mesh = ECS::Get().getComponent<Mesh>(1);
+    for(Entity i = 0; i < mEntityListSize; i++) {
+        Entity currentEntity = std::get<1>(mEntityToPos[i]);
+
+        auto& mesh = ECS::Get().getComponent<Mesh>(currentEntity);
 
         vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
 
-        //Model rotation
-        glm::mat4 model(1.0f); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
+        //Model matrix
+        auto& position = ECS::Get().getComponent<Position>(currentEntity);
+
+        glm::mat4 model = glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.scalar); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
 
         //Final mesh matrix
         glm::mat4 mesh_matrix = projection * view * model;
@@ -318,7 +314,7 @@ void Vulkan::draw() {
         vkCmdPushConstants(cmd, mTrianglePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
         vkCmdDraw(cmd, mesh.mVertices.size(), 1, 0, 0);
-  //  }
+    }
 
 
     mRootDisplay->endFrame();

@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <bitset>
 #include <iostream>
+#include "Common.h"
 
 #define MAX_ENTITYS 5000
 #define MAX_DISPLAYS 5

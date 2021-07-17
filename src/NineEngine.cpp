@@ -29,6 +29,9 @@ int main(){
     Entity banana = ecs.createEntity(0);
     renderer.loadMesh("./models/bananaconcert.obj", banana);
 
+    Position position;
+    ecs.addComponent(banana, position);
+
     Keyboard keyboard(renderer.getWindow(0));
     Mouse mouse(renderer.getWindow(0));
 
