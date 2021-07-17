@@ -14,8 +14,7 @@
 
 #include "Initializers.h"
 #include "Pipeline.h"
-
-#define VMA_IMPLEMENTATION
+#include "memory"
 #include <vk_mem_alloc.h>
 
 
@@ -43,14 +42,14 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
 Vulkan::~Vulkan(){
 
-    vmaDestroyAllocator(mDevice.allocator);
+    //vmaDestroyAllocator(mDevice.allocator);
 
-    vkDestroyRenderPass(mDevice.device, mDevice.renderpass, nullptr);
-    vkDestroyPipeline(mDevice.device, mMeshPipeline, nullptr);
-    vkDestroyPipelineLayout(mDevice.device, mTrianglePipelineLayout, nullptr);
+    //vkDestroyRenderPass(mDevice, mDevice.renderpass, nullptr);
+    //vkDestroyPipeline(mDevice, mMeshPipeline, nullptr);
+    //vkDestroyPipelineLayout(mDevice, mTrianglePipelineLayout, nullptr);
 
-    vkDestroyCommandPool(mDevice.device, mDevice.commandPool, nullptr);
-    vkDestroyDevice(mDevice.device, nullptr);
+
+    mDevice.reset();
 
     vkb::destroy_debug_utils_messenger(mInstance, mDebugMessenger);
     vkDestroyInstance(mInstance, nullptr);
@@ -61,14 +60,14 @@ void Vulkan::init() {
     init_vulkan();
 
     ///Create Swapchain, Finalize root display
-    mRootDisplay->createSwapchain(mDevice.device, mDevice.GPU, mDevice.presentQueue, &mDevice.allocator);
+    mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_FIFO_KHR);
 
-    ///Create primary command buffers
-    init_commands(mDevice);
+   /////Create primary command buffers
+   //mDevice->createCommandPool(mDevice->presentQueueFamily());
 
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
-    init_default_renderpass();
-    mRootDisplay->createFramebuffers(mDevice.renderpass);
+    mDevice->createDefaultRenderpass(mRootDisplay->format());
+    mRootDisplay->createFramebuffers(mDevice->defaultRenderpass());
 
     ///Setup sync structures
     mRootDisplay->createSyncStructures();
@@ -99,109 +98,15 @@ void Vulkan::init_vulkan() {
     createInfo.title = std::move(mTitle);
     createInfo.extent = { 800, 600 };
     mRootDisplay.emplace(createInfo);
+    mDevice = std::make_shared<NEDevice>();
 
-    ///Create/Select rootDevice;
-    vkb::PhysicalDeviceSelector selector{ vkb_inst };
-    vkb::PhysicalDevice physicalDevice = selector
-            .set_minimum_version(1, 1)
-            .set_surface(mRootDisplay->surface())
-            .select()
-            .value();
-
-    vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-    vkb::Device vkbDevice = deviceBuilder.build().value();
-
-    mDevice.device = vkbDevice.device;
-    mDevice.GPU = physicalDevice.physical_device;
-
-    mDevice.graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-    mDevice.graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-    mDevice.presentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
-    mDevice.presentQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::present).value();
-
-
-    VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice = mDevice.GPU;
-    allocatorInfo.device = mDevice.device;
-    allocatorInfo.instance = mInstance;
-    vmaCreateAllocator(&allocatorInfo, &mDevice.allocator);
+    vkb::PhysicalDevice vkb_GPU = mDevice->init_PhysicalDevice(mRootDisplay->surface(), vkb_inst);
+    mDevice->init_LogicalDevice(vkb_GPU);
+    mDevice->init_Allocator(vkb_inst.instance);
 }
 
-void Vulkan::init_commands(device& _device) {
-    ///Create Command pool
-    VkCommandPoolCreateInfo commandPoolInfo = init::command_pool_create_info(_device.graphicsQueueFamily,VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    if (vkCreateCommandPool(_device.device, &commandPoolInfo, nullptr, &_device.commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create commandPool\n");
-    }
-
-    mRootDisplay->createCommandBuffer(_device.commandPool);
-}
-
-void Vulkan::init_default_renderpass() {
-    renderpassBuilder builder;
-
-//Color
-    ///TODO MSAA
-    builder.color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-
-    builder.color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    builder.color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    builder.color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    builder.color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    builder.color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    builder.color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-//Other color stuff
-    builder.color_attachment_ref.attachment = 0;
-    builder.color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 
-    VkAttachmentDescription depth_attachment = {};
-
-    depth_attachment.flags = 0;
-    depth_attachment.format = VK_FORMAT_D32_SFLOAT;
-    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depth_attachment_ref = {};
-    depth_attachment_ref.attachment = 1;
-    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    builder.color_attachment.format = mRootDisplay->format();
-
-
-//Subpasses
-    builder.subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    builder.subpass.colorAttachmentCount = 1;
-    builder.subpass.pColorAttachments = &builder.color_attachment_ref;
-    //hook the depth attachment into the subpass
-    builder.subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-
-
-    VkAttachmentDescription attachments[2] = { builder.color_attachment, depth_attachment };
-
-    VkRenderPassCreateInfo render_pass_info = {};
-    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-
-    render_pass_info.attachmentCount = 2;
-    render_pass_info.pAttachments = &attachments[0];
-
-    render_pass_info.subpassCount = 1;
-    render_pass_info.pSubpasses = &builder.subpass;
-
-    if(vkCreateRenderPass(mDevice.device, &render_pass_info, nullptr, &mDevice.renderpass) != VK_SUCCESS) {
-        throw std::runtime_error("Renderpass failed to initialize\n");
-    }
-}
 
 void Vulkan::init_pipelines() {
     VkShaderModule triangleFragShader;
@@ -235,7 +140,7 @@ void Vulkan::init_pipelines() {
     pipelineLayoutInfo.pushConstantRangeCount = 1;
 
 
-    if (vkCreatePipelineLayout(mDevice.device, &pipelineLayoutInfo, nullptr, &mTrianglePipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(mDevice->device(), &pipelineLayoutInfo, nullptr, &mTrianglePipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Pipeline layout creation failed\n");
     }
 
@@ -281,11 +186,11 @@ void Vulkan::init_pipelines() {
 
     builder.mPipelineLayout = mTrianglePipelineLayout;
 
-    mMeshPipeline = builder.build_pipeline(mDevice.device, mDevice.renderpass);
+    mMeshPipeline = builder.build_pipeline(mDevice->device(), mDevice->defaultRenderpass());
 
 
-    vkDestroyShaderModule(mDevice.device, meshVertexShader, nullptr);
-    vkDestroyShaderModule(mDevice.device, triangleFragShader, nullptr);
+    vkDestroyShaderModule(mDevice->device(), meshVertexShader, nullptr);
+    vkDestroyShaderModule(mDevice->device(), triangleFragShader, nullptr);
 }
 
 
@@ -314,7 +219,7 @@ bool Vulkan::loadShaderModule(const char *filepath, VkShaderModule &outShaderMod
     createInfo.pCode = buffer.data();
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(mDevice.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+    if (vkCreateShaderModule(mDevice->device(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         return false;
     }
     outShaderModule = shaderModule;
@@ -346,7 +251,7 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
     //allocate the buffer
-    vmaCreateBuffer(mDevice.allocator, &bufferInfo, &vmaallocInfo,
+    vmaCreateBuffer(mDevice->allocator(), &bufferInfo, &vmaallocInfo,
                              &mesh.mVertexBuffer.mBuffer,
                              &mesh.mVertexBuffer.mAllocation,
                              nullptr);
@@ -358,11 +263,11 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     //});
 
     void* data;
-    vmaMapMemory(mDevice.allocator, mesh.mVertexBuffer.mAllocation, &data);
+    vmaMapMemory(mDevice->allocator(), mesh.mVertexBuffer.mAllocation, &data);
 
     memcpy(data, mesh.mVertices.data(), mesh.mVertices.size() * sizeof(Vertex));
 
-    vmaUnmapMemory(mDevice.allocator, mesh.mVertexBuffer.mAllocation);
+    vmaUnmapMemory(mDevice->allocator(), mesh.mVertexBuffer.mAllocation);
 }
 
 void Vulkan::draw() {
@@ -419,7 +324,6 @@ void Vulkan::draw() {
     mRootDisplay->endFrame();
 }
 
-
 void Vulkan::tick() {
     if (mRootDisplay->shouldExit()) {
         mRootDisplay.reset();
@@ -428,7 +332,6 @@ void Vulkan::tick() {
         draw();
     }
 }
-
 
 GLFWwindow * Vulkan::getWindow(Display display) {
     if(display == 0) {

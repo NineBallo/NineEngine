@@ -15,8 +15,11 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
         createSurface(createInfo.instance);
     }
 
-    if(createInfo.device != VK_NULL_HANDLE && createInfo.GPU != VK_NULL_HANDLE && createInfo.queue != VK_NULL_HANDLE) {
-        createSwapchain(createInfo.device, createInfo.GPU, createInfo.queue, createInfo.allocator);
+    if(createInfo.device != nullptr && createInfo.presentMode) {
+        createSwapchain(createInfo.device, createInfo.presentMode);
+    }
+    else if (createInfo.device != nullptr) {
+        createSwapchain(createInfo.device, VK_PRESENT_MODE_FIFO_KHR);
     }
 
     mExtent = createInfo.extent;
@@ -24,7 +27,7 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
 }
 
 NEDisplay::~NEDisplay() {
-    vkWaitForFences(mDevice, 1, &mRenderFence, true, 1000000000);
+    vkWaitForFences(mDevice->device(), 1, &mRenderFence, true, 1000000000);
     mDeletionQueue.flush();
 
     if(mSurface != VK_NULL_HANDLE) {
@@ -59,11 +62,11 @@ void NEDisplay::createSurface(VkInstance instance) {
     }
 }
 
-void NEDisplay::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue presentQueue, VmaAllocator *allocator) {
-    vkb::SwapchainBuilder swapchainBuilder{GPU, device, mSurface};
+void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeKHR presentMode) {
+    vkb::SwapchainBuilder swapchainBuilder{device->GPU(), device->device(), mSurface};
     vkb::Swapchain vkbSwapchain = swapchainBuilder
             .use_default_format_selection()
-            .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+            .set_desired_present_mode(presentMode)
             .set_desired_extent(mExtent.width, mExtent.height)
             .build()
             .value();
@@ -75,10 +78,8 @@ void NEDisplay::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue p
 
     mDevice = device;
 
-    mPresentQueue = presentQueue;
-
     mDeletionQueue.push_function([=]() {
-        vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
+        vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
     });
 
     VkExtent3D depthImageExtent = {
@@ -94,17 +95,20 @@ void NEDisplay::createSwapchain(VkDevice device, VkPhysicalDevice GPU, VkQueue p
     dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    vmaCreateImage(*allocator, &dimg_info, &dimg_allocinfo, &mDepthImage.mImage, &mDepthImage.mAllocation, nullptr);
+    vmaCreateImage(mDevice->allocator(), &dimg_info, &dimg_allocinfo, &mDepthImage.mImage, &mDepthImage.mAllocation, nullptr);
 
     VkImageViewCreateInfo dview_info = init::imageview_create_info(mDepthFormat, mDepthImage.mImage, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-    vkCreateImageView(mDevice, &dview_info, nullptr, &mDepthImageView);
+    vkCreateImageView(mDevice->device(), &dview_info, nullptr, &mDepthImageView);
 
     mDeletionQueue.push_function([=]() {
-        vkDestroyImageView(mDevice, mDepthImageView, nullptr);
-        vmaDestroyImage(*allocator, mDepthImage.mImage, mDepthImage.mAllocation);
+        vkDestroyImageView(mDevice->device(), mDepthImageView, nullptr);
+        vmaDestroyImage(mDevice->allocator(), mDepthImage.mImage, mDepthImage.mAllocation);
     });
 
+    //Gonna need this later...
+    mPrimaryCommandPool = mDevice->createCommandPool(mDevice->presentQueueFamily());
+    mPrimaryCommandBuffer = createCommandBuffer();
 }
 
 void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
@@ -133,13 +137,13 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
         fb_info.pAttachments = &attachments[0];
         fb_info.attachmentCount = 2;
 
-        if(vkCreateFramebuffer(mDevice, &fb_info, nullptr, &mFramebuffers[i]) != VK_SUCCESS) {
+        if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &mFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");
         };
 
         mDeletionQueue.push_function([=]() {
-            vkDestroyFramebuffer(mDevice, mFramebuffers[i], nullptr);
-            vkDestroyImageView(mDevice, mImageViews[i], nullptr);
+            vkDestroyFramebuffer(mDevice->device(), mFramebuffers[i], nullptr);
+            vkDestroyImageView(mDevice->device(), mImageViews[i], nullptr);
         });
     }
 }
@@ -151,13 +155,13 @@ void NEDisplay::createSyncStructures() {
 
     //Create it already signaled to streamline renderloop
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    if (vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mRenderFence) != VK_SUCCESS) {
+    if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
     };
 
     //Queue fence for eventual deletion
     mDeletionQueue.push_function([=]() {
-        vkDestroyFence(mDevice, mRenderFence, nullptr);
+        vkDestroyFence(mDevice->device(), mRenderFence, nullptr);
     });
 
     //For the semaphores we don't need any flags
@@ -166,36 +170,41 @@ void NEDisplay::createSyncStructures() {
     semaphoreCreateInfo.pNext = nullptr;
     semaphoreCreateInfo.flags = 0;
 
-    if (vkCreateSemaphore(mDevice, &semaphoreCreateInfo, nullptr, &mPresentSemaphore) != VK_SUCCESS) {
+    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &mPresentSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create present semaphore\n");
     };
 
-    if (vkCreateSemaphore(mDevice, &semaphoreCreateInfo, nullptr, &mRenderSemaphore) != VK_SUCCESS) {
+    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &mRenderSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render semaphore\n");
     };
 
 
     mDeletionQueue.push_function([=]() {
-        vkDestroySemaphore(mDevice, mPresentSemaphore, nullptr);
-        vkDestroySemaphore(mDevice, mRenderSemaphore, nullptr);
+        vkDestroySemaphore(mDevice->device(), mPresentSemaphore, nullptr);
+        vkDestroySemaphore(mDevice->device(), mRenderSemaphore, nullptr);
     });
 }
 
-void NEDisplay::createCommandBuffer(VkCommandPool cmdPool) {
+VkCommandBuffer NEDisplay::createCommandBuffer() {
+    VkCommandBuffer temp;
     //Create Command Buffer
-    VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(cmdPool, 1);
-    if (vkAllocateCommandBuffers(mDevice, &cmdAllocInfo, &mPrimaryCommandBuffer) != VK_SUCCESS) {
+    VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(mPrimaryCommandPool, 1);
+    if (vkAllocateCommandBuffers(mDevice->device(), &cmdAllocInfo, &temp) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create display primary command buffer\n");
     }
+    mDeletionQueue.push_function([=]() {
+        vkFreeCommandBuffers(mDevice->device(), mPrimaryCommandPool, 1, &mPrimaryCommandBuffer);
+    });
+    return temp;
 }
 
 VkCommandBuffer NEDisplay::startFrame() {
     //Wait for frame to be ready/(returned to "back")
-    vkWaitForFences(mDevice, 1, &mRenderFence, true, 1000000000);
-    vkResetFences(mDevice, 1, &mRenderFence);
+    vkWaitForFences(mDevice->device(), 1, &mRenderFence, true, 1000000000);
+    vkResetFences(mDevice->device(), 1, &mRenderFence);
 
     //Get current swapchain index
-    vkAcquireNextImageKHR(mDevice, mSwapchain, 1000000000, mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+    vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, mPresentSemaphore, nullptr, &mSwapchainImageIndex);
 
     //Wipe and prep command buffer to be handed to the renderer
     vkResetCommandBuffer(mPrimaryCommandBuffer, 0);
@@ -275,7 +284,7 @@ void NEDisplay::endFrame() {
     submit.pCommandBuffers = &mPrimaryCommandBuffer;
 
     //Submit command buffer and execute it.
-    vkQueueSubmit(mPresentQueue, 1, &submit, mRenderFence);
+    vkQueueSubmit(mDevice->presentQueue(), 1, &submit, mRenderFence);
 
 
     //Grave men, near death, who see with blinding sight
@@ -293,7 +302,7 @@ void NEDisplay::endFrame() {
 
     presentInfo.pImageIndices = &mSwapchainImageIndex;
 
-    vkQueuePresentKHR(mPresentQueue, &presentInfo);
+    vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
 
 
     mFrameNumber++;

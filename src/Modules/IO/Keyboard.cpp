@@ -100,7 +100,6 @@ void Keyboard::tick() {
 
                 (*data.mValue).x += x;
                 (*data.mValue).z += z;
-
             }
         }
     }

@@ -13,8 +13,7 @@
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
 
-
-
+#include "Device.h"
 #include "Display.h"
 #include "Types.h"
 #include "Mesh.h"
@@ -81,7 +80,7 @@ private:
     VkDebugUtilsMessengerEXT mDebugMessenger = VK_NULL_HANDLE;
 
     ///Primary/output device
-    device mDevice;
+    std::shared_ptr<NEDevice> mDevice;
 
     ///Primary/Root window && swapchain
     std::optional<NEDisplay> mRootDisplay;

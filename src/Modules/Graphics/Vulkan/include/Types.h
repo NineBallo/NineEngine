@@ -40,28 +40,17 @@ struct device {
     VmaAllocator allocator;
 };
 
-struct renderpassBuilder {
-    VkAttachmentDescription color_attachment = {};
-    VkAttachmentReference color_attachment_ref = {};
-    VkSubpassDescription subpass = {};
+
+struct VkData {
+    uint32_t materialIndex;
+
+};
+
+struct material {
+    VkPipeline mPipeline;
+    VkPipelineLayout mPipelineLayout;
 };
 
 
-struct DeletionQueue
-{
-    std::deque<std::function<void()>> deletors;
 
-    void push_function(std::function<void()>&& function) {
-        deletors.push_back(function);
-    }
-
-    void flush() {
-        // reverse iterate the deletion queue to execute all the functions
-        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-            (*it)(); //call the function
-        }
-
-        deletors.clear();
-    }
-};
 #endif //NINEENGINE_TYPES_H

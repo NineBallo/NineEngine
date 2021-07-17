@@ -12,7 +12,9 @@
 #include <deque>
 #include <functional>
 
+#include "memory"
 #include "Types.h"
+#include "Device.h"
 
 struct displayCreateInfo {
     VkExtent2D extent = {800, 600};
@@ -21,10 +23,8 @@ struct displayCreateInfo {
 
     std::string title;
     VkInstance instance = VK_NULL_HANDLE;
-    VkPhysicalDevice GPU = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    VkQueue queue = VK_NULL_HANDLE;
-    VmaAllocator *allocator = nullptr;
+    std::shared_ptr<NEDevice> device;
+    VkPresentModeKHR presentMode;
 };
 
 
@@ -40,16 +40,16 @@ public:
 
     //Initialization methods (Necessary that all of these are done before the render methods are called)
     void createSurface(VkInstance);
-    void createSwapchain(VkDevice, VkPhysicalDevice, VkQueue presentQueue, VmaAllocator *allocator);
+    void createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeKHR presentMode);
 
     void createFramebuffers(VkRenderPass renderpass);
     void createSyncStructures();
-    void createCommandBuffer(VkCommandPool);
+
+    VkCommandBuffer createCommandBuffer();
 
     //Render methods
     VkCommandBuffer startFrame();
     void endFrame();
-
     bool shouldExit();
 
 public:
@@ -77,8 +77,7 @@ private:
 
     //Device variables
     VkCommandBuffer mPrimaryCommandBuffer;
-    VkQueue mGraphicsQueue;
-    VkQueue mPresentQueue;
+    VkCommandPool mPrimaryCommandPool;
 
     //Sync
     VkSemaphore mPresentSemaphore = VK_NULL_HANDLE, mRenderSemaphore = VK_NULL_HANDLE;
@@ -93,7 +92,7 @@ private:
 
 private:
     //Mainly destruction variables
-    VkDevice mDevice = VK_NULL_HANDLE;
+    std::shared_ptr<NEDevice> mDevice;
     VkInstance mInstance = VK_NULL_HANDLE;
     DeletionQueue mDeletionQueue;
 };
