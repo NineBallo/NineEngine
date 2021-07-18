@@ -10,6 +10,8 @@
 #include <deque>
 #include <functional>
 #include <vk_mem_alloc.h>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
 
 struct AllocatedBuffer {
     VkBuffer mBuffer;
@@ -46,10 +48,21 @@ struct VkData {
 
 };
 
-struct material {
+struct Material {
     VkPipeline mPipeline;
     VkPipelineLayout mPipelineLayout;
 };
+
+struct Camera {
+    //x (left to right), y (up down), z (forwards and back)
+    glm::vec3 Pos {0, 0, 0};
+    glm::vec3 Angle {0, 0,0};
+    float degrees {70.f};
+    float aspect {800.f / 600.f};
+    float znear {0.1f};
+    float zfar {200.0f};
+};
+
 
 
 

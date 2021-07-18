@@ -11,7 +11,7 @@
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
-
+#include "chrono"
 #include "Initializers.h"
 #include "Pipeline.h"
 #include "memory"
@@ -28,13 +28,15 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
             .entityToPos = &mEntityToPos,
     };
 
-    ECS::Get().registerComponent<Mesh>();
+    lasttick = std::chrono::steady_clock::now();
+
+    ECS::Get().registerComponent<RenderObject>();
     ECS::Get().registerComponent<Position>();
 
     ECS::Get().registerSystem<Vulkan>(subscribeData);
 
     Signature systemSig {};
-    systemSig.set(ECS::Get().getComponentType<Mesh>());
+    systemSig.set(ECS::Get().getComponentType<RenderObject>());
     systemSig.set(ECS::Get().getComponentType<Position>());
 
     ECS::Get().setSystemSignature<Vulkan>(systemSig);
@@ -45,12 +47,12 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
 Vulkan::~Vulkan(){
 
-    //vmaDestroyAllocator(mDevice.allocator);
-
-    //vkDestroyRenderPass(mDevice, mDevice.renderpass, nullptr);
-    //vkDestroyPipeline(mDevice, mMeshPipeline, nullptr);
-    //vkDestroyPipelineLayout(mDevice, mTrianglePipelineLayout, nullptr);
-
+    for(auto& mesh : mMeshes) {
+        deleteMesh(mesh.first);
+    }
+    for(auto& mat : mMaterials) {
+        deleteMaterial(mat.first);
+    }
 
     mDeletionQueue.flush();
 
@@ -71,8 +73,6 @@ void Vulkan::init() {
 
     ///Setup sync structures
     mRootDisplay->createSyncStructures();
-
-    init_pipelines();
 }
 
 void Vulkan::init_vulkan() {
@@ -107,24 +107,24 @@ void Vulkan::init_vulkan() {
 
 
 
-void Vulkan::init_pipelines() {
-    VkShaderModule triangleFragShader;
-    if (!loadShaderModule("./shaders/triangle.frag.spv", triangleFragShader))
+std::pair<VkPipeline, VkPipelineLayout> Vulkan::createPipeline(const std::string &vertexShaderPath, const std::string &fragShaderPath) {
+    VkShaderModule vertexShader;
+    if (!loadShaderModule(vertexShaderPath.c_str(), vertexShader))
     {
-        std::cout << "Error when building the triangle fragment shader module" << std::endl;
+        std::cout << "Error when building the requested vertex shader" << std::endl;
     }
     else {
-        std::cout << "Triangle fragment shader successfully loaded" << std::endl;
+        std::cout << "Fragment shader successfully loaded" << std::endl;
     }
 
-    VkShaderModule meshVertexShader;
-    if (!loadShaderModule("./shaders/mesh.vert.spv", meshVertexShader))
+    VkShaderModule fragmentShader;
+    if (!loadShaderModule(fragShaderPath.c_str(), fragmentShader))
     {
-        std::cout << "Error when building the vertex shader module" << std::endl;
+        std::cout << "Error when building the fragment shader" << std::endl;
 
     }
     else {
-        std::cout << "Vertex shader successfully loaded" << std::endl;
+        std::cout << "Fragment shader successfully loaded" << std::endl;
     }
 
     //Pipeline creation
@@ -138,14 +138,14 @@ void Vulkan::init_pipelines() {
     pipelineLayoutInfo.pPushConstantRanges = &push_constant;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-
-    if (vkCreatePipelineLayout(mDevice->device(), &pipelineLayoutInfo, nullptr, &mTrianglePipelineLayout) != VK_SUCCESS) {
+    VkPipelineLayout layout;
+    if (vkCreatePipelineLayout(mDevice->device(), &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
         throw std::runtime_error("Pipeline layout creation failed\n");
     }
 
     PipelineBuilder builder;
-    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, meshVertexShader));
-    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
+    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
+    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
 
 
     builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
@@ -182,13 +182,21 @@ void Vulkan::init_pipelines() {
 
     builder.mDepthStencil = init::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
 
-    builder.mPipelineLayout = mTrianglePipelineLayout;
-
-    mMeshPipeline = builder.build_pipeline(mDevice->device(), mDevice->defaultRenderpass());
 
 
-    vkDestroyShaderModule(mDevice->device(), meshVertexShader, nullptr);
-    vkDestroyShaderModule(mDevice->device(), triangleFragShader, nullptr);
+    std::pair<VkPipeline, VkPipelineLayout> temp;
+    VkPipeline pipeline;
+
+
+    builder.mPipelineLayout = layout;
+    pipeline = builder.build_pipeline(mDevice->device(), mDevice->defaultRenderpass());
+
+    temp = {pipeline, layout};
+
+    vkDestroyShaderModule(mDevice->device(), vertexShader, nullptr);
+    vkDestroyShaderModule(mDevice->device(), fragmentShader, nullptr);
+
+    return temp;
 }
 
 
@@ -225,13 +233,57 @@ bool Vulkan::loadShaderModule(const char *filepath, VkShaderModule &outShaderMod
 }
 
 void Vulkan::loadMesh(std::string filepath, Entity entity) {
-
     Mesh mesh;
     mesh.load_from_obj(filepath);
 
     uploadMesh(mesh);
 
     mECS->addComponent<Mesh>(entity, mesh);
+}
+
+Material* Vulkan::createMaterial(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, const std::string &matName) {
+
+    std::pair<VkPipeline, VkPipelineLayout> pipelines = createPipeline(vertexShaderPath, fragmentShaderPath);
+
+    Material material{};
+    material.mPipeline = std::get<0>(pipelines);
+    material.mPipelineLayout = std::get<1>(pipelines);
+    mMaterials[matName] = material;
+    return &mMaterials[matName];
+}
+
+void Vulkan::deleteMaterial(const std::string &name) {
+    Material& material = mMaterials[name];
+
+    vkDestroyPipeline(mDevice->device(), material.mPipeline, nullptr);
+    vkDestroyPipelineLayout(mDevice->device(), material.mPipelineLayout, nullptr);
+
+    mMaterials.erase(name);
+}
+
+Mesh* Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
+    Mesh mesh;
+    mesh.load_from_obj(filepath);
+
+    uploadMesh(mesh);
+
+    mMeshes[meshName] = mesh;
+    return &mMeshes[meshName];
+}
+
+bool Vulkan::deleteMesh(const std::string &meshName) {
+    Mesh& mesh = mMeshes[meshName];
+
+    vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
+
+    mMeshes.erase(meshName);
+}
+
+void Vulkan::makeRenderable(Entity entity, const std::string &material, const std::string &mesh) {
+    RenderObject renderObject{};
+    renderObject.material = &mMaterials[material];
+    renderObject.mesh = &mMeshes[mesh];
+    mECS->addComponent<RenderObject>(entity, renderObject);
 }
 
 void Vulkan::uploadMesh(Mesh &mesh) {
@@ -271,14 +323,8 @@ void Vulkan::uploadMesh(Mesh &mesh) {
 void Vulkan::draw() {
     VkCommandBuffer cmd = mRootDisplay->startFrame();
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mMeshPipeline);
-
-    VkDeviceSize offset = 0;
-
-
     //Camera setup
     auto& camera = ECS::Get().getComponent<Camera>(mCameraEntity);
-
     //x = pitch, y = yaw, z = roll
     glm::vec3 angles = camera.Angle;
 
@@ -289,20 +335,23 @@ void Vulkan::draw() {
     direction = glm::normalize(direction);
 
     glm::mat4 view = glm::lookAt(camera.Pos, camera.Pos + direction, glm::vec3(0, 1.f, 0));
-
     glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect, camera.znear, camera.zfar);
     projection[1][1] *= -1;
 
 
     for(Entity i = 0; i < mEntityListSize; i++) {
-        Entity currentEntity = std::get<1>(mEntityToPos[i]);
+        Entity currentEntityID = mLocalEntityList[0][i];
 
-        auto& mesh = ECS::Get().getComponent<Mesh>(currentEntity);
+        auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
 
-        vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
+        VkDeviceSize offset = 0;
+
+
+        vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
 
         //Model matrix
-        auto& position = ECS::Get().getComponent<Position>(currentEntity);
+        auto& position = ECS::Get().getComponent<Position>(currentEntityID);
 
         glm::mat4 model = glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.scalar); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
 
@@ -311,11 +360,10 @@ void Vulkan::draw() {
 
         MeshPushConstants constants;
         constants.render_matrix = mesh_matrix;
-        vkCmdPushConstants(cmd, mTrianglePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+        vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
-        vkCmdDraw(cmd, mesh.mVertices.size(), 1, 0, 0);
+        vkCmdDraw(cmd, currentEntity.mesh->mVertices.size(), 1, 0, 0);
     }
-
 
     mRootDisplay->endFrame();
 }

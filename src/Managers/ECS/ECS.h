@@ -143,8 +143,6 @@ public:
         Entity newEntity = availableEntitys.front();
         u_int32_t index = displaySize[display];
 
-        std::cout << availableEntitys.front();
-
         //Reserve entity
         availableEntitys.pop();
 
@@ -155,7 +153,7 @@ public:
         entityToPos[newEntity] = {display, index};
 
         //Update new size of packed array
-        ++displaySize[display];
+        displaySize[display]++;
 
         return newEntity;
     };
@@ -221,7 +219,13 @@ public:
 
     template<typename T>
     bool removeComponent(Entity entityID) {
-        ComponentArray<T>::removeComponent(entityID);
+        getComponentArray<T>()->removeComponent(entityID);
+
+        std::string_view typeName = type_name<T>();
+
+        Signature signature = entitySignatures[entityID];
+        signature.set(componentTypes[typeName], false);
+        updateEntitySignature(entityID, signature);
     };
 
     template<typename T>
@@ -285,7 +289,6 @@ public:
 
             //Entity must include needed signatures
             if((entitySig & systemSig) == systemSig) {
-
                 (*system.localEntityList)[display][*system.size] = entity;
                 (*system.entityToPos)[entity] = {display, *system.size};
                 (*system.size)++;

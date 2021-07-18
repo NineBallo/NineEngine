@@ -33,11 +33,18 @@ struct Vertex {
 //    VmaAllocation mAllocation;
 //};
 
+
 struct Mesh {
     std::vector<Vertex> mVertices;
     AllocatedBuffer mVertexBuffer;
 
     bool load_from_obj(std::string filename);
+};
+
+struct RenderObject {
+    Mesh* mesh;
+    Material* material;
+    glm::mat4 transformMatrix;
 };
 
 struct MeshPushConstants {
