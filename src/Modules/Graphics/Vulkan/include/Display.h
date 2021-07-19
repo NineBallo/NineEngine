@@ -4,7 +4,7 @@
 
 #ifndef NINEENGINE_DISPLAY_H
 #define NINEENGINE_DISPLAY_H
-
+#include "chrono"
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <string>
@@ -15,6 +15,7 @@
 #include "memory"
 #include "Types.h"
 #include "Device.h"
+#define MAX_FRAMES 2
 
 struct displayCreateInfo {
     VkExtent2D extent = {800, 600};
@@ -26,8 +27,6 @@ struct displayCreateInfo {
     std::shared_ptr<NEDevice> device;
     VkPresentModeKHR presentMode;
 };
-
-
 
 class NEDisplay {
 public:
@@ -43,9 +42,9 @@ public:
     void createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeKHR presentMode);
 
     void createFramebuffers(VkRenderPass renderpass);
-    void createSyncStructures();
+    void createSyncStructures(FrameData &frame);
 
-    VkCommandBuffer createCommandBuffer();
+    VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
     //Render methods
     VkCommandBuffer startFrame();
@@ -60,6 +59,7 @@ public:
     GLFWwindow* window();
 
 private:
+    void populateFrameData();
     void createWindow(VkExtent2D extent, const std::string& title, bool resizable);
 
     //Depth
@@ -75,20 +75,23 @@ private:
     std::vector<VkFramebuffer> mFramebuffers;
     VkRenderPass mRenderpass = VK_NULL_HANDLE;
 
-    //Device variables
-    VkCommandBuffer mPrimaryCommandBuffer;
-    VkCommandPool mPrimaryCommandPool;
 
-    //Sync
-    VkSemaphore mPresentSemaphore = VK_NULL_HANDLE, mRenderSemaphore = VK_NULL_HANDLE;
-    VkFence mRenderFence = VK_NULL_HANDLE;
-    uint16_t mFrameNumber = 0;
-    uint32_t mSwapchainImageIndex = 0;
 
     //Window variables
     VkExtent2D mExtent;
     GLFWwindow* mWindow = nullptr;
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
+    std::string mTitle;
+
+private:
+    //Frame "Data"
+    std::array<FrameData, MAX_FRAMES> mFrames;
+    std::chrono::time_point<std::chrono::steady_clock> currentTick;
+    std::chrono::time_point<std::chrono::steady_clock> lastTick;
+
+    //Sync
+    uint32_t mSwapchainImageIndex = 0;
+    uint8_t mCurrentFrame = 0;
 
 private:
     //Mainly destruction variables

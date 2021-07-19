@@ -60,10 +60,16 @@ struct Camera {
     float degrees {70.f};
     float aspect {800.f / 600.f};
     float znear {0.1f};
-    float zfar {200.0f};
+    float zfar {400.0f};
 };
 
+struct FrameData {
+    VkSemaphore mPresentSemaphore, mRenderSemaphore;
+    VkFence mRenderFence;
 
+    VkCommandPool mCommandPool;
+    VkCommandBuffer mCommandBuffer;
+};
 
 
 #endif //NINEENGINE_TYPES_H

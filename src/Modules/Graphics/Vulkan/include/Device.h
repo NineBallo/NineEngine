@@ -6,7 +6,6 @@
 #define NINEENGINE_DEVICE_H
 #include "Types.h"
 #include "Common.h"
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <VkBootstrap.h>
@@ -62,7 +61,6 @@ private:
 
     ///Memory allocator
     VmaAllocator mAllocator = nullptr;
-
 
 
 private:

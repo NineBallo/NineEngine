@@ -7,9 +7,11 @@
 #include <VkBootstrap.h>
 #include <math.h>
 #include <Initializers.h>
+#include <math.h>
 
 NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
+    mTitle = createInfo.title;
 
     if(createInfo.instance != VK_NULL_HANDLE) {
         createSurface(createInfo.instance);
@@ -19,15 +21,16 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
         createSwapchain(createInfo.device, createInfo.presentMode);
     }
     else if (createInfo.device != nullptr) {
-        createSwapchain(createInfo.device, VK_PRESENT_MODE_FIFO_KHR);
-    }
+        createSwapchain(createInfo.device, VK_PRESENT_MODE_IMMEDIATE_KHR);
+    }//VK_PRESENT_MODE_FIFO_KHR
 
     mExtent = createInfo.extent;
     mInstance = createInfo.instance;
 }
 
 NEDisplay::~NEDisplay() {
-    vkWaitForFences(mDevice->device(), 1, &mRenderFence, true, 1000000000);
+    vkDeviceWaitIdle(mDevice->device());
+
     mDeletionQueue.flush();
 
     if(mSurface != VK_NULL_HANDLE) {
@@ -107,8 +110,7 @@ void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeK
     });
 
     //Gonna need this later...
-    mPrimaryCommandPool = mDevice->createCommandPool(mDevice->presentQueueFamily());
-    mPrimaryCommandBuffer = createCommandBuffer();
+    populateFrameData();
 }
 
 void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
@@ -148,20 +150,20 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
     }
 }
 
-void NEDisplay::createSyncStructures() {
+void NEDisplay::createSyncStructures(FrameData &frame) {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.pNext = nullptr;
 
     //Create it already signaled to streamline renderloop
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &mRenderFence) != VK_SUCCESS) {
+    if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &frame.mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
     };
 
     //Queue fence for eventual deletion
     mDeletionQueue.push_function([=]() {
-        vkDestroyFence(mDevice->device(), mRenderFence, nullptr);
+        vkDestroyFence(mDevice->device(), frame.mRenderFence, nullptr);
     });
 
     //For the semaphores we don't need any flags
@@ -170,44 +172,65 @@ void NEDisplay::createSyncStructures() {
     semaphoreCreateInfo.pNext = nullptr;
     semaphoreCreateInfo.flags = 0;
 
-    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &mPresentSemaphore) != VK_SUCCESS) {
+    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &frame.mPresentSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create present semaphore\n");
     };
 
-    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &mRenderSemaphore) != VK_SUCCESS) {
+    if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &frame.mRenderSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render semaphore\n");
     };
 
 
     mDeletionQueue.push_function([=]() {
-        vkDestroySemaphore(mDevice->device(), mPresentSemaphore, nullptr);
-        vkDestroySemaphore(mDevice->device(), mRenderSemaphore, nullptr);
+        vkDestroySemaphore(mDevice->device(), frame.mPresentSemaphore, nullptr);
+        vkDestroySemaphore(mDevice->device(), frame.mRenderSemaphore, nullptr);
     });
 }
 
-VkCommandBuffer NEDisplay::createCommandBuffer() {
+VkCommandBuffer NEDisplay::createCommandBuffer(VkCommandPool commandPool) {
     VkCommandBuffer temp;
     //Create Command Buffer
-    VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(mPrimaryCommandPool, 1);
+    VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(commandPool, 1);
     if (vkAllocateCommandBuffers(mDevice->device(), &cmdAllocInfo, &temp) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create display primary command buffer\n");
     }
-    mDeletionQueue.push_function([=]() {
-        vkFreeCommandBuffers(mDevice->device(), mPrimaryCommandPool, 1, &mPrimaryCommandBuffer);
-    });
     return temp;
 }
 
+void NEDisplay::populateFrameData() {
+    for(uint8_t i = 0; i < MAX_FRAMES; i++) {
+        FrameData &frame = mFrames[i];
+        frame.mCommandPool = mDevice->createCommandPool(mDevice->graphicsQueueFamily());
+        frame.mCommandBuffer = createCommandBuffer(frame.mCommandPool);
+        createSyncStructures(frame);
+
+
+        mDeletionQueue.push_function([=]() {
+            vkFreeCommandBuffers(mDevice->device(), frame.mCommandPool, 1, &frame.mCommandBuffer);
+        });
+    }
+}
+
 VkCommandBuffer NEDisplay::startFrame() {
+    ///Calculate FPS
+    currentTick = std::chrono::steady_clock::now();
+    std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(currentTick - lastTick);
+    float seconds = (duration.count());
+    std::string newTitle = mTitle + "  [FPS: " + std::to_string((uint16_t)(std::floor(1/seconds))) + "] ";
+    glfwSetWindowTitle(mWindow, newTitle.c_str());
+    lastTick = currentTick;
+
+    FrameData &frame = mFrames[mCurrentFrame];
+
     //Wait for frame to be ready/(returned to "back")
-    vkWaitForFences(mDevice->device(), 1, &mRenderFence, true, 1000000000);
-    vkResetFences(mDevice->device(), 1, &mRenderFence);
+    vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
+    vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
 
     //Get current swapchain index
-    vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+    vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
 
     //Wipe and prep command buffer to be handed to the renderer
-    vkResetCommandBuffer(mPrimaryCommandBuffer, 0);
+    vkResetCommandBuffer(frame.mCommandBuffer, 0);
 
     VkCommandBufferBeginInfo cmdBeginInfo = {};
     cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -215,7 +238,7 @@ VkCommandBuffer NEDisplay::startFrame() {
     cmdBeginInfo.pInheritanceInfo = nullptr;
     cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(mPrimaryCommandBuffer, &cmdBeginInfo);
+    vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
 
     //Clear framebuffer
     VkClearValue clearValue;
@@ -240,10 +263,10 @@ VkCommandBuffer NEDisplay::startFrame() {
     VkClearValue clearValues[] = { clearValue, depthClear };
     rpInfo.pClearValues = &clearValues[0];
 
-    vkCmdBeginRenderPass(mPrimaryCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(frame.mCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     VkRect2D scissor = {0,0, mExtent.width, mExtent.height};
-    vkCmdSetScissor(mPrimaryCommandBuffer, 0, 1, &scissor);
+    vkCmdSetScissor(frame.mCommandBuffer, 0, 1, &scissor);
 
     VkViewport viewport;
     viewport.x = 0.f;
@@ -252,18 +275,19 @@ VkCommandBuffer NEDisplay::startFrame() {
     viewport.height = mExtent.height;
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
-    vkCmdSetViewport(mPrimaryCommandBuffer, 0, 1, &viewport);
-    //Farewell command buffer o/; May your commands be true, and your errors gentle.
-    return mPrimaryCommandBuffer;
+    vkCmdSetViewport(frame.mCommandBuffer, 0, 1, &viewport);
+    //Farewell command buffer o/; May your errors gentle.
+    return frame.mCommandBuffer;
 }
 
 void NEDisplay::endFrame() {
     //Though wise men at their end know dark is right,
     //Because their words had forked no lightning they
     //Do not go gentle into that good night.
+    FrameData &frame = mFrames[mCurrentFrame];
 
-    vkCmdEndRenderPass(mPrimaryCommandBuffer);
-    vkEndCommandBuffer(mPrimaryCommandBuffer);
+    vkCmdEndRenderPass(frame.mCommandBuffer);
+    vkEndCommandBuffer(frame.mCommandBuffer);
 
     VkSubmitInfo submit = {};
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -274,17 +298,16 @@ void NEDisplay::endFrame() {
     submit.pWaitDstStageMask = &waitStage;
 
     submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores = &mPresentSemaphore;
+    submit.pWaitSemaphores = &frame.mPresentSemaphore;
 
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &mRenderSemaphore;
+    submit.pSignalSemaphores = &frame.mRenderSemaphore;
 
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &mPrimaryCommandBuffer;
+    submit.pCommandBuffers = &frame.mCommandBuffer;
 
     //Submit command buffer and execute it.
-    vkQueueSubmit(mDevice->presentQueue(), 1, &submit, mRenderFence);
-
+    vkQueueSubmit(mDevice->presentQueue(), 1, &submit, frame.mRenderFence);
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -293,7 +316,7 @@ void NEDisplay::endFrame() {
     presentInfo.pSwapchains = &mSwapchain;
     presentInfo.swapchainCount = 1;
 
-    presentInfo.pWaitSemaphores = &mRenderSemaphore;
+    presentInfo.pWaitSemaphores = &frame.mRenderSemaphore;
     presentInfo.waitSemaphoreCount = 1;
 
     presentInfo.pImageIndices = &mSwapchainImageIndex;
@@ -302,7 +325,8 @@ void NEDisplay::endFrame() {
     vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
 
     //Rage, rage against the dying of the light.
-    mFrameNumber++;
+    //Should flippy flop between 0 and MAX_FRAMES - 1
+   mCurrentFrame = (mCurrentFrame + 1) % (MAX_FRAMES);
 }
 
 
@@ -315,9 +339,7 @@ bool NEDisplay::shouldExit() {
     }
 }
 
-
 VkSurfaceKHR NEDisplay::surface() {return mSurface;}
-uint16_t NEDisplay::frameNumber() {return mFrameNumber;}
 VkFormat NEDisplay::format() {return mFormat;}
 VkExtent2D NEDisplay::extent() {return mExtent;}
 GLFWwindow *NEDisplay::window() {return mWindow;}

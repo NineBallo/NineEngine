@@ -22,6 +22,8 @@
 //Im sure this breaks a few design patterns lol
 #include "../../../../Managers/ECS/ECS.h"
 
+
+
 class Vulkan : Module {
 public:
     Vulkan(ECS &ecs, Entity cameraEntity);
@@ -40,7 +42,7 @@ public:
 
 
     Mesh* createMesh(const std::string& filepath, const std::string& meshName);
-    bool deleteMesh(const std::string& meshName);
+    bool deleteMesh(std::string meshName);
 
     std::pair<VkPipeline, VkPipelineLayout> createPipeline(const std::string& vertexShader, const std::string& fragShader);
 
@@ -49,8 +51,6 @@ private:
 
     void draw();
     void init_vulkan();
-    void init_pipelines();
-
 
     bool debug = true;
     std::string mTitle = "NineEngine";
@@ -85,8 +85,9 @@ private:
 private:
     ECS *mECS;
 
-    std::chrono::time_point<std::chrono::steady_clock> currenttick;
-    std::chrono::time_point<std::chrono::steady_clock> lasttick;
+    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList;
+    uint32_t mEntityListSize = 0;
+    std::array<std::pair<Display, Entity>, MAX_ENTITYS> mEntityToPos;
 
     bool mShouldExit = false;
 

@@ -29,9 +29,6 @@ public:
     void tick();
 
 private:
-    std::chrono::time_point<std::chrono::steady_clock> currentTick;
-    std::chrono::time_point<std::chrono::steady_clock> lastTick;
-
     GLFWwindow* mWindow;
 
 private:

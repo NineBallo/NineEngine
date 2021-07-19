@@ -28,8 +28,6 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
             .entityToPos = &mEntityToPos,
     };
 
-    lasttick = std::chrono::steady_clock::now();
-
     ECS::Get().registerComponent<RenderObject>();
     ECS::Get().registerComponent<Position>();
 
@@ -50,6 +48,7 @@ Vulkan::~Vulkan(){
     for(auto& mesh : mMeshes) {
         deleteMesh(mesh.first);
     }
+
     for(auto& mat : mMaterials) {
         deleteMaterial(mat.first);
     }
@@ -65,14 +64,11 @@ void Vulkan::init() {
     init_vulkan();
 
     ///Create Swapchain, Finalize root display
-    mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_FIFO_KHR);
-
+    mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_IMMEDIATE_KHR);
+    //VK_PRESENT_MODE_FIFO_KHR
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
     mDevice->createDefaultRenderpass(mRootDisplay->format());
     mRootDisplay->createFramebuffers(mDevice->defaultRenderpass());
-
-    ///Setup sync structures
-    mRootDisplay->createSyncStructures();
 }
 
 void Vulkan::init_vulkan() {
@@ -232,15 +228,6 @@ bool Vulkan::loadShaderModule(const char *filepath, VkShaderModule &outShaderMod
     return true;
 }
 
-void Vulkan::loadMesh(std::string filepath, Entity entity) {
-    Mesh mesh;
-    mesh.load_from_obj(filepath);
-
-    uploadMesh(mesh);
-
-    mECS->addComponent<Mesh>(entity, mesh);
-}
-
 Material* Vulkan::createMaterial(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, const std::string &matName) {
 
     std::pair<VkPipeline, VkPipelineLayout> pipelines = createPipeline(vertexShaderPath, fragmentShaderPath);
@@ -271,7 +258,7 @@ Mesh* Vulkan::createMesh(const std::string &filepath, const std::string &meshNam
     return &mMeshes[meshName];
 }
 
-bool Vulkan::deleteMesh(const std::string &meshName) {
+bool Vulkan::deleteMesh(std::string meshName) {
     Mesh& mesh = mMeshes[meshName];
 
     vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
@@ -320,6 +307,7 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     vmaUnmapMemory(mDevice->allocator(), mesh.mVertexBuffer.mAllocation);
 }
 
+
 void Vulkan::draw() {
     VkCommandBuffer cmd = mRootDisplay->startFrame();
 
@@ -346,7 +334,6 @@ void Vulkan::draw() {
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
         VkDeviceSize offset = 0;
-
 
         vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
 

@@ -14,7 +14,7 @@
 #include <iostream>
 #include "Common.h"
 
-#define MAX_ENTITYS 5000
+#define MAX_ENTITYS 15000
 #define MAX_DISPLAYS 5
 #define MAX_COMPONENTS 10
 #define MAX_MODULES 2
@@ -40,13 +40,12 @@ constexpr auto type_name() noexcept {
 ///All subscriber modules will extend this as they all require these variables
 class Module {
 protected:
-
     Module() = default;
 
     //Packed array for fast iteration
     std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList{};
 
-    //Current size/index of last entity + 1
+    //Current size / index of last entity + 1
     uint32_t mEntityListSize = 0;
 
     //Map for packed array, may be unnecessary
@@ -270,6 +269,7 @@ public:
 
         entitySignatures[entity] = entitySig;
 
+
         //Update System lists
         for(auto& pair : systems) {
 
@@ -283,14 +283,30 @@ public:
             //Test if entity already exists on system and exit if it does
             Display allegedDisplay = std::get<0>((*system.entityToPos)[entity]);
             uint32_t allegedIndex = std::get<1>((*system.entityToPos)[entity]);
-            if ((*system.localEntityList)[allegedIndex][allegedDisplay] == entity) {
-                return;
-            }
 
+
+            if ((*system.localEntityList)[allegedIndex][allegedDisplay] == entity) {
+                if(!((entitySig & systemSig) == systemSig)) {
+
+                    (*system.size)--;
+                    uint32_t index = std::get<1>((*system.entityToPos)[entity]);
+
+                    //Get Entity in back
+                    uint32_t backEntity = (*system.size);
+
+                    //Repack array
+                    (*system.localEntityList)[display][index] = (*system.localEntityList)[display][backEntity];
+
+                    //Update maps to keep track of entity
+                    (*system.entityToPos)[entity] = {display, *system.size};
+                }
+            }
             //Entity must include needed signatures
-            if((entitySig & systemSig) == systemSig) {
-                (*system.localEntityList)[display][*system.size] = entity;
-                (*system.entityToPos)[entity] = {display, *system.size};
+            else if((entitySig & systemSig) == systemSig) {
+                uint32_t newIndex = *system.size;
+
+                (*system.localEntityList)[display][newIndex] = entity;
+                (*system.entityToPos)[entity] = {display, newIndex};
                 (*system.size)++;
             }
         }

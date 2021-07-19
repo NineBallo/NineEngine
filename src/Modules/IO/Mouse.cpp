@@ -7,8 +7,6 @@
 
 Mouse::Mouse(GLFWwindow *window) {
     mWindow = window;
-    currentTick = std::chrono::steady_clock::now();
-    lastTick = std::chrono::steady_clock::now();
 }
 
 void Mouse::tick() {
@@ -26,52 +24,49 @@ void Mouse::tick() {
         } else {
             if(mouseData.mAngles == nullptr) return;
 
-            currentTick = std::chrono::steady_clock::now();
-            std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(lastTick - currentTick);
-            float seconds = (duration.count());
-
-            float adjScalar = mouseData.mScalar * seconds;
-
-            double xpos, ypos, xdiff, ydiff;
+            //Get mouse movement
+            double xpos, ypos;
             glfwGetCursorPos(mWindow, &xpos, &ypos);
-           // std::cout << "X: " << xpos << " Y: " << ypos << std::endl;
-
-            xdiff = xpos - mOldxpos;
-            ydiff = ypos - mOldypos;
-
-            float pitch, yaw;
-            yaw = xdiff*adjScalar;
-            pitch = ydiff*adjScalar;
 
 
-            if(((*mouseData.mAngles).x + pitch) > 89.f) {
-                (*mouseData.mAngles).x = 89.f;
+            //Return if mouse has not moved
+            if(xpos == mOldxpos && ypos == mOldypos) {
+                return;
             }
-            else if (((*mouseData.mAngles).x + pitch) < -89.f) {
-                (*mouseData.mAngles).x = -89.f;
-            }else {
+
+            float pitch, yaw, xdiff, ydiff;
+            xdiff = mOldxpos - xpos;
+            ydiff = mOldypos - ypos;
+
+            yaw = xdiff*mouseData.mScalar * -1;
+            pitch = ydiff*mouseData.mScalar;
+
+            if((mouseData.mAngles->x + pitch) > 89.f) {
+                mouseData.mAngles->x = 89.f;
+            }
+            else if ((mouseData.mAngles->x + pitch) < -89.f) {
+                mouseData.mAngles->x = -89.f;
+            }
+            else {
                 mouseData.mAngles->x += pitch;
-                mouseData.mAngles->y = glm::mod(mouseData.mAngles->y + (yaw * -1.f), 360.0f);
+                mouseData.mAngles->y = glm::mod(mouseData.mAngles->y + yaw, 360.f);
             }
 
             mOldxpos = xpos;
             mOldypos = ypos;
-            lastTick = currentTick;
         }
     }
-
-
-
-
 }
 
 void Mouse::attachMouseToScreen() {
+    glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     attached = true;
     std::cout << "Attached cursor \n";
 }
 
 void Mouse::detachMouseFromScreen() {
+    glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
     glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     attached = false;
     std::cout << "Detached cursor \n";
