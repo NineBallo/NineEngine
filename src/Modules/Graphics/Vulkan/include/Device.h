@@ -23,6 +23,9 @@ public:
     bool init_LogicalDevice(vkb::PhysicalDevice &physicalDevice);
     void init_Allocator(VkInstance instance);
 
+    VkDescriptorSet createDescriptorSet(VkDescriptorSetLayout layout);
+    VkDescriptorSetLayoutBinding createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
+    VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutBinding* bindingArray, uint8_t arraySize);
 
 public:
     //Modifiers
@@ -30,21 +33,26 @@ public:
     VkCommandPool createCommandPool(uint32_t queueFamily);
     //VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
+    size_t padUniformBufferSize(size_t originalSize);
+
+    AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+    std::pair<VkPipeline, VkPipelineLayout> createPipeline(const std::string& vertexShader, const std::string& fragShader);
+    bool loadShaderModule(const char *filepath, VkShaderModule &outShaderModule);
+    void init_descriptors();
 
 public:
     //Getters
     VkDevice device();
     VkPhysicalDevice GPU();
-
     VkQueue presentQueue();
     VkQueue graphicsQueue();
-
     uint32_t presentQueueFamily();
     uint32_t graphicsQueueFamily();
-
     VkRenderPass defaultRenderpass();
-
     VmaAllocator allocator();
+
+    VkDescriptorPool descriptorPool();
+    VkDescriptorSetLayout globalSetLayout();
 
 private:
     //Actual Device this will not be exposed
@@ -62,7 +70,11 @@ private:
     ///Memory allocator
     VmaAllocator mAllocator = nullptr;
 
+    VkDescriptorSetLayout mSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool mDescriptorPool;
 
+
+    VkPhysicalDeviceProperties mGPUProperties;
 private:
     DeletionQueue mDeletionQueue {};
 };

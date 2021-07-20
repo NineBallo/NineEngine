@@ -68,7 +68,9 @@ void Vulkan::init() {
     //VK_PRESENT_MODE_FIFO_KHR
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
     mDevice->createDefaultRenderpass(mRootDisplay->format());
+    mDevice->init_descriptors();
     mRootDisplay->createFramebuffers(mDevice->defaultRenderpass());
+    mRootDisplay->createDescriptors();
 }
 
 void Vulkan::init_vulkan() {
@@ -101,136 +103,9 @@ void Vulkan::init_vulkan() {
     mDevice->init_Allocator(vkb_inst.instance);
 }
 
-
-
-std::pair<VkPipeline, VkPipelineLayout> Vulkan::createPipeline(const std::string &vertexShaderPath, const std::string &fragShaderPath) {
-    VkShaderModule vertexShader;
-    if (!loadShaderModule(vertexShaderPath.c_str(), vertexShader))
-    {
-        std::cout << "Error when building the requested vertex shader" << std::endl;
-    }
-    else {
-        std::cout << "Fragment shader successfully loaded" << std::endl;
-    }
-
-    VkShaderModule fragmentShader;
-    if (!loadShaderModule(fragShaderPath.c_str(), fragmentShader))
-    {
-        std::cout << "Error when building the fragment shader" << std::endl;
-
-    }
-    else {
-        std::cout << "Fragment shader successfully loaded" << std::endl;
-    }
-
-    //Pipeline creation
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-
-    VkPushConstantRange push_constant;
-    push_constant.offset = 0;
-    push_constant.size = sizeof(MeshPushConstants);
-    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    pipelineLayoutInfo.pPushConstantRanges = &push_constant;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-
-    VkPipelineLayout layout;
-    if (vkCreatePipelineLayout(mDevice->device(), &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
-        throw std::runtime_error("Pipeline layout creation failed\n");
-    }
-
-    PipelineBuilder builder;
-    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
-
-
-    builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
-
-    VertexInputDescription vertexDescription = Vertex::get_vertex_description();
-    builder.mVertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-    builder.mVertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-
-    builder.mVertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-    builder.mVertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-
-    //How to group shapes.
-    builder.mInputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-    builder.mViewport.x = 0.f;
-    builder.mViewport.y = 0.f;
-    builder.mViewport.width = mRootDisplay->extent().width;
-    builder.mViewport.height = mRootDisplay->extent().height;
-    builder.mViewport.minDepth = 0.f;
-    builder.mViewport.maxDepth = 1.f;
-
-    builder.mScissor.offset = {0, 0 };
-    builder.mScissor.extent = mRootDisplay->extent();
-
-    //Wireframe, points, or filled I think...
-    builder.mRasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-    builder.mMultisampling = vkinit::multisampling_state_create_info();
-
-    builder.mColorBlendAttachment = vkinit::color_blend_attachment_state();
-
-    VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT};
-
-    builder.mDynamicState = vkinit::dynamic_state_create_info(dynamicStates);
-
-    builder.mDepthStencil = init::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-
-
-    std::pair<VkPipeline, VkPipelineLayout> temp;
-    VkPipeline pipeline;
-
-
-    builder.mPipelineLayout = layout;
-    pipeline = builder.build_pipeline(mDevice->device(), mDevice->defaultRenderpass());
-
-    temp = {pipeline, layout};
-
-    vkDestroyShaderModule(mDevice->device(), vertexShader, nullptr);
-    vkDestroyShaderModule(mDevice->device(), fragmentShader, nullptr);
-
-    return temp;
-}
-
-
-bool Vulkan::loadShaderModule(const char *filepath, VkShaderModule &outShaderModule) {
-    std::ifstream file(filepath, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        return false;
-    }
-
-    //Create buffer for asm
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-    //Read asm into buffer
-    file.seekg(0);
-    file.read((char*)buffer.data(), fileSize);
-
-    //close
-    file.close();
-
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-
-    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-    createInfo.pCode = buffer.data();
-
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(mDevice->device(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-        return false;
-    }
-    outShaderModule = shaderModule;
-    return true;
-}
-
 Material* Vulkan::createMaterial(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, const std::string &matName) {
 
-    std::pair<VkPipeline, VkPipelineLayout> pipelines = createPipeline(vertexShaderPath, fragmentShaderPath);
+    std::pair<VkPipeline, VkPipelineLayout> pipelines = mDevice->createPipeline(vertexShaderPath, fragmentShaderPath);
 
     Material material{};
     material.mPipeline = std::get<0>(pipelines);
@@ -326,13 +201,34 @@ void Vulkan::draw() {
     glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect, camera.znear, camera.zfar);
     projection[1][1] *= -1;
 
+    GPUCameraData cameraData {};
+    cameraData.proj = projection;
+    cameraData.view = view;
+    cameraData.viewproj = projection * view;
+
+    void* data;
+    vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation, &data);
+    memcpy(data, &cameraData, sizeof(GPUCameraData));
+    vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation);
+
 
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
-
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
+   //     if(currentEntity.material != mLastMaterial) {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
+            mLastMaterial = currentEntity.material;
+
+            VkDescriptorSet descriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
+
+            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData));
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
+                                    0, 1, &descriptorSet, 1, &uniform_offset);
+     //   }
+
+
         VkDeviceSize offset = 0;
 
         vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
@@ -343,10 +239,10 @@ void Vulkan::draw() {
         glm::mat4 model = glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.scalar); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
 
         //Final mesh matrix
-        glm::mat4 mesh_matrix = projection * view * model;
+       //glm::mat4 mesh_matrix = projection * view * model;
 
-        MeshPushConstants constants;
-        constants.render_matrix = mesh_matrix;
+        MeshPushConstants constants {};
+        constants.render_matrix = model;
         vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
         vkCmdDraw(cmd, currentEntity.mesh->mVertices.size(), 1, 0, 0);

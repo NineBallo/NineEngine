@@ -44,6 +44,12 @@ public:
     void createFramebuffers(VkRenderPass renderpass);
     void createSyncStructures(FrameData &frame);
 
+    void initImGUI();
+
+    void createDescriptors();
+
+
+
     VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
     //Render methods
@@ -53,10 +59,11 @@ public:
 
 public:
     VkSurfaceKHR surface();
-    uint16_t frameNumber();
     VkFormat format();
     VkExtent2D extent();
     GLFWwindow* window();
+    FrameData currentFrame();
+    uint32_t frameIndex();
 
 private:
     void populateFrameData();
@@ -75,8 +82,6 @@ private:
     std::vector<VkFramebuffer> mFramebuffers;
     VkRenderPass mRenderpass = VK_NULL_HANDLE;
 
-
-
     //Window variables
     VkExtent2D mExtent;
     GLFWwindow* mWindow = nullptr;
@@ -89,9 +94,14 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> currentTick;
     std::chrono::time_point<std::chrono::steady_clock> lastTick;
 
+    GPUSceneData mSceneData {};
+    AllocatedBuffer mSceneParameterBuffer;
+
+
     //Sync
     uint32_t mSwapchainImageIndex = 0;
     uint8_t mCurrentFrame = 0;
+    uint32_t mFrameCount = 0;
 
 private:
     //Mainly destruction variables

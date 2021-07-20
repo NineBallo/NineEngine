@@ -40,11 +40,8 @@ public:
     void deleteMaterial(const std::string& material);
     void makeRenderable(Entity entity, const std::string& material, const std::string& mesh);
 
-
     Mesh* createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(std::string meshName);
-
-    std::pair<VkPipeline, VkPipelineLayout> createPipeline(const std::string& vertexShader, const std::string& fragShader);
 
     GLFWwindow* getWindow(Display display);
 private:
@@ -92,6 +89,7 @@ private:
     bool mShouldExit = false;
 
     Entity mCameraEntity = 0;
+    Material* mLastMaterial = nullptr;
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

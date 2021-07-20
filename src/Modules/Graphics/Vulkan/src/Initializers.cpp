@@ -79,3 +79,22 @@ VkPipelineDepthStencilStateCreateInfo init::depth_stencil_create_info(bool bDept
 
     return info;
 }
+
+VkWriteDescriptorSet init::writeDescriptorBuffer(VkDescriptorType type, VkDescriptorSet dstSet,
+                                                 VkDescriptorBufferInfo *bufferInfo, uint32_t binding) {
+    VkWriteDescriptorSet setWrite = {};
+    setWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    setWrite.pNext = nullptr;
+
+    //We are going to write into binding number 0
+    setWrite.dstBinding = binding;
+    //of the global descriptor
+    setWrite.dstSet = dstSet;
+
+    setWrite.descriptorCount = 1;
+    //and the type is uniform buffer
+    setWrite.descriptorType = type;
+    setWrite.pBufferInfo = bufferInfo;
+
+    return setWrite;
+}

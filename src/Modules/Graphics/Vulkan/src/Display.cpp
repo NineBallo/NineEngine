@@ -7,7 +7,9 @@
 #include <VkBootstrap.h>
 #include <math.h>
 #include <Initializers.h>
-#include <math.h>
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
 
 NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
@@ -111,6 +113,105 @@ void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeK
 
     //Gonna need this later...
     populateFrameData();
+}
+
+void NEDisplay::createDescriptors() {
+
+    const size_t sceneParamBufferSize = MAX_FRAMES * mDevice->padUniformBufferSize(sizeof(GPUSceneData));
+    mSceneParameterBuffer = mDevice->createBuffer(sceneParamBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+
+    VkDescriptorSetLayoutBinding cameraBind = mDevice->createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    VkDescriptorSetLayoutBinding sceneBind = mDevice->createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+
+    VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
+
+    VkDescriptorSetLayout layout = mDevice->createDescriptorSetLayout(bindings, 2);
+
+    VkDescriptorBufferInfo sceneInfo;
+    //it will be the camera buffer
+    sceneInfo.buffer = mSceneParameterBuffer.mBuffer;
+    //at 0 offset
+    sceneInfo.offset = 0;
+    //of the size of a camera data struct
+    sceneInfo.range = sizeof(GPUSceneData);
+
+
+
+    for (int i = 0; i < MAX_FRAMES; i++)
+    {
+        mFrames[i].mCameraBuffer = mDevice->createBuffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(layout);
+
+        //Information about the buffer we want to point at in the descriptor
+        VkDescriptorBufferInfo cameraInfo;
+        //it will be the camera buffer
+        cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
+        //at 0 offset
+        cameraInfo.offset = 0;
+        //of the size of a camera data struct
+        cameraInfo.range = sizeof(GPUCameraData);
+
+        VkWriteDescriptorSet cameraWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mFrames[i].mGlobalDescriptor, &cameraInfo, 0);
+        VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
+
+        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite };
+
+        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
+    }
+}
+
+void NEDisplay::initImGUI() {
+    ////Create a *large* descriptor pool for imgui
+    //VkDescriptorPoolSize pool_sizes[] =
+    //        {
+    //                { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+    //                { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+    //        };
+//
+    //VkDescriptorPoolCreateInfo pool_info = {};
+    //pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    //pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    //pool_info.maxSets = 1000;
+    //pool_info.poolSizeCount = std::size(pool_sizes);
+    //pool_info.pPoolSizes = pool_sizes;
+//
+    //VkDescriptorPool imguiPool;
+    //vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &imguiPool);
+//
+//
+    //ImGui::CreateContext();
+//
+    //ImGui_ImplGlfw_InitForVulkan(mWindow, true);
+//
+    ////Init Data
+    //ImGui_ImplVulkan_InitInfo initInfo{};
+    //ImGui_ImplVulkan_InitInfo init_info = {};
+    //init_info.Instance = mInstance;
+    //init_info.PhysicalDevice = mDevice->GPU();
+    //init_info.Device = mDevice->device();
+    //init_info.Queue = mDevice->graphicsQueue();
+    //init_info.DescriptorPool = imguiPool;
+    //init_info.MinImageCount = 3;
+    //init_info.ImageCount = 3;
+    //init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+//
+    //ImGui_ImplVulkan_Init(&init_info, mDevice->defaultRenderpass());
+//
+    //ImGui_ImplVulkan_DestroyFontUploadObjects();
+    //mDeletionQueue.push_function([=]() {
+    //    vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
+    //    ImGui_ImplVulkan_Shutdown();
+    //});
 }
 
 void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
@@ -276,6 +377,23 @@ VkCommandBuffer NEDisplay::startFrame() {
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
     vkCmdSetViewport(frame.mCommandBuffer, 0, 1, &viewport);
+
+
+    float framed = (mFrameCount / 120.f);
+
+    mSceneData.ambientColor = { sin(framed),0,cos(framed),1 };
+
+    char* sceneData;
+    vmaMapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation, (void**)&sceneData);
+
+    sceneData += mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mCurrentFrame;
+
+    memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
+
+    vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
+
+
+
     //Farewell command buffer o/; May your errors gentle.
     return frame.mCommandBuffer;
 }
@@ -327,6 +445,7 @@ void NEDisplay::endFrame() {
     //Rage, rage against the dying of the light.
     //Should flippy flop between 0 and MAX_FRAMES - 1
    mCurrentFrame = (mCurrentFrame + 1) % (MAX_FRAMES);
+   mFrameCount++;
 }
 
 
@@ -339,7 +458,15 @@ bool NEDisplay::shouldExit() {
     }
 }
 
+FrameData NEDisplay::currentFrame() {
+    return mFrames[mCurrentFrame];
+}
+
 VkSurfaceKHR NEDisplay::surface() {return mSurface;}
 VkFormat NEDisplay::format() {return mFormat;}
 VkExtent2D NEDisplay::extent() {return mExtent;}
 GLFWwindow *NEDisplay::window() {return mWindow;}
+
+uint32_t NEDisplay::frameIndex() {
+    return mCurrentFrame;
+}

@@ -42,11 +42,25 @@ struct device {
     VmaAllocator allocator;
 };
 
-
 struct VkData {
     uint32_t materialIndex;
-
 };
+
+struct GPUCameraData {
+    glm::mat4 view;
+    glm::mat4 proj;
+    glm::mat4 viewproj;
+};
+
+struct GPUSceneData {
+    //Need to use all vec4's for alignment purposes so not all values are used
+    glm::vec4 fogColor; // w is for exponent
+    glm::vec4 fogDistances; //x for min, y for max, zw unused.
+    glm::vec4 ambientColor;
+    glm::vec4 sunlightDirection; //w for sun power
+    glm::vec4 sunlightColor;
+};
+
 
 struct Material {
     VkPipeline mPipeline;
@@ -69,6 +83,9 @@ struct FrameData {
 
     VkCommandPool mCommandPool;
     VkCommandBuffer mCommandBuffer;
+
+    AllocatedBuffer mCameraBuffer;
+    VkDescriptorSet mGlobalDescriptor;
 };
 
 

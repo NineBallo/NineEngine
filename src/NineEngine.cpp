@@ -26,7 +26,7 @@ int main(){
 
     renderer.createMesh("./models/bananaconcert.obj", "bananaConcert");
     renderer.createMesh("./models/monkey.obj", "monkey");
-    renderer.createMaterial("./shaders/mesh.vert.spv", "./shaders/basic.frag.spv", "basicMesh");
+    renderer.createMaterial("./shaders/mesh.vert.spv", "./shaders/lighting.frag.spv", "basicMesh");
 
 
     Entity banana = ecs.createEntity(0);
@@ -35,8 +35,8 @@ int main(){
 
     renderer.makeRenderable(banana, "basicMesh", "monkey");
 
-    for(uint32_t x = 1; x <= 100; x++) {
-        for(uint32_t y = 1; y <= 100; y++) {
+    for(uint32_t x = 1; x <= 10; x++) {
+        for(uint32_t y = 1; y <= 10; y++) {
             Entity entity;
             entity = ecs.createEntity(0);
               std::cout << entity << std::endl;

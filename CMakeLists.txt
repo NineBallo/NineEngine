@@ -27,6 +27,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(vma)
 
 FetchContent_Declare(
+imgui
+GIT_REPOSITORY https://github.com/ocornut/imgui
+GIT_TAG        v1.83   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(imgui)
+
+FetchContent_Declare(
         obj
         GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
         GIT_TAG        v1.0.6   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
@@ -52,21 +60,24 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spirv-tools)
 
 
+message(STATUS "GIT modules fetched")
+
+
+set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+
+
+add_executable(NineEngine ${imgui_FILES} src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h)
+target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan imgui)
+
+target_include_directories(NineEngine PUBLIC
+        ${vma_SOURCE_DIR}/src ${obj_SOURCE_DIR} ${imgui_SOURCE_DIR})
+
+
 file(GLOB_RECURSE GLSL_SOURCE_FILES
         "${PROJECT_SOURCE_DIR}/shaders/*.frag"
         "${PROJECT_SOURCE_DIR}/shaders/*.vert"
         "${PROJECT_SOURCE_DIR}/shaders/*.comp"
         )
-
-
-message(STATUS "GIT modules fetched")
-
-add_executable(NineEngine src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h)
-target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan)
-
-target_include_directories(NineEngine PUBLIC
-        ${vma_SOURCE_DIR}/src ${obj_SOURCE_DIR})
-
 
 if(NOT (EXISTS ${CMAKE_BINARY_DIR}/shaders))
     message(STATUS "Shader dir not found, generating...")
