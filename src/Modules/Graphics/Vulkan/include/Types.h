@@ -61,6 +61,9 @@ struct GPUSceneData {
     glm::vec4 sunlightColor;
 };
 
+struct GPUObjectData {
+    glm::mat4 modelMatrix;
+};
 
 struct Material {
     VkPipeline mPipeline;
@@ -84,8 +87,12 @@ struct FrameData {
     VkCommandPool mCommandPool;
     VkCommandBuffer mCommandBuffer;
 
+    AllocatedBuffer mObjectBuffer;
+    VkDescriptorSet mObjectDescriptor;
+
     AllocatedBuffer mCameraBuffer;
     VkDescriptorSet mGlobalDescriptor;
+
 };
 
 

@@ -5,8 +5,9 @@
 #include "Display.h"
 #include <iostream>
 #include <VkBootstrap.h>
-#include <math.h>
+#include <cmath>
 #include <Initializers.h>
+#include "ECS.h"
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
@@ -116,49 +117,52 @@ void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeK
 }
 
 void NEDisplay::createDescriptors() {
-
     const size_t sceneParamBufferSize = MAX_FRAMES * mDevice->padUniformBufferSize(sizeof(GPUSceneData));
+
     mSceneParameterBuffer = mDevice->createBuffer(sceneParamBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-
-    VkDescriptorSetLayoutBinding cameraBind = mDevice->createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-    VkDescriptorSetLayoutBinding sceneBind = mDevice->createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-    VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
-
-    VkDescriptorSetLayout layout = mDevice->createDescriptorSetLayout(bindings, 2);
-
-    VkDescriptorBufferInfo sceneInfo;
-    //it will be the camera buffer
-    sceneInfo.buffer = mSceneParameterBuffer.mBuffer;
-    //at 0 offset
-    sceneInfo.offset = 0;
-    //of the size of a camera data struct
-    sceneInfo.range = sizeof(GPUSceneData);
-
-
 
     for (int i = 0; i < MAX_FRAMES; i++)
     {
-        mFrames[i].mCameraBuffer = mDevice->createBuffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-        mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(layout);
 
-        //Information about the buffer we want to point at in the descriptor
+        mFrames[i].mObjectBuffer = mDevice->createBuffer(sizeof(GPUObjectData) * MAX_ENTITYS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        mFrames[i].mCameraBuffer = mDevice->createBuffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+        mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(mDevice->globalSetLayout());
+        mFrames[i].mObjectDescriptor = mDevice->createDescriptorSet(mDevice->objectSetLayout());
+
         VkDescriptorBufferInfo cameraInfo;
-        //it will be the camera buffer
         cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
-        //at 0 offset
         cameraInfo.offset = 0;
-        //of the size of a camera data struct
         cameraInfo.range = sizeof(GPUCameraData);
+
+        VkDescriptorBufferInfo sceneInfo;
+        sceneInfo.buffer = mSceneParameterBuffer.mBuffer;
+        sceneInfo.offset = 0;
+        sceneInfo.range = sizeof(GPUSceneData);
+
+        VkDescriptorBufferInfo objectBufferInfo;
+        objectBufferInfo.buffer = mFrames[i].mObjectBuffer.mBuffer;
+        objectBufferInfo.offset = 0;
+        objectBufferInfo.range = sizeof(GPUObjectData) * MAX_ENTITYS;
+
 
         VkWriteDescriptorSet cameraWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mFrames[i].mGlobalDescriptor, &cameraInfo, 0);
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
 
-        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite };
+        VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
 
-        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
+        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite, objectWrite };
+
+        vkUpdateDescriptorSets(mDevice->device(), 3, setWrites, 0, nullptr);
+
+        mDeletionQueue.push_function([=]() {
+            vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
+            vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
+        });
     }
+    mDeletionQueue.push_function([=]() {
+        vmaDestroyBuffer(mDevice->allocator(), mSceneParameterBuffer.mBuffer, mSceneParameterBuffer.mAllocation);
+    });
 }
 
 void NEDisplay::initImGUI() {
@@ -305,9 +309,9 @@ void NEDisplay::populateFrameData() {
         frame.mCommandBuffer = createCommandBuffer(frame.mCommandPool);
         createSyncStructures(frame);
 
-
         mDeletionQueue.push_function([=]() {
-            vkFreeCommandBuffers(mDevice->device(), frame.mCommandPool, 1, &frame.mCommandBuffer);
+            vkFreeCommandBuffers(mDevice->device(), mFrames[i].mCommandPool, 1, &mFrames[i].mCommandBuffer);
+            vkDestroyCommandPool(mDevice->device(), mFrames[i].mCommandPool, nullptr);
         });
     }
 }
@@ -391,8 +395,6 @@ VkCommandBuffer NEDisplay::startFrame() {
     memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
 
     vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
-
-
 
     //Farewell command buffer o/; May your errors gentle.
     return frame.mCommandBuffer;

@@ -35,8 +35,8 @@ int main(){
 
     renderer.makeRenderable(banana, "basicMesh", "monkey");
 
-    for(uint32_t x = 1; x <= 10; x++) {
-        for(uint32_t y = 1; y <= 10; y++) {
+    for(uint32_t x = 1; x <= 1; x++) {
+        for(uint32_t y = 1; y <= 1; y++) {
             Entity entity;
             entity = ecs.createEntity(0);
               std::cout << entity << std::endl;

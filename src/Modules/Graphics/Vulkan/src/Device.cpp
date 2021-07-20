@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <Pipeline.h>
-
+#include "ECS.h"
 #include "Device.h"
 #include "Initializers.h"
 #include "Mesh.h"
@@ -34,7 +34,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
 
     vkGetPhysicalDeviceProperties(mGPU, &mGPUProperties);
     std::cout << "The GPU has a minimum buffer alignment of " << mGPUProperties.limits.minUniformBufferOffsetAlignment << std::endl;
-    std::cout << sizeof(glm::vec3) << std::endl;
+
     return physicalDevice;
 }
 
@@ -49,6 +49,10 @@ bool NEDevice::init_LogicalDevice(vkb::PhysicalDevice &physicalDevice) {
 
     mPresentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
     mPresentQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::present).value();
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroyDevice(mDevice, nullptr);
+    });
 }
 
 void NEDevice::init_Allocator(VkInstance instance) {
@@ -61,7 +65,6 @@ void NEDevice::init_Allocator(VkInstance instance) {
     mDeletionQueue.push_function([=]() {
         vmaDestroyAllocator(mAllocator);
     });
-
 }
 
 VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
@@ -144,18 +147,12 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(const std::stri
     {
         std::cout << "Error when building the requested vertex shader" << std::endl;
     }
-    else {
-        std::cout << "Fragment shader successfully loaded" << std::endl;
-    }
 
     VkShaderModule fragmentShader;
     if (!loadShaderModule(fragShaderPath.c_str(), fragmentShader))
     {
         std::cout << "Error when building the fragment shader" << std::endl;
 
-    }
-    else {
-        std::cout << "Fragment shader successfully loaded" << std::endl;
     }
 
     //Pipeline creation
@@ -169,8 +166,10 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(const std::stri
     pipelineLayoutInfo.pPushConstantRanges = &push_constant;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &mSetLayout;
+    VkDescriptorSetLayout layouts[] = {mGlobalSetLayout, mObjectSetLayout};
+
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = layouts;
 
     VkPipelineLayout layout;
     if (vkCreatePipelineLayout(mDevice, &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
@@ -268,12 +267,9 @@ VkCommandPool NEDevice::createCommandPool(uint32_t queueFamily) {
     if (vkCreateCommandPool(mDevice, &commandPoolInfo, nullptr, &cmdPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create commandPool\n");
     }
-    mDeletionQueue.push_function([=]() {
-        vkDestroyCommandPool(mDevice, cmdPool, nullptr);
-    });
+
     return cmdPool;
 }
-
 
 AllocatedBuffer NEDevice::createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage) {
     //allocate vertex buffer
@@ -304,7 +300,8 @@ void NEDevice::init_descriptors() {
     std::vector<VkDescriptorPoolSize> sizes =
             {
                     { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 }
+                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
+                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 }
             };
 
     VkDescriptorPoolCreateInfo pool_info = {};
@@ -315,6 +312,21 @@ void NEDevice::init_descriptors() {
     pool_info.pPoolSizes = sizes.data();
 
     vkCreateDescriptorPool(mDevice, &pool_info, nullptr, &mDescriptorPool);
+
+    mDeletionQueue.push_function([&]() {
+        vkDestroyDescriptorPool(mDevice, mDescriptorPool, nullptr);
+    });
+
+    VkDescriptorSetLayoutBinding cameraBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    VkDescriptorSetLayoutBinding sceneBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
+
+    mGlobalSetLayout = createDescriptorSetLayout(bindings, 2);
+
+
+    VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+
+    mObjectSetLayout = createDescriptorSetLayout(&objectBind, 1);
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -336,8 +348,6 @@ VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorTy
 VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutBinding *bindingArray,
                                                           uint8_t arraySize) {
 
-    if(mSetLayout != VK_NULL_HANDLE) return mSetLayout;
-
     VkDescriptorSetLayout layout;
 
     VkDescriptorSetLayoutCreateInfo setInfo = {};
@@ -354,7 +364,9 @@ VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutB
 
     vkCreateDescriptorSetLayout(mDevice, &setInfo, nullptr, &layout);
 
-    mSetLayout = layout;
+    mDeletionQueue.push_function([=]() {
+        vkDestroyDescriptorSetLayout(mDevice, layout, nullptr);
+    });
 
     return layout;
 }
@@ -422,5 +434,9 @@ VkDescriptorPool NEDevice::descriptorPool() {
 }
 
 VkDescriptorSetLayout NEDevice::globalSetLayout() {
-    return mSetLayout;
+    return mGlobalSetLayout;
+}
+
+VkDescriptorSetLayout NEDevice::objectSetLayout() {
+    return mObjectSetLayout;
 }

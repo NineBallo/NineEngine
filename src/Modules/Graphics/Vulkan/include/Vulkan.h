@@ -88,8 +88,7 @@ private:
 
     bool mShouldExit = false;
 
-    Entity mCameraEntity = 0;
-    Material* mLastMaterial = nullptr;
+    Entity mCameraEntity = 0;;
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

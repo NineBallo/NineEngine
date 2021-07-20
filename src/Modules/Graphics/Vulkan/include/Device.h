@@ -53,7 +53,7 @@ public:
 
     VkDescriptorPool descriptorPool();
     VkDescriptorSetLayout globalSetLayout();
-
+    VkDescriptorSetLayout objectSetLayout();
 private:
     //Actual Device this will not be exposed
     VkDevice mDevice = VK_NULL_HANDLE;
@@ -70,7 +70,9 @@ private:
     ///Memory allocator
     VmaAllocator mAllocator = nullptr;
 
-    VkDescriptorSetLayout mSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout mGlobalSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout mObjectSetLayout = VK_NULL_HANDLE;
+
     VkDescriptorPool mDescriptorPool;
 
 

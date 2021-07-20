@@ -44,16 +44,10 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
 
 Vulkan::~Vulkan(){
-
-    for(auto& mesh : mMeshes) {
-        deleteMesh(mesh.first);
-    }
-
-    for(auto& mat : mMaterials) {
-        deleteMaterial(mat.first);
-    }
-
+    mRootDisplay.reset();
     mDeletionQueue.flush();
+
+    mDevice.reset();
 
     vkb::destroy_debug_utils_messenger(mInstance, mDebugMessenger);
     vkDestroyInstance(mInstance, nullptr);
@@ -111,6 +105,11 @@ Material* Vulkan::createMaterial(const std::string& vertexShaderPath, const std:
     material.mPipeline = std::get<0>(pipelines);
     material.mPipelineLayout = std::get<1>(pipelines);
     mMaterials[matName] = material;
+
+    mDeletionQueue.push_function([=]() {
+        deleteMaterial(matName);
+    });
+
     return &mMaterials[matName];
 }
 
@@ -130,6 +129,11 @@ Mesh* Vulkan::createMesh(const std::string &filepath, const std::string &meshNam
     uploadMesh(mesh);
 
     mMeshes[meshName] = mesh;
+
+    mDeletionQueue.push_function([=]() {
+        deleteMesh(meshName);
+    });
+
     return &mMeshes[meshName];
 }
 
@@ -212,40 +216,61 @@ void Vulkan::draw() {
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation);
 
 
+
+    ///Calculate all positions and send to gpu
+    void* objectData;
+    vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation, &objectData);
+
+    GPUObjectData* objectSSBO = (GPUObjectData*)objectData;
+
+    for (int i = 0; i < mEntityListSize; i++)
+    {
+        Entity currentEntityID = mLocalEntityList[0][i];
+        auto& position = ECS::Get().getComponent<Position>(currentEntityID);
+
+        glm::mat4 model = glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.scalar); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
+
+        objectSSBO[i].modelMatrix = model;
+    }
+    vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
+
+    Material* mLastMaterial = nullptr;
+
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
 
-   //     if(currentEntity.material != mLastMaterial) {
+        if(currentEntity.material != mLastMaterial) {
+
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
             mLastMaterial = currentEntity.material;
 
-            VkDescriptorSet descriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
+            VkDescriptorSet globalDescriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
+            VkDescriptorSet objectDescriptorSet = mRootDisplay->currentFrame().mObjectDescriptor;
 
             uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData));
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
-                                    0, 1, &descriptorSet, 1, &uniform_offset);
-     //   }
+                                    0, 1, &globalDescriptorSet, 1, &uniform_offset);
 
+            //object data descriptor
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
+                                1, 1, &objectDescriptorSet, 0, nullptr);
+
+           }
 
         VkDeviceSize offset = 0;
-
         vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
 
         //Model matrix
         auto& position = ECS::Get().getComponent<Position>(currentEntityID);
 
-        glm::mat4 model = glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.coordinates) * glm::translate(glm::mat4 {1.f}, position.scalar); //= glm::rotate(glm::mat4{ 1.0f }, glm::radians(mRootDisplay->frameNumber() * 0.4f), glm::vec3(0, 1, 0));
 
-        //Final mesh matrix
-       //glm::mat4 mesh_matrix = projection * view * model;
+     //  MeshPushConstants constants {};
+     //  constants.render_matrix = model;
+     //  vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
-        MeshPushConstants constants {};
-        constants.render_matrix = model;
-        vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-
-        vkCmdDraw(cmd, currentEntity.mesh->mVertices.size(), 1, 0, 0);
+        vkCmdDraw(cmd, currentEntity.mesh->mVertices.size(), 1, 0, i);
     }
 
     mRootDisplay->endFrame();
