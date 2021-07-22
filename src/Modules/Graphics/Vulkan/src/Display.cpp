@@ -166,56 +166,64 @@ void NEDisplay::createDescriptors() {
 }
 
 void NEDisplay::initImGUI() {
-    ////Create a *large* descriptor pool for imgui
-    //VkDescriptorPoolSize pool_sizes[] =
-    //        {
-    //                { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-    //                { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-    //        };
-//
-    //VkDescriptorPoolCreateInfo pool_info = {};
-    //pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    //pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    //pool_info.maxSets = 1000;
-    //pool_info.poolSizeCount = std::size(pool_sizes);
-    //pool_info.pPoolSizes = pool_sizes;
-//
-    //VkDescriptorPool imguiPool;
-    //vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &imguiPool);
-//
-//
-    //ImGui::CreateContext();
-//
-    //ImGui_ImplGlfw_InitForVulkan(mWindow, true);
-//
-    ////Init Data
-    //ImGui_ImplVulkan_InitInfo initInfo{};
-    //ImGui_ImplVulkan_InitInfo init_info = {};
-    //init_info.Instance = mInstance;
-    //init_info.PhysicalDevice = mDevice->GPU();
-    //init_info.Device = mDevice->device();
-    //init_info.Queue = mDevice->graphicsQueue();
-    //init_info.DescriptorPool = imguiPool;
-    //init_info.MinImageCount = 3;
-    //init_info.ImageCount = 3;
-    //init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-//
-    //ImGui_ImplVulkan_Init(&init_info, mDevice->defaultRenderpass());
-//
-    //ImGui_ImplVulkan_DestroyFontUploadObjects();
-    //mDeletionQueue.push_function([=]() {
-    //    vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
-    //    ImGui_ImplVulkan_Shutdown();
-    //});
+    //Create a *large* descriptor pool for imgui
+    VkDescriptorPoolSize pool_sizes[] =
+            {
+                    { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+                    { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+                    { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+                    { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+            };
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000;
+    pool_info.poolSizeCount = std::size(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+
+    VkDescriptorPool imguiPool;
+    vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &imguiPool);
+
+
+    ImGui::CreateContext();
+
+    ImGui_ImplGlfw_InitForVulkan(mWindow, true);
+
+    //Init Data
+    ImGui_ImplVulkan_InitInfo initInfo{};
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = mInstance;
+    init_info.PhysicalDevice = mDevice->GPU();
+    init_info.Device = mDevice->device();
+    init_info.Queue = mDevice->graphicsQueue();
+    init_info.DescriptorPool = imguiPool;
+    init_info.MinImageCount = 3;
+    init_info.ImageCount = 3;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&init_info, mDevice->defaultRenderpass());
+
+    //execute a gpu command to upload imgui font textures
+    mDevice->immediateSubmit([&](VkCommandBuffer cmd) {
+        ImGui_ImplVulkan_CreateFontsTexture(cmd);
+    });
+
+    //clear font textures from cpu data
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
+        ImGui_ImplVulkan_Shutdown();
+    });
+
 }
 
 void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
@@ -256,35 +264,27 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
 }
 
 void NEDisplay::createSyncStructures(FrameData &frame) {
-    VkFenceCreateInfo fenceCreateInfo = {};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.pNext = nullptr;
 
-    //Create it already signaled to streamline renderloop
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
     if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &frame.mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
-    };
+    }
 
     //Queue fence for eventual deletion
     mDeletionQueue.push_function([=]() {
         vkDestroyFence(mDevice->device(), frame.mRenderFence, nullptr);
     });
 
-    //For the semaphores we don't need any flags
-    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = nullptr;
-    semaphoreCreateInfo.flags = 0;
+
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo = init::semaphoreCreateInfo();
 
     if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &frame.mPresentSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create present semaphore\n");
-    };
-
+    }
     if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &frame.mRenderSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render semaphore\n");
-    };
-
+    }
 
     mDeletionQueue.push_function([=]() {
         vkDestroySemaphore(mDevice->device(), frame.mPresentSemaphore, nullptr);
@@ -317,14 +317,6 @@ void NEDisplay::populateFrameData() {
 }
 
 VkCommandBuffer NEDisplay::startFrame() {
-    ///Calculate FPS
-    currentTick = std::chrono::steady_clock::now();
-    std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(currentTick - lastTick);
-    float seconds = (duration.count());
-    std::string newTitle = mTitle + "  [FPS: " + std::to_string((uint16_t)(std::floor(1/seconds))) + "] ";
-    glfwSetWindowTitle(mWindow, newTitle.c_str());
-    lastTick = currentTick;
-
     FrameData &frame = mFrames[mCurrentFrame];
 
     //Wait for frame to be ready/(returned to "back")
@@ -337,11 +329,7 @@ VkCommandBuffer NEDisplay::startFrame() {
     //Wipe and prep command buffer to be handed to the renderer
     vkResetCommandBuffer(frame.mCommandBuffer, 0);
 
-    VkCommandBufferBeginInfo cmdBeginInfo = {};
-    cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmdBeginInfo.pNext = nullptr;
-    cmdBeginInfo.pInheritanceInfo = nullptr;
-    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
 
@@ -383,9 +371,9 @@ VkCommandBuffer NEDisplay::startFrame() {
     vkCmdSetViewport(frame.mCommandBuffer, 0, 1, &viewport);
 
 
-    float framed = (mFrameCount / 120.f);
-
-    mSceneData.ambientColor = { sin(framed),0,cos(framed),1 };
+    //float framed = (mFrameCount / 120.f);
+//
+    //mSceneData.ambientColor = { sin(framed),0,cos(framed),1 };
 
     char* sceneData;
     vmaMapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation, (void**)&sceneData);
@@ -395,6 +383,17 @@ VkCommandBuffer NEDisplay::startFrame() {
     memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
 
     vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
+
+
+    ImGui::Begin("Environment");
+    ImGui::Text("Environment Color");
+    ImGui::SliderFloat("R", &mSceneData.ambientColor.x, -1.0f, 1.0f);
+    ImGui::SliderFloat("G", &mSceneData.ambientColor.y, -1.0f, 1.0f);
+    ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
+    ImGui::End();
+
+    ImGui::Render();
+
 
     //Farewell command buffer o/; May your errors gentle.
     return frame.mCommandBuffer;
@@ -406,15 +405,13 @@ void NEDisplay::endFrame() {
     //Do not go gentle into that good night.
     FrameData &frame = mFrames[mCurrentFrame];
 
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), frame.mCommandBuffer);
     vkCmdEndRenderPass(frame.mCommandBuffer);
     vkEndCommandBuffer(frame.mCommandBuffer);
 
-    VkSubmitInfo submit = {};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.pNext = nullptr;
+    VkSubmitInfo submit = init::submitInfo(&frame.mCommandBuffer, 1);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
     submit.pWaitDstStageMask = &waitStage;
 
     submit.waitSemaphoreCount = 1;
@@ -423,8 +420,7 @@ void NEDisplay::endFrame() {
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &frame.mRenderSemaphore;
 
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &frame.mCommandBuffer;
+
 
     //Submit command buffer and execute it.
     vkQueueSubmit(mDevice->presentQueue(), 1, &submit, frame.mRenderFence);
@@ -453,7 +449,6 @@ void NEDisplay::endFrame() {
 
 bool NEDisplay::shouldExit() {
     if (!glfwWindowShouldClose(mWindow)) {
-        glfwPollEvents();
         return false;
     } else {
         return true;

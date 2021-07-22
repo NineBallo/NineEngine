@@ -23,27 +23,14 @@ struct AllocatedImage {
     VmaAllocation mAllocation;
 };
 
-struct device {
-    VkDevice device;
-    VkPhysicalDevice GPU;
-
-    VkQueue graphicsQueue;
-    uint32_t graphicsQueueFamily;
-
-    VkQueue presentQueue;
-    uint32_t presentQueueFamily;
-
-    VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
-
-    VkRenderPass renderpass;
-
-    ///Memory allocator
-    VmaAllocator allocator;
+struct Texture {
+    AllocatedImage mImage;
+    VkImageView mImageView;
 };
 
-struct VkData {
-    uint32_t materialIndex;
+struct UploadContext {
+    VkFence mUploadFence;
+    VkCommandPool mCommandPool;
 };
 
 struct GPUCameraData {
@@ -66,6 +53,7 @@ struct GPUObjectData {
 };
 
 struct Material {
+    VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
     VkPipeline mPipeline;
     VkPipelineLayout mPipelineLayout;
 };

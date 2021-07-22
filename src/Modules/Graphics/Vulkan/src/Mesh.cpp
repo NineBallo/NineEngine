@@ -43,39 +43,55 @@ VertexInputDescription Vertex::get_vertex_description()
     colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
     colorAttribute.offset = offsetof(Vertex, color);
 
+    //UV will be stored at Location 3
+    VkVertexInputAttributeDescription uvAttribute = {};
+    uvAttribute.binding = 0;
+    uvAttribute.location = 3;
+    uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+    uvAttribute.offset = offsetof(Vertex, uv);
+
     description.attributes.push_back(positionAttribute);
     description.attributes.push_back(normalAttribute);
     description.attributes.push_back(colorAttribute);
+    description.attributes.push_back(uvAttribute);
+
     return description;
 }
 
 bool Mesh::load_from_obj(std::string filename)
 {
-    //vertex arrays of file
-    tinyobj::attrib_t attrib;
-    //each object in file
-    std::vector<tinyobj::shape_t> shapes;
-    //Material of shape
-    std::vector<tinyobj::material_t> materials;
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.mtl_search_path = "./models/";
 
-    //error stuff
-    std::string warn;
+    tinyobj::ObjReader reader;
 
-    tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
-    if (!warn.empty()) {
-        std::cerr << warn << std::endl;
+    reader.ParseFromFile(filename, reader_config);
+
+    if (!reader.Warning().empty()) {
+        std::cerr << reader.Warning() << std::endl;
     }
+
+    //vertex arrays of file
+    auto& attrib = reader.GetAttrib();
+    //each object in file
+    auto& shapes = reader.GetShapes();
+    //Material of shape
+    auto& materials = reader.GetMaterials();
+
+
+   // tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
 
     for (auto & shape : shapes) {
         // Loop over faces(polygon)
         size_t index_offset = 0;
         for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+            auto fv = size_t(shape.mesh.num_face_vertices[f]);
 
-            //hardcode loading to triangles
-            int fv = 3;
 
             // Loop over vertices in the face.
             for (size_t v = 0; v < fv; v++) {
+                Vertex new_vert {};
+
                 // access to vertex
                 tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
 
@@ -83,23 +99,39 @@ bool Mesh::load_from_obj(std::string filename)
                 tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
                 tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
-                //vertex normal
-                tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
-                tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
-                tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
 
-                //copy it into our vertex
-                Vertex new_vert;
                 new_vert.position.x = vx;
                 new_vert.position.y = vy;
                 new_vert.position.z = vz;
 
-                new_vert.normal.x = nx;
-                new_vert.normal.y = ny;
-                new_vert.normal.z = nz;
 
-                //we are setting the vertex color as the vertex normal. This is just for display purposes
-                new_vert.color = new_vert.normal;
+                //vertex normal
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+
+                    new_vert.normal.x = nx;
+                    new_vert.normal.y = ny;
+                    new_vert.normal.z = nz;
+                }
+                //vertex uv
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
+                    tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
+
+                    new_vert.uv.x = ux;
+                    new_vert.uv.y = 1-uy;
+                }
+
+                //Optional: vertex colors
+                tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
+                tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+                tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
+
+                //new_vert.color.x = 1.f;
+                //new_vert.color.y = 0.5f;
+                //new_vert.color.z = 1.f;
 
                 mVertices.push_back(new_vert);
             }

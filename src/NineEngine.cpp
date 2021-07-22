@@ -9,6 +9,20 @@
 #include "Modules/IO/Keyboard.h"
 #include "Modules/IO/Mouse.h"
 #include <glm/ext.hpp>
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
+
+float getTimeToComplete(std::function<void()> &&function) {
+    std::chrono::time_point<std::chrono::steady_clock> start, end;
+
+    start = std::chrono::steady_clock::now();
+    function();
+    end = std::chrono::steady_clock::now();
+
+    std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(end - start);
+    return duration.count();
+}
 
 int main(){
     ECS &ecs = ECS::Get();
@@ -24,32 +38,31 @@ int main(){
     Vulkan renderer(ecs, player);
 
 
-    renderer.createMesh("./models/bananaconcert.obj", "bananaConcert");
-    renderer.createMesh("./models/monkey.obj", "monkey");
-    renderer.createMaterial("./shaders/mesh.vert.spv", "./shaders/lighting.frag.spv", "basicMesh");
+    renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
+    renderer.createMesh("./models/viking_room.obj", "room");
+    renderer.loadTexture("./models/textures/viking_room.png", "roomtex");
 
+    Entity mainEntity = ecs.createEntity(0);
+    Position position;
+    position.rotations.x = 270.f;
+    ecs.addComponent(mainEntity, position);
 
-    Entity banana = ecs.createEntity(0);
-    Position position; ecs.addComponent(banana, position);
-
-
-    renderer.makeRenderable(banana, "basicMesh", "monkey");
-
-    for(uint32_t x = 1; x <= 1; x++) {
-        for(uint32_t y = 1; y <= 1; y++) {
-            Entity entity;
-            entity = ecs.createEntity(0);
-              std::cout << entity << std::endl;
-
-              Position coords;
-              coords.coordinates.x = (x*2);
-              coords.coordinates.y = (y*2);
-
-              ecs.addComponent(entity, coords);
-
-              renderer.makeRenderable(entity, "basicMesh", "monkey");
-        }
-    }
+    renderer.makeRenderable(mainEntity, NE_SHADER_TEXTURE_BIT, "room", "roomtex");
+  //  for(uint32_t x = 1; x <= 50; x++) {
+  //      for(uint32_t y = 1; y <= 50; y++) {
+  //          Entity entity;
+  //          entity = ecs.createEntity(0);
+  //            std::cout << entity << std::endl;
+//
+  //            Position coords;
+  //            coords.coordinates.x = (x*0.9);
+  //            coords.coordinates.y = (y*0.9);
+//
+  //            ecs.addComponent(entity, coords);
+//
+  //            renderer.makeRenderable(entity, "basicMesh", "monkey");
+  //      }
+  //  }
 
     Keyboard keyboard(renderer.getWindow(0));
     Mouse mouse(renderer.getWindow(0));
@@ -65,9 +78,40 @@ int main(){
 
     mouse.registerMovement(0.1, std::addressof(cameraRef.Angle));
 
+    std::chrono::time_point<std::chrono::steady_clock> currentTick, lastTick;
+
+    float lastRenderTime;
+
     while(!renderer.shouldExit()) {
-        mouse.tick();
-        keyboard.tick();
-        renderer.tick();
+        glfwPollEvents();
+
+        ///Calculate FPS
+        currentTick = std::chrono::steady_clock::now();
+        std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(currentTick - lastTick);
+        float seconds = duration.count();
+        std::string FPS = std::to_string((uint32_t)(std::floor(1/seconds)));
+        lastTick = currentTick;
+
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("FPS");
+        ImGui::Text("%s", FPS.c_str());
+        ImGui::End();
+
+        ImGui::Begin("Timings");
+        std::string mouseTime = "Mouse polling time: " + std::to_string(getTimeToComplete([&]{mouse.tick();}) * 1000) + "ms";
+        ImGui::Text("%s", mouseTime.c_str());
+
+        std::string keyboardTime = "Keyboard polling time: " + std::to_string(getTimeToComplete([&]{keyboard.tick();}) * 1000) + "ms";
+        ImGui::Text("%s", keyboardTime.c_str());
+
+        std::string renderString = "Render Time: " + std::to_string(lastRenderTime * 1000) + "ms";
+        ImGui::Text("%s", renderString.c_str());
+        ImGui::End();
+
+        lastRenderTime = getTimeToComplete([&]{renderer.tick();});
     }
 }
+

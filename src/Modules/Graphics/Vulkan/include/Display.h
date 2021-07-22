@@ -49,7 +49,6 @@ public:
     void createDescriptors();
 
 
-
     VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
     //Render methods
@@ -91,8 +90,6 @@ private:
 private:
     //Frame "Data"
     std::array<FrameData, MAX_FRAMES> mFrames;
-    std::chrono::time_point<std::chrono::steady_clock> currentTick;
-    std::chrono::time_point<std::chrono::steady_clock> lastTick;
 
     GPUSceneData mSceneData {};
     AllocatedBuffer mSceneParameterBuffer;

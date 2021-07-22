@@ -7,11 +7,13 @@
 #include <VkBootstrap.h>
 #include <iostream>
 #include <fstream>
+#include <utility>
 #include <Pipeline.h>
 #include "ECS.h"
 #include "Device.h"
 #include "Initializers.h"
 #include "Mesh.h"
+#include "../shaders/Shaders.h"
 
 NEDevice::NEDevice() {
 
@@ -141,34 +143,47 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     return renderPass;
 }
 
-std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(const std::string &vertexShaderPath, const std::string &fragShaderPath) {
+std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags) {
     VkShaderModule vertexShader;
-    if (!loadShaderModule(vertexShaderPath.c_str(), vertexShader))
+    if (!loadShaderModule(std::move(vertexShaderSpirv), vertexShader))
     {
         std::cout << "Error when building the requested vertex shader" << std::endl;
     }
 
     VkShaderModule fragmentShader;
-    if (!loadShaderModule(fragShaderPath.c_str(), fragmentShader))
+    if (!loadShaderModule(std::move(fragmentShaderSpirv), fragmentShader))
     {
         std::cout << "Error when building the fragment shader" << std::endl;
 
     }
 
+
     //Pipeline creation
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
 
-    VkPushConstantRange push_constant;
-    push_constant.offset = 0;
-    push_constant.size = sizeof(MeshPushConstants);
-    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    if ((flags & NE_SHADER_PUSHCONSTANTS_BIT) == NE_SHADER_PUSHCONSTANTS_BIT) {
+        VkPushConstantRange push_constant;
+        push_constant.offset = 0;
+        push_constant.size = sizeof(MeshPushConstants);
+        push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    pipelineLayoutInfo.pPushConstantRanges = &push_constant;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &push_constant;
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+    }
+    else {
+        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+        pipelineLayoutInfo.pPushConstantRanges = 0;
+    }
 
-    VkDescriptorSetLayout layouts[] = {mGlobalSetLayout, mObjectSetLayout};
+    VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
+    uint8_t layoutSize = 2;
 
-    pipelineLayoutInfo.setLayoutCount = 2;
+        if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+            layouts[layoutSize] = mSingleTextureSetLayout;
+            layoutSize++;
+        }
+
+    pipelineLayoutInfo.setLayoutCount = layoutSize;
     pipelineLayoutInfo.pSetLayouts = layouts;
 
     VkPipelineLayout layout;
@@ -228,29 +243,29 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(const std::stri
     return temp;
 }
 
-bool NEDevice::loadShaderModule(const char *filepath, VkShaderModule &outShaderModule) {
-    std::ifstream file(filepath, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        return false;
-    }
-
-    //Create buffer for asm
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-    //Read asm into buffer
-    file.seekg(0);
-    file.read((char*)buffer.data(), fileSize);
-
-    //close
-    file.close();
+bool NEDevice::loadShaderModule(std::vector<uint32_t> spirv, VkShaderModule &outShaderModule) {
+    //std::ifstream file(filepath, std::ios::ate | std::ios::binary);
+    //if (!file.is_open()) {
+    //    return false;
+    //}
+//
+    ////Create buffer for asm
+    //size_t fileSize = (size_t)file.tellg();
+    //std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+//
+    ////Read asm into buffer
+    //file.seekg(0);
+    //file.read((char*)buffer.data(), fileSize);
+//
+    ////close
+    //file.close();
 
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext = nullptr;
 
-    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-    createInfo.pCode = buffer.data();
+    createInfo.codeSize = spirv.size() * sizeof(uint32_t);
+    createInfo.pCode = spirv.data();
 
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(mDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
@@ -301,7 +316,9 @@ void NEDevice::init_descriptors() {
             {
                     { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
                     { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 }
+                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+                    //wawawwa image sampler wawawawawawawawaw
+                    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10}
             };
 
     VkDescriptorPoolCreateInfo pool_info = {};
@@ -323,10 +340,12 @@ void NEDevice::init_descriptors() {
 
     mGlobalSetLayout = createDescriptorSetLayout(bindings, 2);
 
-
     VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-
     mObjectSetLayout = createDescriptorSetLayout(&objectBind, 1);
+
+    VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+    mSingleTextureSetLayout = createDescriptorSetLayout(&textureBind, 1);
+
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -347,7 +366,6 @@ VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorTy
 
 VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutBinding *bindingArray,
                                                           uint8_t arraySize) {
-
     VkDescriptorSetLayout layout;
 
     VkDescriptorSetLayoutCreateInfo setInfo = {};
@@ -400,6 +418,75 @@ size_t NEDevice::padUniformBufferSize(size_t originalSize) {
     return alignedSize;
 }
 
+void NEDevice::init_upload_context() {
+    VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
+    vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mUploadContext.mUploadFence);
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroyFence(mDevice, mUploadContext.mUploadFence, nullptr);
+    });
+
+    mUploadContext.mCommandPool = createCommandPool(mGraphicsQueueFamily);
+
+    mDeletionQueue.push_function([=]() {
+        vkDestroyCommandPool(mDevice, mUploadContext.mCommandPool, nullptr);
+    });
+}
+
+void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) {
+
+    //allocate the default command buffer that we will use for the instant commands
+    VkCommandBufferAllocateInfo cmdAllocInfo = init::command_buffer_allocate_info(mUploadContext.mCommandPool, 1);
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(mDevice, &cmdAllocInfo, &cmd);
+
+    //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
+
+    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+   vkBeginCommandBuffer(cmd, &cmdBeginInfo);
+
+    //execute the function
+    function(cmd);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit = init::submitInfo(&cmd, 1);
+
+
+    //submit command buffer to the queue and execute it.
+    // _uploadFence will now block until the graphic commands finish execution
+    vkQueueSubmit(mGraphicsQueue, 1, &submit, mUploadContext.mUploadFence);
+
+    vkWaitForFences(mDevice, 1, &mUploadContext.mUploadFence, true, 9999999999);
+    vkResetFences(mDevice, 1, &mUploadContext.mUploadFence);
+
+    //clear the command pool. This will free the command buffer too
+    vkResetCommandPool(mDevice, mUploadContext.mCommandPool, 0);
+}
+
+void NEDevice::createSampler(Material *material, Texture *texture) {
+    //create a sampler for the texture
+    VkSamplerCreateInfo samplerInfo = init::samplerCreateInfo(VK_FILTER_NEAREST);
+
+    VkSampler blockySampler;
+    vkCreateSampler(mDevice, &samplerInfo, nullptr, &blockySampler);
+
+    //allocate the descriptor set for single-texture to use on the material
+    material->mTextureSet = createDescriptorSet(mSingleTextureSetLayout);
+
+    //write to the descriptor set so that it points to our empire_diffuse texture
+    VkDescriptorImageInfo imageBufferInfo;
+    imageBufferInfo.sampler = blockySampler;
+    imageBufferInfo.imageView = texture->mImageView;
+    imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet texture1 = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, material->mTextureSet, &imageBufferInfo, 0);
+
+    vkUpdateDescriptorSets(mDevice, 1, &texture1, 0, nullptr);
+}
+
 ///Getters
 VkDevice NEDevice::device() {
     return mDevice;
@@ -439,4 +526,8 @@ VkDescriptorSetLayout NEDevice::globalSetLayout() {
 
 VkDescriptorSetLayout NEDevice::objectSetLayout() {
     return mObjectSetLayout;
+}
+
+VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {
+    return mSingleTextureSetLayout;
 }

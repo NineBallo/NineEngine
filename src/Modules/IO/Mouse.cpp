@@ -11,7 +11,7 @@ Mouse::Mouse(GLFWwindow *window) {
 
 void Mouse::tick() {
     if(!attached) {
-        int state = glfwGetMouseButton(mWindow, GLFW_MOUSE_BUTTON_LEFT);
+        int state = glfwGetMouseButton(mWindow, GLFW_MOUSE_BUTTON_MIDDLE);
         if(state == GLFW_PRESS) {
             attachMouseToScreen();
             glfwGetCursorPos(mWindow, &mOldxpos, &mOldypos);
@@ -75,5 +75,4 @@ void Mouse::detachMouseFromScreen() {
 void Mouse::registerMovement(float scalar, glm::vec3 *angles) {
     mouseData.mAngles = angles;
     mouseData.mScalar = scalar;
-    attachMouseToScreen();
 }
