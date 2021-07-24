@@ -3,10 +3,21 @@ project(NineEngine)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_GENERATOR "Ninja" CACHE INTERNAL "" FORCE)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
 find_package(glfw3 REQUIRED FATAL_ERROR) # error
 find_package(glm REQUIRED FATAL_ERROR) # error
 
+
+message(STATUS "Using ${CMAKE_GENERATOR}")
+#Might help compile times idk
+find_program(CCACHE "ccache")
+if(CCACHE)
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
+    set(USE_CCACHE ON)
+    message(STATUS "Using CCache")
+endif(CCACHE)
 
 
 #VK_BOOTSTRAP
@@ -44,6 +55,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(obj)
 
+set(SPIRV_HEADERS_SKIP_INSTALL ON)
+set(SPIRV_HEADERS_SKIP_EXAMPLES ON)
 FetchContent_Declare(
         spirv-headers
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers
@@ -52,6 +65,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spirv-headers)
 
+set(SKIP_SPIRV_TOOLS_INSTALL ON)
+set(SPIRV_TOOLS_BUILD_STATIC ON)
 FetchContent_Declare(
         spirv-tools
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools
@@ -61,16 +76,23 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(spirv-tools)
 
+
+set(ENABLE_CTEST OFF)
+set(SKIP_GLSLANG_INSTALL ON)
+set(ENABLE_GLSLANG_BINARIES OFF)
+set(ENABLE_HLSL ON)
 FetchContent_Declare(
         glslang
         GIT_REPOSITORY https://github.com/KhronosGroup/glslang
         GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
-
 FetchContent_MakeAvailable(glslang)
 
 
+set(SHADERC_SKIP_INSTALL ON)
+set(SHADERC_SKIP_TESTS ON)
+set(SHADERC_SKIP_EXAMPLES ON)
 
 FetchContent_Declare(
         shaderc
@@ -78,8 +100,6 @@ FetchContent_Declare(
         GIT_TAG        main #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
-
-set(SHADERC_SKIP_TESTS true)
 FetchContent_MakeAvailable(shaderc)
 
 

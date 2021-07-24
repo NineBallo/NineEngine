@@ -30,8 +30,8 @@ std::string fragmentTexture = "layout (location = 0) in vec2 texCoord;"
                               "}";
 
 //Build with direct passthrough
-std::string fragmentColor = "layout (location = 0) in vec3 inColor;"
-                            "outFragColor = vec4(inColor + sceneData.ambientColor.xyz, 1.0f);\\n\"";
+std::string fragmentColor = "layout (location = 0) in vec3 inColor;\n"
+                            "outFragColor = vec4(inColor + sceneData.ambientColor.xyz, 1.0f);\n";
 
 
 #endif //NINEENGINE_FRAGMENT_H

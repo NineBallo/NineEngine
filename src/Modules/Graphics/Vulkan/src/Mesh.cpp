@@ -6,7 +6,7 @@
 #include <tiny_obj_loader.h>
 
 #include <iostream>
-
+#include <unordered_map>
 #include "Mesh.h"
 
 
@@ -58,6 +58,11 @@ VertexInputDescription Vertex::get_vertex_description()
     return description;
 }
 
+
+
+
+
+
 bool Mesh::load_from_obj(std::string filename)
 {
     tinyobj::ObjReaderConfig reader_config;
@@ -79,7 +84,9 @@ bool Mesh::load_from_obj(std::string filename)
     auto& materials = reader.GetMaterials();
 
 
-   // tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
+    // tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
+
+    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
     for (auto & shape : shapes) {
         // Loop over faces(polygon)
@@ -125,15 +132,20 @@ bool Mesh::load_from_obj(std::string filename)
                 }
 
                 //Optional: vertex colors
-                tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
-                tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
-                tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
+                //tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
+                //tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+                //tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
 
-                //new_vert.color.x = 1.f;
-                //new_vert.color.y = 0.5f;
-                //new_vert.color.z = 1.f;
+                new_vert.color.x = 1.f;
+                new_vert.color.y = 0.5f;
+                new_vert.color.z = 1.f;
 
-                mVertices.push_back(new_vert);
+                if(uniqueVertices.count(new_vert) == 0) {
+                    //Add it to logging(?) array, then add it to official array
+                    uniqueVertices[new_vert] = mVertices.size();
+                    mVertices.push_back(new_vert);
+                }
+                mIndices.push_back(uniqueVertices[new_vert]);
             }
             index_offset += fv;
         }

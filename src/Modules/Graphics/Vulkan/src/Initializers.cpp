@@ -103,9 +103,6 @@ VkFenceCreateInfo init::fenceCreateInfo() {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.pNext = nullptr;
-
-    //Create it already signaled
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     return fenceCreateInfo;
 }
 

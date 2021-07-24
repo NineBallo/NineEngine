@@ -11,7 +11,7 @@ std::string vertexBase = "#version 460\n"
                          "layout (location = 0) in vec3 vPosition;\n"
                          "layout (location = 1) in vec3 vNormal;\n"
                          "layout (location = 2) in vec3 vColor;\n"
-                         "layout (location = 3) in vec2 vTexCoord;"
+                         "layout (location = 3) in vec2 vTexCoord;\n"
                          "\n"
                          "layout(set = 0, binding = 0) uniform CameraBuffer{\n"
                          "    mat4 view;\n"
@@ -26,16 +26,16 @@ std::string vertexBase = "#version 460\n"
                          "//all object matrices\n"
                          "layout(std140,set = 1, binding = 0) readonly buffer ObjectBuffer{\n"
                          "    ObjectData objects[];\n"
-                         "} objectBuffer;";
+                         "} objectBuffer;\n";
 
 //Passing in color directly
-std::string vertexColor = "layout (location = 0) out vec3 outColor;"
+std::string vertexColor = "layout (location = 0) out vec3 outColor;\n"
                           "void main() {\n"
                           "    mat4 modelMatrix = objectBuffer.objects[gl_BaseInstance].model;\n"
                           "    mat4 transformMatrix = (cameraData.viewproj * modelMatrix);\n"
                           "    gl_Position = transformMatrix * vec4(vPosition, 1.0);\n"
                           "    outColor = vColor;\n"
-                          "}";
+                          "}\n";
 
 //Passing in color through texture
 std::string vertexTexture = "layout (location = 0) out vec2 texCoord;\n"

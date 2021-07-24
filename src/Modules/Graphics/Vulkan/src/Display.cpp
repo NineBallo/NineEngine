@@ -84,7 +84,7 @@ void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeK
 
     mDevice = device;
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
     });
 
@@ -107,7 +107,7 @@ void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeK
 
     vkCreateImageView(mDevice->device(), &dview_info, nullptr, &mDepthImageView);
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyImageView(mDevice->device(), mDepthImageView, nullptr);
         vmaDestroyImage(mDevice->allocator(), mDepthImage.mImage, mDepthImage.mAllocation);
     });
@@ -155,12 +155,12 @@ void NEDisplay::createDescriptors() {
 
         vkUpdateDescriptorSets(mDevice->device(), 3, setWrites, 0, nullptr);
 
-        mDeletionQueue.push_function([=]() {
+        mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
         });
     }
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vmaDestroyBuffer(mDevice->allocator(), mSceneParameterBuffer.mBuffer, mSceneParameterBuffer.mAllocation);
     });
 }
@@ -219,7 +219,7 @@ void NEDisplay::initImGUI() {
     //clear font textures from cpu data
     ImGui_ImplVulkan_DestroyFontUploadObjects();
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
     });
@@ -256,7 +256,7 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
             throw std::runtime_error("Failed to create framebuffer\n");
         };
 
-        mDeletionQueue.push_function([=]() {
+        mDeletionQueue.push_function([=, this]() {
             vkDestroyFramebuffer(mDevice->device(), mFramebuffers[i], nullptr);
             vkDestroyImageView(mDevice->device(), mImageViews[i], nullptr);
         });
@@ -266,12 +266,15 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
 void NEDisplay::createSyncStructures(FrameData &frame) {
 
     VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
+    //Create it already signaled
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    
     if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &frame.mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
     }
 
     //Queue fence for eventual deletion
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyFence(mDevice->device(), frame.mRenderFence, nullptr);
     });
 
@@ -286,7 +289,7 @@ void NEDisplay::createSyncStructures(FrameData &frame) {
         throw std::runtime_error("Failed to create render semaphore\n");
     }
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroySemaphore(mDevice->device(), frame.mPresentSemaphore, nullptr);
         vkDestroySemaphore(mDevice->device(), frame.mRenderSemaphore, nullptr);
     });
@@ -309,7 +312,7 @@ void NEDisplay::populateFrameData() {
         frame.mCommandBuffer = createCommandBuffer(frame.mCommandPool);
         createSyncStructures(frame);
 
-        mDeletionQueue.push_function([=]() {
+        mDeletionQueue.push_function([=, this]() {
             vkFreeCommandBuffers(mDevice->device(), mFrames[i].mCommandPool, 1, &mFrames[i].mCommandBuffer);
             vkDestroyCommandPool(mDevice->device(), mFrames[i].mCommandPool, nullptr);
         });

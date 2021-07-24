@@ -45,6 +45,8 @@ public:
 
     void createSampler(Material *material, Texture *texture);
 
+    template<typename T>
+    void uploadToBuffer(std::vector<T>& data, AllocatedBuffer& buffer, size_t size);
 
 public:
     //Getters
@@ -91,5 +93,28 @@ private:
     UploadContext mUploadContext {};
     DeletionQueue mDeletionQueue {};
 };
+
+template<typename T>
+void NEDevice::uploadToBuffer(std::vector<T> &data, AllocatedBuffer &buffer, size_t size) {
+
+    AllocatedBuffer stagingBuffer = createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                 VMA_MEMORY_USAGE_CPU_ONLY);
+
+    //Copy data
+    void* mapped;
+    vmaMapMemory(mAllocator, stagingBuffer.mAllocation, &mapped);
+    memcpy(mapped, data.data(), size);
+    vmaUnmapMemory(mAllocator, stagingBuffer.mAllocation);
+
+    immediateSubmit([=](VkCommandBuffer cmd) {
+        VkBufferCopy copy;
+        copy.dstOffset = 0;
+        copy.srcOffset = 0;
+        copy.size = size;
+        vkCmdCopyBuffer(cmd, stagingBuffer.mBuffer, buffer.mBuffer, 1, &copy);
+    });
+
+    vmaDestroyBuffer(mAllocator, stagingBuffer.mBuffer, stagingBuffer.mAllocation);
+}
 
 #endif //NINEENGINE_DEVICE_H

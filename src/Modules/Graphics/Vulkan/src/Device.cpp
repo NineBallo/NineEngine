@@ -52,7 +52,7 @@ bool NEDevice::init_LogicalDevice(vkb::PhysicalDevice &physicalDevice) {
     mPresentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
     mPresentQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::present).value();
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyDevice(mDevice, nullptr);
     });
 }
@@ -64,7 +64,7 @@ void NEDevice::init_Allocator(VkInstance instance) {
     allocatorInfo.instance = instance;
     vmaCreateAllocator(&allocatorInfo, &mAllocator);
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vmaDestroyAllocator(mAllocator);
     });
 }
@@ -135,7 +135,7 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
         throw std::runtime_error("Renderpass failed to initialize\n");
     }
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyRenderPass(mDevice, renderPass, nullptr);
     });
 
@@ -302,10 +302,13 @@ AllocatedBuffer NEDevice::createBuffer(size_t allocSize, VkBufferUsageFlags usag
     AllocatedBuffer newBuffer {};
 
     //allocate the buffer
-    vmaCreateBuffer(mAllocator, &bufferInfo, &vmaallocInfo,
+    if(vmaCreateBuffer(mAllocator, &bufferInfo, &vmaallocInfo,
                              &newBuffer.mBuffer,
                              &newBuffer.mAllocation,
-                             nullptr);
+                             nullptr) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create buffer");
+    }
 
     return newBuffer;
 }
@@ -382,7 +385,7 @@ VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutB
 
     vkCreateDescriptorSetLayout(mDevice, &setInfo, nullptr, &layout);
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyDescriptorSetLayout(mDevice, layout, nullptr);
     });
 
@@ -422,13 +425,13 @@ void NEDevice::init_upload_context() {
     VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
     vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mUploadContext.mUploadFence);
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyFence(mDevice, mUploadContext.mUploadFence, nullptr);
     });
 
     mUploadContext.mCommandPool = createCommandPool(mGraphicsQueueFamily);
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         vkDestroyCommandPool(mDevice, mUploadContext.mCommandPool, nullptr);
     });
 }
@@ -442,18 +445,14 @@ void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) 
     vkAllocateCommandBuffers(mDevice, &cmdAllocInfo, &cmd);
 
     //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-
     VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-   vkBeginCommandBuffer(cmd, &cmdBeginInfo);
+    vkBeginCommandBuffer(cmd, &cmdBeginInfo);
 
     //execute the function
     function(cmd);
 
     vkEndCommandBuffer(cmd);
-
     VkSubmitInfo submit = init::submitInfo(&cmd, 1);
-
 
     //submit command buffer to the queue and execute it.
     // _uploadFence will now block until the graphic commands finish execution
@@ -472,6 +471,9 @@ void NEDevice::createSampler(Material *material, Texture *texture) {
 
     VkSampler blockySampler;
     vkCreateSampler(mDevice, &samplerInfo, nullptr, &blockySampler);
+
+    //Save ref to sampler so it can be destroyed later
+    texture->mSampler = blockySampler;
 
     //allocate the descriptor set for single-texture to use on the material
     material->mTextureSet = createDescriptorSet(mSingleTextureSetLayout);

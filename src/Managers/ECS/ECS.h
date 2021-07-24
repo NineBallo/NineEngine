@@ -107,14 +107,14 @@ public:
         entityToIndex[lastEntity] = index;
 
         //TODO check if this impacts performance as I dont think its necessary
-        indexToEntity[entityToIndex[entityID]] = NULL;
-        entityToIndex[entityID] = NULL;
+        indexToEntity[entityToIndex[entityID]] = 0;
+        entityToIndex[entityID] = 0;
     }
 
     void entityDestroyed(Entity entityID) override {
         //Remove component
 
-        if(entityToIndex[entityID] != NULL) {
+        if(entityToIndex[entityID]) {
             removeComponent(entityID);
         }
     }
@@ -225,6 +225,7 @@ public:
         Signature signature = entitySignatures[entityID];
         signature.set(componentTypes[typeName], false);
         updateEntitySignature(entityID, signature);
+        return true;
     };
 
     template<typename T>

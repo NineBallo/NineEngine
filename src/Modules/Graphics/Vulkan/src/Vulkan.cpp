@@ -16,7 +16,7 @@
 #include "Pipeline.h"
 #include "memory"
 #include <vk_mem_alloc.h>
-
+#include "unistd.h"
 
 Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
     mCameraEntity = cameraEntity;
@@ -116,7 +116,7 @@ Material* Vulkan::createMaterial(uint32_t features) {
     material.mPipelineLayout = std::get<1>(pipelines);
     mMaterials[features] = material;
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         deleteMaterial(features);
     });
 
@@ -140,19 +140,23 @@ Mesh* Vulkan::createMesh(const std::string &filepath, const std::string &meshNam
 
     mMeshes[meshName] = mesh;
 
-    mDeletionQueue.push_function([=]() {
+    mDeletionQueue.push_function([=, this]() {
         deleteMesh(meshName);
     });
 
     return &mMeshes[meshName];
 }
 
-bool Vulkan::deleteMesh(std::string meshName) {
+bool Vulkan::deleteMesh(const std::string& meshName) {
+    //Check if it was already deleted...
+    if(!mMeshes.contains(meshName)) return false;
+
     Mesh& mesh = mMeshes[meshName];
-
     vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
-
+    vmaDestroyBuffer(mDevice->allocator(), mesh.mIndexBuffer.mBuffer, mesh.mIndexBuffer.mAllocation);
     mMeshes.erase(meshName);
+
+    return true;
 }
 
 void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, const std::string& texture) {
@@ -167,32 +171,25 @@ void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string 
     mECS->addComponent<RenderObject>(entity, renderObject);
 }
 
+
+
 void Vulkan::uploadMesh(Mesh &mesh) {
 
-    const size_t bufferSize = mesh.mVertices.size() * sizeof(Vertex);
-    AllocatedBuffer stagingBuffer = mDevice->createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    size_t indexBufferSize = mesh.mIndices.size() * sizeof(uint32_t);
+    size_t vertexBufferSize = mesh.mVertices.size() * sizeof(Vertex);
 
+    mesh.mVertexBuffer = mDevice->createBuffer(vertexBufferSize,
+                                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                               VMA_MEMORY_USAGE_GPU_ONLY);
 
-    //Copy vertex data
-    void* data;
-    vmaMapMemory(mDevice->allocator(), stagingBuffer.mAllocation, &data);
-    memcpy(data, mesh.mVertices.data(), mesh.mVertices.size() * sizeof(Vertex));
-    vmaUnmapMemory(mDevice->allocator(), stagingBuffer.mAllocation);
-
-
-    mesh.mVertexBuffer = mDevice->createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    mesh.mIndexBuffer = mDevice->createBuffer(indexBufferSize,
+                                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                                VMA_MEMORY_USAGE_GPU_ONLY);
 
 
-    mDevice->immediateSubmit([=](VkCommandBuffer cmd) {
-        VkBufferCopy copy;
-        copy.dstOffset = 0;
-        copy.srcOffset = 0;
-        copy.size = bufferSize;
-        vkCmdCopyBuffer(cmd, stagingBuffer.mBuffer, mesh.mVertexBuffer.mBuffer, 1, &copy);
-    });
 
-    vmaDestroyBuffer(mDevice->allocator(), stagingBuffer.mBuffer, stagingBuffer.mAllocation);
+    mDevice->uploadToBuffer(mesh.mVertices, mesh.mVertexBuffer, vertexBufferSize);
+    mDevice->uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
 }
 
 
@@ -230,7 +227,7 @@ void Vulkan::draw() {
     void* objectData;
     vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation, &objectData);
 
-    GPUObjectData* objectSSBO = (GPUObjectData*)objectData;
+    auto* objectSSBO = (GPUObjectData*)objectData;
 
     for (int i = 0; i < mEntityListSize; i++)
     {
@@ -253,6 +250,7 @@ void Vulkan::draw() {
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
+      //  auto& mesh = (*currentEntity.mesh);
 
         if(currentEntity.material != mLastMaterial) {
 
@@ -280,17 +278,10 @@ void Vulkan::draw() {
         }
 
         VkDeviceSize offset = 0;
+
         vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
-
-        //Model matrix
-        auto& position = ECS::Get().getComponent<Position>(currentEntityID);
-
-
-     //  MeshPushConstants constants {};
-     //  constants.render_matrix = model;
-     //  vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-
-        vkCmdDraw(cmd, currentEntity.mesh->mVertices.size(), 1, 0, i);
+        vkCmdBindIndexBuffer(cmd, currentEntity.mesh->mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, currentEntity.mesh->mIndices.size(), 1, 0, 0, 0);
     }
 
     mRootDisplay->endFrame();
@@ -310,7 +301,7 @@ GLFWwindow* Vulkan::getWindow(Display display) {
         return mRootDisplay->window();
     }
     else {
-        std::cout << "Not Implemented\n";
+        throw std::runtime_error("Not Implemented\n");
     }
 }
 
@@ -325,6 +316,11 @@ Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &nam
 
     mTextures[name] = texture;
 
+
+    mDeletionQueue.push_function([=, this](){
+        deleteTexture(name);
+    });
+
     return &mTextures[name];
 }
 
@@ -335,6 +331,7 @@ bool Vulkan::deleteTexture(const std::string &name) {
     Texture &tex = mTextures[name];
     vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
     vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
+    vkDestroySampler(mDevice->device(), tex.mSampler, nullptr);
     mTextures.erase(name);
     return true;
 }

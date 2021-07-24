@@ -43,13 +43,8 @@ public:
 
     void createFramebuffers(VkRenderPass renderpass);
     void createSyncStructures(FrameData &frame);
-
-    void initImGUI();
-
     void createDescriptors();
-
-
-    VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
+    void initImGUI();
 
     //Render methods
     VkCommandBuffer startFrame();
@@ -67,6 +62,7 @@ public:
 private:
     void populateFrameData();
     void createWindow(VkExtent2D extent, const std::string& title, bool resizable);
+    VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
     //Depth
     VkImageView mDepthImageView;

@@ -40,7 +40,7 @@ public:
     void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, const std::string& texture = "");
 
     Mesh* createMesh(const std::string& filepath, const std::string& meshName);
-    bool deleteMesh(std::string meshName);
+    bool deleteMesh(const std::string& meshName);
 
     Texture* loadTexture(const std::string& filepath, const std::string& name);
     bool deleteTexture(const std::string& name);

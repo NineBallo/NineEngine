@@ -69,12 +69,12 @@ int main(){
 
     auto& cameraRef = ecs.getComponent<Camera>(player);
 
-    keyboard.registerMovement(GLFW_KEY_W, {0, 0, 0}, 20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_S, {0,0,0}, -20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_A, {0,90,0}, -20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_D, {0,90,0}, 20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerValue(GLFW_KEY_LEFT_SHIFT, -10.0, 1, std::addressof(cameraRef.Pos));
-    keyboard.registerValue(GLFW_KEY_SPACE, 10.0, 1, std::addressof(cameraRef.Pos));
+    keyboard.registerMovement(GLFW_KEY_W, {0, 0, 0}, 5, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_S, {0,0,0}, -5, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_A, {0,90,0}, -5, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_D, {0,90,0}, 5, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerValue(GLFW_KEY_LEFT_SHIFT, -5, 1, std::addressof(cameraRef.Pos));
+    keyboard.registerValue(GLFW_KEY_SPACE, 5, 1, std::addressof(cameraRef.Pos));
 
     mouse.registerMovement(0.1, std::addressof(cameraRef.Angle));
 

@@ -26,6 +26,7 @@ struct AllocatedImage {
 struct Texture {
     AllocatedImage mImage;
     VkImageView mImageView;
+    VkSampler mSampler;
 };
 
 struct UploadContext {

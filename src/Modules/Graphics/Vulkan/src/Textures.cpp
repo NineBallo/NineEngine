@@ -118,8 +118,6 @@ bool init::loadImageFromFile(std::shared_ptr<NEDevice> device, const char *file,
 
     vmaDestroyBuffer(device->allocator(), stagingBuffer.mBuffer, stagingBuffer.mAllocation);
 
-    std::cout << "Loaded texture: " << file << std::endl;
-
     outImage = newImage;
     return true;
 }
