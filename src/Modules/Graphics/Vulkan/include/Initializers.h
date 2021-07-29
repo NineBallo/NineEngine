@@ -29,6 +29,7 @@ namespace init {
     VkSamplerCreateInfo samplerCreateInfo(VkFilter filters, VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT);
     VkWriteDescriptorSet writeDescriptorImage(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorImageInfo* imageInfo, uint32_t binding);
 
+    VkDescriptorImageInfo descriptorImageInfo(VkSampler sampler, VkImageView imageView);
 }
 
 

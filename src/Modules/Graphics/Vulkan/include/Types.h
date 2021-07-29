@@ -13,6 +13,9 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
+#define MAX_TEXTURES 8000
+
+
 struct AllocatedBuffer {
     VkBuffer mBuffer;
     VmaAllocation mAllocation;
@@ -26,7 +29,6 @@ struct AllocatedImage {
 struct Texture {
     AllocatedImage mImage;
     VkImageView mImageView;
-    VkSampler mSampler;
 };
 
 struct UploadContext {
@@ -40,6 +42,11 @@ struct GPUCameraData {
     glm::mat4 viewproj;
 };
 
+struct PushData {
+    int textureIndex;
+    int entityID;
+};
+
 struct GPUSceneData {
     //Need to use all vec4's for alignment purposes so not all values are used
     glm::vec4 fogColor; // w is for exponent
@@ -49,7 +56,19 @@ struct GPUSceneData {
     glm::vec4 sunlightColor;
 };
 
+struct GPUTransformData {
+    glm::mat4 modelMatrix;
+};
+
+struct GPUTextureData {
+    glm::mat4 modelMatrix;
+};
+
 struct GPUObjectData {
+    glm::mat4 modelMatrix;
+};
+
+struct GPUMaterialData {
     glm::mat4 modelMatrix;
 };
 
@@ -57,6 +76,7 @@ struct Material {
     VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
     VkPipeline mPipeline;
     VkPipelineLayout mPipelineLayout;
+    VkSampler mSampler;
 };
 
 struct Camera {
@@ -81,6 +101,8 @@ struct FrameData {
 
     AllocatedBuffer mCameraBuffer;
     VkDescriptorSet mGlobalDescriptor;
+
+    VkDescriptorSet mTextureDescriptor;
 
 };
 

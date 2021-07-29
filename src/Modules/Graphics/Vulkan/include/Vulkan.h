@@ -24,6 +24,10 @@
 #include "Textures.h"
 #include "../shaders/Shaders.h"
 
+
+//using texture = uint32_t;
+
+
 class Vulkan : Module {
 public:
     Vulkan(ECS &ecs, Entity cameraEntity);
@@ -37,18 +41,21 @@ public:
     Material* createMaterial(uint32_t features);
     void deleteMaterial(uint32_t features);
 
-    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, const std::string& texture = "");
+    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, std::string* Textures = {}, uint32_t* textureIndex = {});
 
-    Mesh* createMesh(const std::string& filepath, const std::string& meshName);
+    void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
 
     Texture* loadTexture(const std::string& filepath, const std::string& name);
     bool deleteTexture(const std::string& name);
 
     GLFWwindow* getWindow(Display display);
+
+
 private:
 
     void draw();
+    void drawEntity(VkCommandBuffer cmd, Entity entity);
     void init_vulkan();
 
     bool debug = true;
@@ -72,8 +79,13 @@ private:
 
 private:
     std::unordered_map<uint32_t, Material> mMaterials;
-    std::unordered_map<std::string, Mesh> mMeshes;
+    std::unordered_map<std::string, MeshGroup> mMeshes;
+
+ //   std::array<
     std::unordered_map<std::string, Texture> mTextures;
+    std::unordered_map<std::string, uint32_t> mTextureToBinding;
+    std::unordered_map<uint32_t, std::string> mBindingToTexture;
+    uint32_t mTextureCount = 0;
 
 private:
     ECS *mECS;
@@ -84,7 +96,7 @@ private:
 
     bool mShouldExit = false;
 
-    Entity mCameraEntity = 0;;
+    Entity mCameraEntity = 0;
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

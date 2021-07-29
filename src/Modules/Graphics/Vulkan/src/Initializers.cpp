@@ -150,7 +150,6 @@ VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, VkSamplerAddressMo
     info.addressModeU = samplerAddressMode;
     info.addressModeV = samplerAddressMode;
     info.addressModeW = samplerAddressMode;
-
     return info;
 }
 
@@ -167,4 +166,13 @@ VkWriteDescriptorSet init::writeDescriptorImage(VkDescriptorType type, VkDescrip
     write.pImageInfo = imageInfo;
 
     return write;
+}
+
+VkDescriptorImageInfo init::descriptorImageInfo(VkSampler sampler, VkImageView imageView) {
+    VkDescriptorImageInfo imageBufferInfo;
+    imageBufferInfo.sampler = sampler;
+    imageBufferInfo.imageView = imageView;
+    imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    return imageBufferInfo;
 }

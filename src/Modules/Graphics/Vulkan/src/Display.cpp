@@ -121,6 +121,8 @@ void NEDisplay::createDescriptors() {
 
     mSceneParameterBuffer = mDevice->createBuffer(sceneParamBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
+    mSampler = mDevice->createSampler();
+
     for (int i = 0; i < MAX_FRAMES; i++)
     {
 
@@ -129,6 +131,8 @@ void NEDisplay::createDescriptors() {
 
         mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(mDevice->globalSetLayout());
         mFrames[i].mObjectDescriptor = mDevice->createDescriptorSet(mDevice->objectSetLayout());
+
+        mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
         VkDescriptorBufferInfo cameraInfo;
         cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
@@ -145,19 +149,23 @@ void NEDisplay::createDescriptors() {
         objectBufferInfo.offset = 0;
         objectBufferInfo.range = sizeof(GPUObjectData) * MAX_ENTITYS;
 
+        VkDescriptorImageInfo samplerInfo{};
+        samplerInfo.sampler = mSampler;
 
         VkWriteDescriptorSet cameraWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mFrames[i].mGlobalDescriptor, &cameraInfo, 0);
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
-
         VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
 
-        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite, objectWrite };
+        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, mFrames[i].mTextureDescriptor, &samplerInfo, 0);
+        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, nullptr, 1);
+        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite, objectWrite, textureSamplerWrite, textureWrite };
 
-        vkUpdateDescriptorSets(mDevice->device(), 3, setWrites, 0, nullptr);
+        vkUpdateDescriptorSets(mDevice->device(), 4, setWrites, 0, nullptr);
 
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
+            vkDestroySampler(mDevice->device(), mSampler, nullptr);
         });
     }
     mDeletionQueue.push_function([=, this]() {
@@ -268,7 +276,7 @@ void NEDisplay::createSyncStructures(FrameData &frame) {
     VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
     //Create it already signaled
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    
+
     if (vkCreateFence(mDevice->device(), &fenceCreateInfo, nullptr, &frame.mRenderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization fences\n");
     }
@@ -317,6 +325,19 @@ void NEDisplay::populateFrameData() {
             vkDestroyCommandPool(mDevice->device(), mFrames[i].mCommandPool, nullptr);
         });
     }
+}
+
+void NEDisplay::addTexture(VkImageView imageView, uint32_t dstIdx) {
+    VkWriteDescriptorSet writes[MAX_FRAMES];
+    for(uint32_t i = 0; i < MAX_FRAMES; i++) {
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptorImageInfo.imageView = imageView;
+        writes[i] = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, &descriptorImageInfo, 1);
+        writes[i].dstArrayElement = dstIdx;
+    }
+    vkUpdateDescriptorSets(mDevice->device(), MAX_FRAMES, writes, 0, nullptr);
 }
 
 VkCommandBuffer NEDisplay::startFrame() {
@@ -396,7 +417,6 @@ VkCommandBuffer NEDisplay::startFrame() {
     ImGui::End();
 
     ImGui::Render();
-
 
     //Farewell command buffer o/; May your errors gentle.
     return frame.mCommandBuffer;

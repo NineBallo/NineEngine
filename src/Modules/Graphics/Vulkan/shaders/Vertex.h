@@ -39,12 +39,20 @@ std::string vertexColor = "layout (location = 0) out vec3 outColor;\n"
 
 //Passing in color through texture
 std::string vertexTexture = "layout (location = 0) out vec2 texCoord;\n"
-                           " void main() {\n"
-                           "    mat4 modelMatrix = objectBuffer.objects[gl_BaseInstance].model;\n"
-                           "    mat4 transformMatrix = (cameraData.viewproj * modelMatrix);\n"
-                           "    gl_Position = transformMatrix * vec4(vPosition, 1.0);\n"
-                           "    texCoord = vTexCoord;\n"
-                           "}";
+                            "\n"
+                            "layout(push_constant) uniform VertexData\n"
+                            "{\n"
+                            "    int texIdx;\n"
+                            "    int entityID;\n"
+                            "\n"
+                            "} vertexData;\n"
+                            "\n"
+                            " void main() {\n"
+                            "    mat4 modelMatrix = objectBuffer.objects[vertexData.entityID].model;\n"
+                            "    mat4 transformMatrix = (cameraData.viewproj * modelMatrix);\n"
+                            "    gl_Position = transformMatrix * vec4(vPosition, 1.0);\n"
+                            "    texCoord = vTexCoord;\n"
+                            "}";
 
 
 

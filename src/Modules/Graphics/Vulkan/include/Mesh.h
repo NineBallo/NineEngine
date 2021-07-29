@@ -54,13 +54,20 @@ struct Mesh {
 
     std::vector<uint32_t> mIndices {};
     AllocatedBuffer mIndexBuffer;
-    bool load_from_obj(std::string filename);
+
+    std::string texture;
+};
+
+struct MeshGroup {
+    std::vector<Mesh> mMeshes;
+    std::vector<bool> enabled;
+    bool load_objects_from_file(std::string filename);
 };
 
 struct RenderObject {
-    Mesh* mesh;
+    MeshGroup* meshGroup;
     Material* material;
-    Texture* texture;
+
     glm::mat4 transformMatrix;
 };
 

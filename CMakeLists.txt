@@ -8,7 +8,6 @@ find_package(Vulkan REQUIRED FATAL_ERROR) # error
 find_package(glfw3 REQUIRED FATAL_ERROR) # error
 find_package(glm REQUIRED FATAL_ERROR) # error
 
-
 message(STATUS "Using ${CMAKE_GENERATOR}")
 #Might help compile times idk
 find_program(CCACHE "ccache")
@@ -46,14 +45,6 @@ FetchContent_Declare(
         GIT_SHALLOW 1
 )
 FetchContent_MakeAvailable(imgui)
-
-FetchContent_Declare(
-        obj
-        GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
-        GIT_TAG        master   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
-        GIT_SHALLOW 1
-)
-FetchContent_MakeAvailable(obj)
 
 set(SPIRV_HEADERS_SKIP_INSTALL ON)
 set(SPIRV_HEADERS_SKIP_EXAMPLES ON)
@@ -102,6 +93,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(shaderc)
 
+set(BUILD_SHARED_LIBS OFF)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
+set(ASSIMP_BUILD_TESTS OFF)
+set(ASSIMP_INSTALL OFF)
+set(ASSIMP_INJECT_DEBUG_POSTFIX OFF)
+
+FetchContent_Declare(
+assimp
+GIT_REPOSITORY https://github.com/assimp/assimp
+GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+GIT_SHALLOW 1
+)
+FetchContent_GetProperties(assimp)
+
+if(NOT assimp_POPULATED)
+    FetchContent_Populate(assimp)
+    add_subdirectory(${assimp_SOURCE_DIR} ${assimp_BINARY_DIR})
+endif()
 
 FetchContent_Declare(
         stb
@@ -120,10 +129,10 @@ set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_
 
 add_executable(NineEngine ${imgui_FILES} src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h)
 link_directories(${shaderc_BINARY_DIR})
-target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan shaderc)
+target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan shaderc assimp)
 
 target_include_directories(NineEngine PUBLIC
-        ${vma_SOURCE_DIR}/src ${obj_SOURCE_DIR} ${imgui_SOURCE_DIR} ${stb_SOURCE_DIR})
+        ${vma_SOURCE_DIR}/src ${imgui_SOURCE_DIR} ${stb_SOURCE_DIR} ${assimp_SOURCE_DIR}/include)
 
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES

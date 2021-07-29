@@ -46,6 +46,8 @@ public:
     void createDescriptors();
     void initImGUI();
 
+    void addTexture(VkImageView imageView, uint32_t dstIdx);
+
     //Render methods
     VkCommandBuffer startFrame();
     void endFrame();
@@ -83,6 +85,9 @@ private:
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
     std::string mTitle;
 
+
+    //Texture
+    VkSampler mSampler;
 private:
     //Frame "Data"
     std::array<FrameData, MAX_FRAMES> mFrames;

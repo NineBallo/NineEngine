@@ -2,13 +2,14 @@
 // Created by nineball on 7/11/21.
 //
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-
 #include <iostream>
 #include <unordered_map>
 #include "Mesh.h"
 
+///TODO move this to like IO or som and convert everything to a fast static format
+#include "assimp/Importer.hpp"
+#include "assimp/scene.h"
+#include "assimp/postprocess.h"
 
 VertexInputDescription Vertex::get_vertex_description()
 {
@@ -58,98 +59,159 @@ VertexInputDescription Vertex::get_vertex_description()
     return description;
 }
 
+bool MeshGroup::load_objects_from_file(std::string filename) {
+    Assimp::Importer importer;
 
+    //With assimp it will automatically strip the duplicate vertices for us
+    const aiScene *scene = importer.ReadFile(filename,
+                                             aiProcessPreset_TargetRealtime_MaxQuality);
 
-
-
-
-bool Mesh::load_from_obj(std::string filename)
-{
-    tinyobj::ObjReaderConfig reader_config;
-    reader_config.mtl_search_path = "./models/";
-
-    tinyobj::ObjReader reader;
-
-    reader.ParseFromFile(filename, reader_config);
-
-    if (!reader.Warning().empty()) {
-        std::cerr << reader.Warning() << std::endl;
+    if (!scene) {
+        throw std::runtime_error(importer.GetErrorString());
+        return false;
     }
 
-    //vertex arrays of file
-    auto& attrib = reader.GetAttrib();
-    //each object in file
-    auto& shapes = reader.GetShapes();
-    //Material of shape
-    auto& materials = reader.GetMaterials();
+    mMeshes.reserve(scene->mNumMeshes);
+    for (size_t i = 0; i < scene->mNumMeshes; i++) {
+
+        aiMesh *mesh = scene->mMeshes[i];
+        Mesh renderMesh{};
 
 
-    // tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
 
-    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+        // aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 
-    for (auto & shape : shapes) {
-        // Loop over faces(polygon)
-        size_t index_offset = 0;
-        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
-            auto fv = size_t(shape.mesh.num_face_vertices[f]);
+        renderMesh.mVertices.reserve(mesh->mNumVertices);
+        for (uint32_t vertexIdx = 0; vertexIdx < mesh->mNumVertices; vertexIdx++) {
+            Vertex vertex{};
 
 
-            // Loop over vertices in the face.
-            for (size_t v = 0; v < fv; v++) {
-                Vertex new_vert {};
+            aiVector3D vert = mesh->mVertices[vertexIdx];
 
-                // access to vertex
-                tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+            vertex.position.x = vert.x;
+            vertex.position.y = vert.y;
+            vertex.position.z = vert.z;
 
-                //vertex position
-                tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
-                tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
-                tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+            if (mesh->HasNormals()) {
+                aiVector3D norm = mesh->mNormals[vertexIdx];
 
-                new_vert.position.x = vx;
-                new_vert.position.y = vy;
-                new_vert.position.z = vz;
-
-
-                //vertex normal
-                if (idx.normal_index >= 0) {
-                    tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
-                    tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
-                    tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
-
-                    new_vert.normal.x = nx;
-                    new_vert.normal.y = ny;
-                    new_vert.normal.z = nz;
-                }
-                //vertex uv
-                if (idx.texcoord_index >= 0) {
-                    tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
-                    tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
-
-                    new_vert.uv.x = ux;
-                    new_vert.uv.y = 1-uy;
-                }
-
-                //Optional: vertex colors
-                //tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
-                //tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
-                //tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
-
-                new_vert.color.x = 1.f;
-                new_vert.color.y = 0.5f;
-                new_vert.color.z = 1.f;
-
-                if(uniqueVertices.count(new_vert) == 0) {
-                    //Add it to logging(?) array, then add it to official array
-                    uniqueVertices[new_vert] = mVertices.size();
-                    mVertices.push_back(new_vert);
-                }
-                mIndices.push_back(uniqueVertices[new_vert]);
+                vertex.normal.x = norm.x;
+                vertex.normal.y = norm.y;
+                vertex.normal.z = norm.z;
             }
-            index_offset += fv;
-        }
-    }
 
+            if (mesh->mTextureCoords[0]) {
+                glm::vec2 coords;
+                coords.x = mesh->mTextureCoords[0][vertexIdx].x;
+                coords.y = 1-mesh->mTextureCoords[0][vertexIdx].y;
+                vertex.uv = coords;
+            }
+
+            renderMesh.mVertices.push_back(vertex);
+        }
+
+        //Get all indices
+        renderMesh.mIndices.reserve(mesh->mNumFaces * 3);
+        for (uint32_t face = 0; face < mesh->mNumFaces; face++) {
+            renderMesh.mIndices.push_back(mesh->mFaces[face].mIndices[0]);
+            renderMesh.mIndices.push_back(mesh->mFaces[face].mIndices[1]);
+            renderMesh.mIndices.push_back(mesh->mFaces[face].mIndices[2]);
+        }
+
+        mMeshes.push_back(renderMesh);
+       // enabled[i] = true;
+    }
     return true;
 }
+
+
+//bool Mesh::load_from_obj(std::string filename)
+//{
+//    tinyobj::ObjReaderConfig reader_config;
+//    reader_config.mtl_search_path = "./models/";
+//
+//    tinyobj::ObjReader reader;
+//
+//    reader.ParseFromFile(filename, reader_config);
+//
+//    if (!reader.Warning().empty()) {
+//        std::cerr << reader.Warning() << std::endl;
+//    }
+//
+//    //vertex arrays of file
+//    auto& attrib = reader.GetAttrib();
+//    //each object in file
+//    auto& shapes = reader.GetShapes();
+//    //Material of shape
+//    auto& materials = reader.GetMaterials();
+//
+//
+//    // tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, filename.c_str(), nullptr, true);
+//
+//    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+//
+//    for (auto & shape : shapes) {
+//        // Loop over faces(polygon)
+//        size_t index_offset = 0;
+//        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+//            auto fv = size_t(shape.mesh.num_face_vertices[f]);
+//
+//
+//            // Loop over vertices in the face.
+//            for (size_t v = 0; v < fv; v++) {
+//                Vertex new_vert {};
+//
+//                // access to vertex
+//                tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+//
+//                //vertex position
+//                tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+//                tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+//                tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+//
+//                new_vert.position.x = vx;
+//                new_vert.position.y = vy;
+//                new_vert.position.z = vz;
+//
+//
+//                //vertex normal
+//                if (idx.normal_index >= 0) {
+//                    tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+//                    tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+//                    tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+//
+//                    new_vert.normal.x = nx;
+//                    new_vert.normal.y = ny;
+//                    new_vert.normal.z = nz;
+//                }
+//                //vertex uv
+//                if (idx.texcoord_index >= 0) {
+//                    tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
+//                    tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
+//
+//                    new_vert.uv.x = ux;
+//                    new_vert.uv.y = 1-uy;
+//                }
+//
+//                //Optional: vertex colors
+//                //tinyobj::real_t red   = attrib.colors[3 * idx.vertex_index + 0];
+//                //tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+//                //tinyobj::real_t blue  = attrib.colors[3 * idx.vertex_index + 2];
+//
+//                new_vert.color.x = 1.f;
+//                new_vert.color.y = 0.5f;
+//                new_vert.color.z = 1.f;
+//
+//                if(uniqueVertices.count(new_vert) == 0) {
+//                    //Add it to logging(?) array, then add it to official array
+//                    uniqueVertices[new_vert] = mVertices.size();
+//                    mVertices.push_back(new_vert);
+//                }
+//                mIndices.push_back(uniqueVertices[new_vert]);
+//            }
+//            index_offset += fv;
+//        }
+//    }
+//
+//    return true;
+//}

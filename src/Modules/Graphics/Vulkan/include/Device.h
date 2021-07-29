@@ -30,9 +30,11 @@ public:
 
 public:
     //Helper funtions
-    VkDescriptorSet createDescriptorSet(VkDescriptorSetLayout layout);
+    VkDescriptorSet createDescriptorSet(VkDescriptorSetLayout layout, void* pNext = nullptr);
     VkDescriptorSetLayoutBinding createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
-    VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutBinding* bindingArray, uint8_t arraySize);
+    VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutCreateFlags flags, VkDescriptorSetLayoutBinding* bindingArray,
+                                                    uint8_t arraySize, void* pNext = nullptr);
+
     size_t padUniformBufferSize(size_t originalSize);
 
     std::pair<VkPipeline, VkPipelineLayout> createPipeline(std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags);
@@ -43,7 +45,7 @@ public:
 
     void immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 
-    void createSampler(Material *material, Texture *texture);
+    VkSampler createSampler();
 
     template<typename T>
     void uploadToBuffer(std::vector<T>& data, AllocatedBuffer& buffer, size_t size);
@@ -63,6 +65,7 @@ public:
     VkDescriptorSetLayout globalSetLayout();
     VkDescriptorSetLayout objectSetLayout();
     VkDescriptorSetLayout singleTextureSetLayout();
+    VkDescriptorSetLayout textureSetLayout();
 
     VkRenderPass defaultRenderpass();
     VmaAllocator allocator();
@@ -83,6 +86,7 @@ private:
     VkDescriptorSetLayout mGlobalSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout mObjectSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout mSingleTextureSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout mTextureSetLayout = VK_NULL_HANDLE;
 
     VkRenderPass mDefaultRenderpass = VK_NULL_HANDLE;
 

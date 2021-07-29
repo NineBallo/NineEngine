@@ -26,6 +26,13 @@ NEDevice::~NEDevice() {
 vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Instance &vkb_inst) {
     ///Create/Select rootDevice;
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
+    indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+
+    indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+
+    selector.add_required_extension_features(indexingFeatures);
     vkb::PhysicalDevice physicalDevice = selector
             .set_minimum_version(1, 1)
             .set_surface(surface)
@@ -161,25 +168,26 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
     //Pipeline creation
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
 
-    if ((flags & NE_SHADER_PUSHCONSTANTS_BIT) == NE_SHADER_PUSHCONSTANTS_BIT) {
-        VkPushConstantRange push_constant;
-        push_constant.offset = 0;
-        push_constant.size = sizeof(MeshPushConstants);
-        push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    if ((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+        VkPushConstantRange push_constants;
 
-        pipelineLayoutInfo.pPushConstantRanges = &push_constant;
+        push_constants.offset = 0;
+        push_constants.size = sizeof(PushData);
+        push_constants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+
+        pipelineLayoutInfo.pPushConstantRanges = &push_constants;
         pipelineLayoutInfo.pushConstantRangeCount = 1;
     }
     else {
         pipelineLayoutInfo.pPushConstantRanges = nullptr;
-        pipelineLayoutInfo.pPushConstantRanges = 0;
     }
 
     VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
     uint8_t layoutSize = 2;
 
         if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
-            layouts[layoutSize] = mSingleTextureSetLayout;
+            layouts[layoutSize] = mTextureSetLayout;
             layoutSize++;
         }
 
@@ -194,6 +202,8 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
     PipelineBuilder builder;
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+
+
 
     builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
 
@@ -321,7 +331,8 @@ void NEDevice::init_descriptors() {
                     { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
                     { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
                     //wawawwa image sampler wawawawawawawawaw
-                    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10}
+                    { VK_DESCRIPTOR_TYPE_SAMPLER, 10},
+                    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_TEXTURES}
             };
 
     VkDescriptorPoolCreateInfo pool_info = {};
@@ -341,14 +352,34 @@ void NEDevice::init_descriptors() {
     VkDescriptorSetLayoutBinding sceneBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
     VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
 
-    mGlobalSetLayout = createDescriptorSetLayout(bindings, 2);
+    mGlobalSetLayout = createDescriptorSetLayout(0, bindings, 2);
 
     VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-    mObjectSetLayout = createDescriptorSetLayout(&objectBind, 1);
+    mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
 
-    VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-    mSingleTextureSetLayout = createDescriptorSetLayout(&textureBind, 1);
+    VkDescriptorSetLayoutBinding singleTextureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+    mSingleTextureSetLayout = createDescriptorSetLayout(0, &singleTextureBind, 1);
 
+
+
+
+
+    ///TODO make the descriptor count variable
+    VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+    VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    textureBind.descriptorCount = MAX_TEXTURES;
+    VkDescriptorSetLayoutBinding textureBindings[] = { textureSamplerBind, textureBind };
+
+    VkDescriptorBindingFlags flags[3];
+    flags[0] = 0;
+    flags[1] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
+    binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    binding_flags.bindingCount = 2;
+    binding_flags.pBindingFlags = flags;
+
+    mTextureSetLayout = createDescriptorSetLayout(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, textureBindings, 2, &binding_flags);
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -367,8 +398,9 @@ VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorTy
 
 }
 
-VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutBinding *bindingArray,
-                                                          uint8_t arraySize) {
+VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutCreateFlags flags,
+                                                          VkDescriptorSetLayoutBinding *bindingArray, uint8_t arraySize,
+                                                          void* pNext) {
     VkDescriptorSetLayout layout;
 
     VkDescriptorSetLayoutCreateInfo setInfo = {};
@@ -378,10 +410,11 @@ VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutB
     //we are going to have 1 binding
     setInfo.bindingCount = arraySize;
     //no flags
-    setInfo.flags = 0;
+    setInfo.flags = flags;
     //point to the camera buffer binding
     setInfo.pBindings = bindingArray;
 
+    setInfo.pNext = pNext;
 
     vkCreateDescriptorSetLayout(mDevice, &setInfo, nullptr, &layout);
 
@@ -392,7 +425,7 @@ VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutB
     return layout;
 }
 
-VkDescriptorSet NEDevice::createDescriptorSet(VkDescriptorSetLayout layout) {
+VkDescriptorSet NEDevice::createDescriptorSet(VkDescriptorSetLayout layout, void* pNext) {
     VkDescriptorSet descriptorSet;
 
     //allocate one descriptor set for each frame
@@ -405,6 +438,8 @@ VkDescriptorSet NEDevice::createDescriptorSet(VkDescriptorSetLayout layout) {
     allocInfo.descriptorSetCount = 1;
     //using the global data layout
     allocInfo.pSetLayouts = &layout;
+
+    allocInfo.pNext = pNext;
 
     vkAllocateDescriptorSets(mDevice, &allocInfo, &descriptorSet);
 
@@ -465,28 +500,14 @@ void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) 
     vkResetCommandPool(mDevice, mUploadContext.mCommandPool, 0);
 }
 
-void NEDevice::createSampler(Material *material, Texture *texture) {
+VkSampler NEDevice::createSampler() {
     //create a sampler for the texture
     VkSamplerCreateInfo samplerInfo = init::samplerCreateInfo(VK_FILTER_NEAREST);
 
-    VkSampler blockySampler;
-    vkCreateSampler(mDevice, &samplerInfo, nullptr, &blockySampler);
+    VkSampler sampler;
+    vkCreateSampler(mDevice, &samplerInfo, nullptr, &sampler);
 
-    //Save ref to sampler so it can be destroyed later
-    texture->mSampler = blockySampler;
-
-    //allocate the descriptor set for single-texture to use on the material
-    material->mTextureSet = createDescriptorSet(mSingleTextureSetLayout);
-
-    //write to the descriptor set so that it points to our empire_diffuse texture
-    VkDescriptorImageInfo imageBufferInfo;
-    imageBufferInfo.sampler = blockySampler;
-    imageBufferInfo.imageView = texture->mImageView;
-    imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkWriteDescriptorSet texture1 = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, material->mTextureSet, &imageBufferInfo, 0);
-
-    vkUpdateDescriptorSets(mDevice, 1, &texture1, 0, nullptr);
+    return sampler;
 }
 
 ///Getters
@@ -532,4 +553,8 @@ VkDescriptorSetLayout NEDevice::objectSetLayout() {
 
 VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {
     return mSingleTextureSetLayout;
+}
+
+VkDescriptorSetLayout NEDevice::textureSetLayout() {
+    return mTextureSetLayout;
 }

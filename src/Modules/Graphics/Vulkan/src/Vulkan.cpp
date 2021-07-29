@@ -76,7 +76,7 @@ void Vulkan::init_vulkan() {
 
     auto inst_ret = builder.set_app_name("NineEngine")
             .request_validation_layers(debug)
-            .require_api_version(1, 1, 0)
+            .require_api_version(1, 2, 0)
             .use_default_debug_messenger()
             .build();
 
@@ -132,46 +132,35 @@ void Vulkan::deleteMaterial(uint32_t features) {
     mMaterials.erase(features);
 }
 
-Mesh* Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
-    Mesh mesh;
-    mesh.load_from_obj(filepath);
+void Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
+    MeshGroup meshGroup;
+    meshGroup.load_objects_from_file(filepath);
 
-    uploadMesh(mesh);
+    for(auto& mesh : meshGroup.mMeshes) {
+        uploadMesh(mesh);
+    }
 
-    mMeshes[meshName] = mesh;
-
+    mMeshes[meshName] = meshGroup;
     mDeletionQueue.push_function([=, this]() {
         deleteMesh(meshName);
     });
 
-    return &mMeshes[meshName];
 }
 
 bool Vulkan::deleteMesh(const std::string& meshName) {
     //Check if it was already deleted...
     if(!mMeshes.contains(meshName)) return false;
 
-    Mesh& mesh = mMeshes[meshName];
-    vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
-    vmaDestroyBuffer(mDevice->allocator(), mesh.mIndexBuffer.mBuffer, mesh.mIndexBuffer.mAllocation);
-    mMeshes.erase(meshName);
+    MeshGroup& meshGroup = mMeshes[meshName];
+
+    for(auto& mesh : meshGroup.mMeshes) {
+        vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
+        vmaDestroyBuffer(mDevice->allocator(), mesh.mIndexBuffer.mBuffer, mesh.mIndexBuffer.mAllocation);
+        mMeshes.erase(meshName);
+    }
 
     return true;
 }
-
-void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, const std::string& texture) {
-    RenderObject renderObject{};
-    renderObject.material = &mMaterials[material];
-    renderObject.mesh = &mMeshes[mesh];
-    if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
-        renderObject.texture = &mTextures[texture];
-        mDevice->createSampler(renderObject.material, renderObject.texture);
-    }
-
-    mECS->addComponent<RenderObject>(entity, renderObject);
-}
-
-
 
 void Vulkan::uploadMesh(Mesh &mesh) {
 
@@ -192,6 +181,22 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     mDevice->uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
 }
 
+void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, uint32_t* textureIndex) {
+    RenderObject renderObject{};
+    renderObject.material = &mMaterials[material];
+    renderObject.meshGroup = &mMeshes[mesh];
+
+    if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+        MeshGroup& meshGroup = mMeshes[mesh];
+
+        for (int i = 0; i < meshGroup.mMeshes.size(); i++) {
+            uint32_t indexOfEntityTex =  textureIndex[i];
+            mMeshes[mesh].mMeshes[i].texture = Textures[indexOfEntityTex];
+        }
+    }
+
+    mECS->addComponent<RenderObject>(entity, renderObject);
+}
 
 void Vulkan::draw() {
     VkCommandBuffer cmd = mRootDisplay->startFrame();
@@ -241,24 +246,28 @@ void Vulkan::draw() {
         model = glm::rotate(model, position.rotations.y * (3.14f/180), {0.f, 1.f , 0.f});
         model = glm::rotate(model, position.rotations.z * (3.14f/180), {0.f, 0.f , 1.f});
 
-        objectSSBO[i].modelMatrix = model;
+        objectSSBO[currentEntityID].modelMatrix = model;
     }
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
 
+
     Material* mLastMaterial = nullptr;
+
+
 
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
-      //  auto& mesh = (*currentEntity.mesh);
+        MeshGroup& meshGroup = *currentEntity.meshGroup;
+
 
         if(currentEntity.material != mLastMaterial) {
-
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
             mLastMaterial = currentEntity.material;
 
             VkDescriptorSet globalDescriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
             VkDescriptorSet objectDescriptorSet = mRootDisplay->currentFrame().mObjectDescriptor;
+            VkDescriptorSet textureDescriptorSet = mRootDisplay->currentFrame().mTextureDescriptor;
 
             uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData));
 
@@ -267,33 +276,38 @@ void Vulkan::draw() {
 
             //object data descriptor
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
-                                1, 1, &objectDescriptorSet, 0, nullptr);
+                                    1, 1, &objectDescriptorSet, 0, nullptr);
 
-            if(currentEntity.material->mTextureSet != VK_NULL_HANDLE) {
-                //texture descriptor
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        currentEntity.material->mPipelineLayout, 2, 1,
-                                        &currentEntity.material->mTextureSet, 0, nullptr);
-            }
+
+            //texture descriptor
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    currentEntity.material->mPipelineLayout, 2, 1,
+                                    &textureDescriptorSet, 0, nullptr);
         }
 
-        VkDeviceSize offset = 0;
 
-        vkCmdBindVertexBuffers(cmd, 0, 1, &currentEntity.mesh->mVertexBuffer.mBuffer, &offset);
-        vkCmdBindIndexBuffer(cmd, currentEntity.mesh->mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd, currentEntity.mesh->mIndices.size(), 1, 0, 0, 0);
+        for(auto & mesh : meshGroup.mMeshes) {
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
+            vkCmdBindIndexBuffer(cmd, mesh.mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
+
+            PushData pushData{};
+            pushData.textureIndex = mTextureToBinding[mesh.texture];
+            pushData.entityID = currentEntityID;
+
+
+            vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout,
+                               VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(PushData), &pushData);
+
+
+            vkCmdDrawIndexed(cmd, mesh.mIndices.size(), 1, 0, 0, 0);
+        }
     }
 
     mRootDisplay->endFrame();
 }
 
-void Vulkan::tick() {
-    if (mRootDisplay->shouldExit()) {
-        mRootDisplay.reset();
-        mShouldExit = true;
-    } else {
-        draw();
-    }
+void Vulkan::drawEntity(VkCommandBuffer cmd, Entity entity){
 }
 
 GLFWwindow* Vulkan::getWindow(Display display) {
@@ -316,10 +330,16 @@ Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &nam
 
     mTextures[name] = texture;
 
+    mRootDisplay->addTexture(texture.mImageView, mTextureCount);
+
+    mTextureToBinding[name] = mTextureCount;
+
+    mTextureCount++;
 
     mDeletionQueue.push_function([=, this](){
         deleteTexture(name);
     });
+
 
     return &mTextures[name];
 }
@@ -331,9 +351,32 @@ bool Vulkan::deleteTexture(const std::string &name) {
     Texture &tex = mTextures[name];
     vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
     vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
-    vkDestroySampler(mDevice->device(), tex.mSampler, nullptr);
+
+    uint32_t oldBinding = mTextureToBinding[name];
     mTextures.erase(name);
+    mTextureToBinding.erase(name);
+
+    //New free space at binding x
+    std::string lastTexture = mBindingToTexture[mTextureCount - 1];
+    //Upload last item to binding x
+    mRootDisplay->addTexture(mTextures[lastTexture].mImageView, oldBinding);
+    //Remove reference to old binding
+    mTextureToBinding[lastTexture] = oldBinding;
+    //Profit, idk how to clean up a unused descriptor so yea....
+
+    //Make count smaller to account for the deleted texture
+    mTextureCount--;
+
     return true;
+}
+
+void Vulkan::tick() {
+    if (mRootDisplay->shouldExit()) {
+        mRootDisplay.reset();
+        mShouldExit = true;
+    } else {
+        draw();
+    }
 }
 
 bool Vulkan::shouldExit() {return mShouldExit;}
