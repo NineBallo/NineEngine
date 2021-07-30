@@ -78,6 +78,10 @@ private:
     std::array<std::optional<Display>, 10> mAdditionalDisplays;
 
 private:
+    //Only used for legacy descriptor backend
+    VkSampler mSampler;
+
+private:
     std::unordered_map<uint32_t, Material> mMaterials;
     std::unordered_map<std::string, MeshGroup> mMeshes;
 

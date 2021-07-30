@@ -13,7 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
-#define MAX_TEXTURES 8000
+#define MAX_TEXTURES 768
 
 
 struct AllocatedBuffer {
@@ -29,6 +29,7 @@ struct AllocatedImage {
 struct Texture {
     AllocatedImage mImage;
     VkImageView mImageView;
+    VkDescriptorSet mTextureSet;
 };
 
 struct UploadContext {

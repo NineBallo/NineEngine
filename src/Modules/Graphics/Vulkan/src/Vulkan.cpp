@@ -68,6 +68,7 @@ void Vulkan::init() {
     mRootDisplay->createFramebuffers(mDevice->defaultRenderpass());
     mRootDisplay->createDescriptors();
     mRootDisplay->initImGUI();
+    mSampler = mDevice->createSampler();
 }
 
 void Vulkan::init_vulkan() {
@@ -101,6 +102,10 @@ void Vulkan::init_vulkan() {
 }
 
 Material* Vulkan::createMaterial(uint32_t features) {
+
+    if(!mDevice->bindless()) {
+        features += NE_SHADER_BINDING_BIT;
+    }
 
     std::pair<std::string, std::string> shaders = assembleShaders(features);
 
@@ -182,15 +187,21 @@ void Vulkan::uploadMesh(Mesh &mesh) {
 }
 
 void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, uint32_t* textureIndex) {
+    //Set hidden bits/flags
+    if(!mDevice->bindless()) {
+        material += NE_SHADER_BINDING_BIT;
+    }
+
     RenderObject renderObject{};
     renderObject.material = &mMaterials[material];
     renderObject.meshGroup = &mMeshes[mesh];
+
 
     if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
         MeshGroup& meshGroup = mMeshes[mesh];
 
         for (int i = 0; i < meshGroup.mMeshes.size(); i++) {
-            uint32_t indexOfEntityTex =  textureIndex[i];
+            uint32_t indexOfEntityTex = textureIndex[i];
             mMeshes[mesh].mMeshes[i].texture = Textures[indexOfEntityTex];
         }
     }
@@ -269,20 +280,22 @@ void Vulkan::draw() {
             VkDescriptorSet objectDescriptorSet = mRootDisplay->currentFrame().mObjectDescriptor;
             VkDescriptorSet textureDescriptorSet = mRootDisplay->currentFrame().mTextureDescriptor;
 
-            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData));
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
-                                    0, 1, &globalDescriptorSet, 1, &uniform_offset);
-
             //object data descriptor
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
                                     1, 1, &objectDescriptorSet, 0, nullptr);
 
+            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mRootDisplay->frameIndex();
+            uniform_offset = 0;
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
+                                    0, 1, &globalDescriptorSet, 1, &uniform_offset);
 
-            //texture descriptor
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    currentEntity.material->mPipelineLayout, 2, 1,
-                                    &textureDescriptorSet, 0, nullptr);
+
+            if(mDevice->bindless()) {
+                //texture descriptor
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        currentEntity.material->mPipelineLayout, 2, 1,
+                                        &textureDescriptorSet, 0, nullptr);
+            }
         }
 
 
@@ -292,8 +305,17 @@ void Vulkan::draw() {
             vkCmdBindIndexBuffer(cmd, mesh.mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
 
             PushData pushData{};
-            pushData.textureIndex = mTextureToBinding[mesh.texture];
             pushData.entityID = currentEntityID;
+
+            if(mDevice->bindless()) {
+                pushData.textureIndex = mTextureToBinding[mesh.texture];
+
+            }
+            else {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        currentEntity.material->mPipelineLayout, 2, 1,
+                                        &mTextures[mesh.texture].mTextureSet, 0, nullptr);
+            }
 
 
             vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout,
@@ -328,14 +350,32 @@ Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &nam
                                                                   VK_IMAGE_ASPECT_COLOR_BIT);
     vkCreateImageView(mDevice->device(), &imageInfo, nullptr, &texture.mImageView);
 
+    if(mDevice->bindless()) {
+
+        mRootDisplay->addTexture(texture.mImageView, mTextureCount);
+        mTextureToBinding[name] = mTextureCount;
+        mTextureCount++;
+    }
+    else {
+        texture.mTextureSet = mDevice->createDescriptorSet(mDevice->singleTextureSetLayout());
+
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptorImageInfo.imageView = texture.mImageView;
+
+        VkDescriptorImageInfo samplerInfo{};
+        samplerInfo.sampler = mSampler;
+
+        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
+        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
+        VkWriteDescriptorSet setWrites[] = {textureSamplerWrite, textureWrite };
+
+        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
+    }
+
+
     mTextures[name] = texture;
-
-    mRootDisplay->addTexture(texture.mImageView, mTextureCount);
-
-    mTextureToBinding[name] = mTextureCount;
-
-    mTextureCount++;
-
     mDeletionQueue.push_function([=, this](){
         deleteTexture(name);
     });

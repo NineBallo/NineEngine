@@ -132,7 +132,6 @@ void NEDisplay::createDescriptors() {
         mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(mDevice->globalSetLayout());
         mFrames[i].mObjectDescriptor = mDevice->createDescriptorSet(mDevice->objectSetLayout());
 
-        mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
         VkDescriptorBufferInfo cameraInfo;
         cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
@@ -149,18 +148,31 @@ void NEDisplay::createDescriptors() {
         objectBufferInfo.offset = 0;
         objectBufferInfo.range = sizeof(GPUObjectData) * MAX_ENTITYS;
 
-        VkDescriptorImageInfo samplerInfo{};
-        samplerInfo.sampler = mSampler;
 
         VkWriteDescriptorSet cameraWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mFrames[i].mGlobalDescriptor, &cameraInfo, 0);
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
         VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
 
-        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, mFrames[i].mTextureDescriptor, &samplerInfo, 0);
-        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, nullptr, 1);
-        VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite, objectWrite, textureSamplerWrite, textureWrite };
+        VkWriteDescriptorSet setWrites[5] = { cameraWrite, sceneWrite, objectWrite};
+        size_t writeSize = 3;
+        if(mDevice->bindless()) {
+            mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
-        vkUpdateDescriptorSets(mDevice->device(), 4, setWrites, 0, nullptr);
+            VkDescriptorImageInfo samplerInfo{};
+            samplerInfo.sampler = mSampler;
+
+            VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, mFrames[i].mTextureDescriptor, &samplerInfo, 0);
+            VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, nullptr, 1);
+
+            setWrites[writeSize] = textureSamplerWrite;
+            writeSize++;
+            setWrites[writeSize] = textureWrite;
+            writeSize++;
+        }
+
+
+        vkUpdateDescriptorSets(mDevice->device(), writeSize, setWrites, 0, nullptr);
+
 
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);

@@ -9,7 +9,7 @@
 
 //output write
 std::string fragmentBase = "#version 450\n"
-                           "#extension GL_EXT_nonuniform_qualifier : require\n"
+                           ""
                            "layout (location = 0) out vec4 outColor;\n"
                            "\n"
                            "layout(set = 0, binding = 1) uniform  SceneData{\n"
@@ -18,10 +18,11 @@ std::string fragmentBase = "#version 450\n"
                            "    vec4 ambientColor;\n"
                            "    vec4 sunlightDirection; //w for sun power\n"
                            "    vec4 sunlightColor;\n"
-                           "} sceneData;";
+                           "} sceneData;\n";
 
 //Build with sampler and texcoord passthrough
-std::string fragmentTexture = "layout (location = 0) in vec2 uv;\n"
+std::string fragmentTexture = "#extension GL_EXT_nonuniform_qualifier : require\n"
+                              "layout (location = 0) in vec2 uv;\n"
                               "layout(set = 2, binding = 0) uniform sampler samp;\n"
                               "layout(set = 2, binding = 1) uniform texture2D textures[];\n"
                               "\n"
@@ -34,8 +35,20 @@ std::string fragmentTexture = "layout (location = 0) in vec2 uv;\n"
                               ""
                               "void main()\n"
                               "{\n"
-                              "    outColor = texture(sampler2D(textures[fragData.texIdx], samp), uv);\n"
+                              "    outColor = texture(sampler2D(textures[fragData.texIdx], samp), uv) + sceneData.ambientColor;\n"
                               "}";
+
+//Build with sampler and texcoord passthrough
+std::string fragmentTextureBinding = "layout (location = 0) in vec2 uv;\n"
+                                     "layout(set = 2, binding = 0) uniform sampler samp;\n"
+                                     "layout(set = 2, binding = 1) uniform texture2D tex;\n"
+                                     "\n"
+                                     ""
+                                     "void main()\n"
+                                     "{\n"
+                                     "    outColor = texture(sampler2D(tex, samp), uv) + sceneData.ambientColor;\n"
+                                     "}";
+
 
 //Build with direct passthrough
 std::string fragmentColor = "layout (location = 0) in vec3 inColor;\n"

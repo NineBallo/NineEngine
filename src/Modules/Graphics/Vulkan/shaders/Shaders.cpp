@@ -14,27 +14,39 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
     std::string vertex = vertexBase;
     std::string fragment = fragmentBase;
 
-    ///Assembly time
-    if((flags & NE_SHADER_COLOR_BIT) == NE_SHADER_COLOR_BIT) {
-        vertex += vertexColor;
-        fragment += fragmentColor;
+    bool bindless = true;
+    bool textured = false;
+
+    if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+        textured = true;
+    };
+    if((flags & NE_SHADER_BINDING_BIT) == NE_SHADER_BINDING_BIT) {
+        bindless = false;
     }
-    else if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+
+    ///Assembly time
+    if(textured) {
         vertex += vertexTexture;
-        fragment += fragmentTexture;
+        if(bindless) {
+            fragment += fragmentTexture;
+        }
+        else {
+            fragment += fragmentTextureBinding;
+        }
+
     }
     else {
-        throw std::runtime_error("No shader flags set, cannot generate shader\n");
+        vertex += vertexColor;
+        fragment += fragmentColor;
     }
 
     //Vertex, Fragment
     std::pair<std::string, std::string> assembledShaders;
 
-
-
     assembledShaders.first = preProcessShader(vertex,  "Vertex", shaderc_glsl_vertex_shader);
     assembledShaders.second = preProcessShader(fragment, "Fragment", shaderc_glsl_fragment_shader);
-    
+
+
     return assembledShaders;
 };
 

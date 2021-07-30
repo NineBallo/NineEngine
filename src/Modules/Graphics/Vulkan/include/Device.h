@@ -70,11 +70,15 @@ public:
     VkRenderPass defaultRenderpass();
     VmaAllocator allocator();
 
+    bool bindless();
 private:
     //Actual Device this will not be exposed
     VkDevice mDevice = VK_NULL_HANDLE;
     VkPhysicalDevice mGPU = VK_NULL_HANDLE;
+
     VkPhysicalDeviceProperties mGPUProperties;
+    VkPhysicalDeviceFeatures2 mGPUFeatures;
+    VkPhysicalDeviceVulkan12Features mGPUFeaturesVK12;
 
     VkQueue mGraphicsQueue = VK_NULL_HANDLE;
     uint32_t mGraphicsQueueFamily = 0;
@@ -92,6 +96,9 @@ private:
 
     ///Memory allocator
     VmaAllocator mAllocator = nullptr;
+
+private:
+    bool mBindless {};
 
 private:
     UploadContext mUploadContext {};

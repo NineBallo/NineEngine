@@ -34,8 +34,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     vk12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     vk12Features.runtimeDescriptorArray = VK_TRUE;
 
-
-    selector.add_required_extension_features(vk12Features);
+ //   selector.add_required_extension_features(vk12Features);
     vkb::PhysicalDevice physicalDevice = selector
             .set_minimum_version(1, 1)
             .set_surface(surface)
@@ -46,6 +45,21 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
 
     vkGetPhysicalDeviceProperties(mGPU, &mGPUProperties);
     std::cout << "The GPU has a minimum buffer alignment of " << mGPUProperties.limits.minUniformBufferOffsetAlignment << std::endl;
+
+    mGPUFeaturesVK12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    mGPUFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    mGPUFeatures.pNext = &mGPUFeaturesVK12;
+
+    vkGetPhysicalDeviceFeatures2(mGPU, &mGPUFeatures);
+    if(mGPUFeaturesVK12.descriptorBindingPartiallyBound  &&
+       mGPUFeaturesVK12.runtimeDescriptorArray           &&
+       mGPUFeaturesVK12.shaderSampledImageArrayNonUniformIndexing) {
+        mBindless = true;
+    }
+    else {
+        std::cout << "Needed vulkan features unsupported, falling back to legacy backend\n";
+        mBindless = false;
+    }
 
     return physicalDevice;
 }
@@ -171,26 +185,26 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
     //Pipeline creation
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
 
-    if ((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
-        VkPushConstantRange push_constants;
 
-        push_constants.offset = 0;
-        push_constants.size = sizeof(PushData);
-        push_constants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkPushConstantRange push_constants;
+    push_constants.offset = 0;
+    push_constants.size = sizeof(PushData);
+    push_constants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pipelineLayoutInfo.pPushConstantRanges = &push_constants;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-
-        pipelineLayoutInfo.pPushConstantRanges = &push_constants;
-        pipelineLayoutInfo.pushConstantRangeCount = 1;
-    }
-    else {
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
-    }
 
     VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
     uint8_t layoutSize = 2;
 
         if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
-            layouts[layoutSize] = mTextureSetLayout;
+            if(mBindless){
+                layouts[layoutSize] = mTextureSetLayout;
+            }
+            else{
+                layouts[layoutSize] = mSingleTextureSetLayout;
+            }
+
             layoutSize++;
         }
 
@@ -205,8 +219,6 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
     PipelineBuilder builder;
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
-
-
 
     builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
 
@@ -360,29 +372,42 @@ void NEDevice::init_descriptors() {
     VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
     mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
 
-    VkDescriptorSetLayoutBinding singleTextureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-    mSingleTextureSetLayout = createDescriptorSetLayout(0, &singleTextureBind, 1);
 
+    VkDescriptorSetLayoutBinding singleTexBindings[2];
+    singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+    singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
+    mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
 
 
 
     ///TODO make the descriptor count variable
-    VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-    VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    textureBind.descriptorCount = MAX_TEXTURES;
-    VkDescriptorSetLayoutBinding textureBindings[] = { textureSamplerBind, textureBind };
+    if(mBindless) {
+        VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+        textureBind.descriptorCount = MAX_TEXTURES;
+        VkDescriptorSetLayoutBinding textureBindings[] = { textureSamplerBind, textureBind };
 
-    VkDescriptorBindingFlags flags[3];
-    flags[0] = 0;
-    flags[1] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+        VkDescriptorBindingFlags flags[3];
+        flags[0] = 0;
+        flags[1] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 
-    VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
-    binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    binding_flags.bindingCount = 2;
-    binding_flags.pBindingFlags = flags;
+        VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
+        binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+        binding_flags.bindingCount = 2;
+        binding_flags.pBindingFlags = flags;
 
-    mTextureSetLayout = createDescriptorSetLayout(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, textureBindings, 2, &binding_flags);
+        mTextureSetLayout = createDescriptorSetLayout(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, textureBindings, 2, &binding_flags);
+
+    }
+    else {
+        VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+        VkDescriptorSetLayoutBinding textureBindings[] = { textureSamplerBind, textureBind };
+
+        mSingleTextureSetLayout = createDescriptorSetLayout(0, textureBindings, 2);
+    }
+
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -560,4 +585,8 @@ VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {
 
 VkDescriptorSetLayout NEDevice::textureSetLayout() {
     return mTextureSetLayout;
+}
+
+bool NEDevice::bindless() {
+    return mBindless;
 }

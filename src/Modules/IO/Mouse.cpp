@@ -11,7 +11,7 @@ Mouse::Mouse(GLFWwindow *window) {
 
 void Mouse::tick() {
     if(!attached) {
-        int state = glfwGetMouseButton(mWindow, GLFW_MOUSE_BUTTON_MIDDLE);
+        int state = glfwGetKey(mWindow, GLFW_KEY_TAB);
         if(state == GLFW_PRESS) {
             attachMouseToScreen();
             glfwGetCursorPos(mWindow, &mOldxpos, &mOldypos);
