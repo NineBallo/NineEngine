@@ -3,6 +3,7 @@ project(NineEngine)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_BUILD_TYPE Debug)
+
 #set(CMAKE_GENERATOR "Ninja" CACHE INTERNAL "" FORCE)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
 find_package(glfw3 REQUIRED FATAL_ERROR) # error
@@ -124,7 +125,7 @@ FetchContent_MakeAvailable(stb)
 message(STATUS "GIT modules fetched")
 
 
-set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp src/Modules/Graphics/Vulkan/include/Textures.h src/Modules/Graphics/Vulkan/src/Textures.cpp src/Modules/Graphics/Vulkan/shaders/Fragment.h src/Modules/Graphics/Vulkan/shaders/Vertex.h src/Modules/Graphics/Vulkan/shaders/Shaders.cpp src/Modules/Graphics/Vulkan/shaders/Shaders.h)
+set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp src/Modules/Graphics/Vulkan/include/Textures.h src/Modules/Graphics/Vulkan/src/Textures.cpp src/Modules/Graphics/Vulkan/shaders/Fragment.h src/Modules/Graphics/Vulkan/shaders/Vertex.h src/Modules/Graphics/Vulkan/shaders/Shaders.cpp src/Modules/Graphics/Vulkan/shaders/Shaders.h src/Modules/IO/ImGuiHelper.cpp src/Modules/IO/ImGuiHelper.h)
 
 
 add_executable(NineEngine ${imgui_FILES} src/NineEngine.cpp src/NineEngine.h src/ThirdParty/stb_image.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h)

@@ -29,7 +29,7 @@ constexpr auto type_name() noexcept {
     std::string_view name = "Error: unsupported compiler", prefix, suffix;
 
     name = __PRETTY_FUNCTION__;
-    prefix = "constexpr auto type_name() [with T = ";
+    prefix = "auto type_name() [T = ";
     suffix = "]";
 
     name.remove_prefix(prefix.size());
@@ -189,6 +189,7 @@ public:
 
             component->entityDestroyed(entity);
         }
+        return true;
     };
 
     ///Component Handler

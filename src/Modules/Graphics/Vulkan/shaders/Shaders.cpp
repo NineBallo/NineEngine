@@ -34,9 +34,7 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
     assembledShaders.first = preProcessShader(vertex,  "Vertex", shaderc_glsl_vertex_shader);
     assembledShaders.second = preProcessShader(fragment, "Fragment", shaderc_glsl_fragment_shader);
-
-    std::cout << assembledShaders.first << std::endl;
-
+    
     return assembledShaders;
 };
 

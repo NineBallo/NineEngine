@@ -21,7 +21,7 @@ public:
 
     //Mandatory
     vkb::PhysicalDevice init_PhysicalDevice(VkSurfaceKHR surface, vkb::Instance &vkb_inst);
-    bool init_LogicalDevice(vkb::PhysicalDevice &physicalDevice);
+    void init_LogicalDevice(vkb::PhysicalDevice &physicalDevice);
     void init_Allocator(VkInstance instance);
     void init_descriptors();
     void init_upload_context();

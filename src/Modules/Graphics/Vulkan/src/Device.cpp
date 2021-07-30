@@ -26,13 +26,16 @@ NEDevice::~NEDevice() {
 vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Instance &vkb_inst) {
     ///Create/Select rootDevice;
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
-    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
-    indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
 
-    indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+    VkPhysicalDeviceVulkan12Features vk12Features{};
+    vk12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 
-    selector.add_required_extension_features(indexingFeatures);
+    vk12Features.descriptorBindingPartiallyBound = VK_TRUE;
+    vk12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    vk12Features.runtimeDescriptorArray = VK_TRUE;
+
+
+    selector.add_required_extension_features(vk12Features);
     vkb::PhysicalDevice physicalDevice = selector
             .set_minimum_version(1, 1)
             .set_surface(surface)
@@ -47,7 +50,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     return physicalDevice;
 }
 
-bool NEDevice::init_LogicalDevice(vkb::PhysicalDevice &physicalDevice) {
+void NEDevice::init_LogicalDevice(vkb::PhysicalDevice &physicalDevice) {
     vkb::DeviceBuilder deviceBuilder{ physicalDevice };
     vkb::Device vkbDevice = deviceBuilder.build().value();
 
@@ -59,7 +62,7 @@ bool NEDevice::init_LogicalDevice(vkb::PhysicalDevice &physicalDevice) {
     mPresentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
     mPresentQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::present).value();
 
-    mDeletionQueue.push_function([=, this]() {
+    mDeletionQueue.push_function([&, this]() {
         vkDestroyDevice(mDevice, nullptr);
     });
 }
