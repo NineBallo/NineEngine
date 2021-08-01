@@ -104,7 +104,6 @@ struct FrameData {
     VkDescriptorSet mGlobalDescriptor;
 
     VkDescriptorSet mTextureDescriptor;
-
 };
 
 

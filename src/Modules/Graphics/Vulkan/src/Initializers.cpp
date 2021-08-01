@@ -26,7 +26,7 @@ VkCommandBufferAllocateInfo init::command_buffer_allocate_info(VkCommandPool poo
     return info;
 }
 
-VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent) {
+VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent, VkSampleCountFlagBits sampleCount) {
     VkImageCreateInfo info = { };
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info.pNext = nullptr;
@@ -38,7 +38,7 @@ VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usa
 
     info.mipLevels = 1;
     info.arrayLayers = 1;
-    info.samples = VK_SAMPLE_COUNT_1_BIT;
+    info.samples = sampleCount;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
     info.usage = usageFlags;
 

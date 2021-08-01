@@ -20,7 +20,7 @@
 
 #include "chrono"
 //Im sure this breaks a few design patterns lol
-#include "../../../../Managers/ECS/ECS.h"
+#include "ECS.h"
 #include "Textures.h"
 #include "../shaders/Shaders.h"
 
@@ -47,7 +47,7 @@ public:
     bool deleteMesh(const std::string& meshName);
 
     Texture* loadTexture(const std::string& filepath, const std::string& name);
-    bool deleteTexture(const std::string& name);
+    auto deleteTexture(const std::string& name);
 
     GLFWwindow* getWindow(Display display);
 

@@ -11,8 +11,12 @@
 #include <vector>
 #include <deque>
 #include <functional>
+#include <memory>
+#include <optional>
 
-#include "memory"
+#include "../../Common/ImGuiHelpers.h"
+class NEGUI;
+
 #include "Types.h"
 #include "Device.h"
 #define MAX_FRAMES 2
@@ -39,9 +43,9 @@ public:
 
     //Initialization methods (Necessary that all of these are done before the render methods are called)
     void createSurface(VkInstance);
-    void createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeKHR presentMode);
+    void createSwapchain(const std::shared_ptr<NEDevice>& device, VkPresentModeKHR presentMode);
 
-    void createFramebuffers(VkRenderPass renderpass);
+    void createFramebuffers();
     void createSyncStructures(FrameData &frame);
     void createDescriptors();
     void initImGUI();
@@ -53,6 +57,8 @@ public:
     void endFrame();
     bool shouldExit();
 
+    void toggleFullscreen();
+
 public:
     VkSurfaceKHR surface();
     VkFormat format();
@@ -60,16 +66,28 @@ public:
     GLFWwindow* window();
     FrameData currentFrame();
     uint32_t frameIndex();
+    float aspect();
+
 
 private:
+
+    void recreateSwapchain();
+    void cleanupSwapchain();
     void populateFrameData();
     void createWindow(VkExtent2D extent, const std::string& title, bool resizable);
     VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
+
+    void createImage(VkExtent3D extent, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount);
     //Depth
     VkImageView mDepthImageView;
     AllocatedImage mDepthImage;
     VkFormat mDepthFormat;
+
+    //MSAA
+    VkImageView mColorImageView;
+    AllocatedImage mColorImage;
+    VkFormat mColorFormat;
 
     //Swapchain variables
     VkSwapchainKHR mSwapchain = VK_NULL_HANDLE;
@@ -94,18 +112,22 @@ private:
 
     GPUSceneData mSceneData {};
     AllocatedBuffer mSceneParameterBuffer;
-
+    VkPresentModeKHR mPresentMode;
 
     //Sync
     uint32_t mSwapchainImageIndex = 0;
     uint8_t mCurrentFrame = 0;
     uint32_t mFrameCount = 0;
 
+    float mAspect = 0.f;
+    bool mFullScreen;
 private:
     //Mainly destruction variables
     std::shared_ptr<NEDevice> mDevice;
+    std::unique_ptr<NEGUI> mGUI;
     VkInstance mInstance = VK_NULL_HANDLE;
     DeletionQueue mDeletionQueue;
+    DeletionQueue mSwapchainQueue;
 };
 
 

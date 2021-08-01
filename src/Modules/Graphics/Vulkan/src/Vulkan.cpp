@@ -41,13 +41,86 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
     init();
 }
+Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
 
+    Texture texture {};
+    init::loadImageFromFile(mDevice, filepath.c_str(), texture.mImage);
+
+    VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
+                                                                  VK_IMAGE_ASPECT_COLOR_BIT);
+    vkCreateImageView(mDevice->device(), &imageInfo, nullptr, &texture.mImageView);
+
+    if(mDevice->bindless()) {
+
+        mRootDisplay->addTexture(texture.mImageView, mTextureCount);
+        mTextureToBinding[name] = mTextureCount;
+        mTextureCount++;
+    }
+    else {
+        texture.mTextureSet = mDevice->createDescriptorSet(mDevice->singleTextureSetLayout());
+
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptorImageInfo.imageView = texture.mImageView;
+
+        VkDescriptorImageInfo samplerInfo{};
+        samplerInfo.sampler = mSampler;
+
+        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
+        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
+        VkWriteDescriptorSet setWrites[] = {textureSamplerWrite, textureWrite };
+
+        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
+    }
+
+
+    mTextures[name] = texture;
+
+    return &mTextures[name];
+}
+
+auto Vulkan::deleteTexture(const std::string &name) {
+    //If it was implicitly deleted it potentially no longer be in the auto deletion queue
+
+    Texture &tex = mTextures[name];
+    vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
+    vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
+
+
+    if(mDevice->bindless()) {
+        uint32_t oldBinding = mTextureToBinding[name];
+        mTextureToBinding.erase(name);
+
+        //New free space at binding x
+        std::string lastTexture = mBindingToTexture[mTextureCount - 1];
+        //Upload last item to binding x
+        mRootDisplay->addTexture(mTextures[lastTexture].mImageView, oldBinding);
+        //Remove reference to old binding
+        mTextureToBinding[lastTexture] = oldBinding;
+        //Profit, idk how to clean up a unused descriptor so yea....
+    }
+    else {
+        vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &tex.mTextureSet);
+    }
+
+    //Make count smaller to account for the deleted texture
+    mTextureCount--;
+
+    return mTextures.erase(name);
+}
 
 Vulkan::~Vulkan(){
+    vkDeviceWaitIdle(mDevice->device());
+    for(auto it = mTextures.begin(); it != mTextures.end();) {
+        deleteTexture((it++)->first);
+    }
+
     mRootDisplay.reset();
     mDeletionQueue.flush();
 
     mDevice.reset();
+
 
     vkb::destroy_debug_utils_messenger(mInstance, mDebugMessenger);
     vkDestroyInstance(mInstance, nullptr);
@@ -65,10 +138,18 @@ void Vulkan::init() {
     mDevice->init_descriptors();
     mDevice->init_upload_context();
 
-    mRootDisplay->createFramebuffers(mDevice->defaultRenderpass());
+    mRootDisplay->createFramebuffers();
     mRootDisplay->createDescriptors();
     mRootDisplay->initImGUI();
-    mSampler = mDevice->createSampler();
+
+
+    if(!mDevice->bindless()) {
+        mSampler = mDevice->createSampler();
+
+        mDeletionQueue.push_function([=, this]() {
+            vkDestroySampler(mDevice->device(), mSampler, nullptr);
+        });
+    }
 }
 
 void Vulkan::init_vulkan() {
@@ -93,6 +174,7 @@ void Vulkan::init_vulkan() {
     createInfo.instance = mInstance;
     createInfo.title = std::move(mTitle);
     createInfo.extent = { 800, 600 };
+    createInfo.resizable = true;
     mRootDisplay.emplace(createInfo);
     mDevice = std::make_shared<NEDevice>();
 
@@ -224,7 +306,8 @@ void Vulkan::draw() {
     direction = glm::normalize(direction);
 
     glm::mat4 view = glm::lookAt(camera.Pos, camera.Pos + direction, glm::vec3(0, 1.f, 0));
-    glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect, camera.znear, camera.zfar);
+    glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), (float)mRootDisplay->extent().width / mRootDisplay->extent().height,
+                                            camera.znear, camera.zfar);
     projection[1][1] *= -1;
 
     GPUCameraData cameraData {};
@@ -263,7 +346,7 @@ void Vulkan::draw() {
 
 
     Material* mLastMaterial = nullptr;
-
+    Texture* mLastTexture = nullptr;
 
 
     for(Entity i = 0; i < mEntityListSize; i++) {
@@ -311,7 +394,8 @@ void Vulkan::draw() {
                 pushData.textureIndex = mTextureToBinding[mesh.texture];
 
             }
-            else {
+            else if(mLastTexture != &mTextures[mesh.texture]) {
+                mLastTexture = &mTextures[mesh.texture];
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         currentEntity.material->mPipelineLayout, 2, 1,
                                         &mTextures[mesh.texture].mTextureSet, 0, nullptr);
@@ -339,75 +423,6 @@ GLFWwindow* Vulkan::getWindow(Display display) {
     else {
         throw std::runtime_error("Not Implemented\n");
     }
-}
-
-Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
-
-    Texture texture {};
-    init::loadImageFromFile(mDevice, filepath.c_str(), texture.mImage);
-
-    VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
-                                                                  VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCreateImageView(mDevice->device(), &imageInfo, nullptr, &texture.mImageView);
-
-    if(mDevice->bindless()) {
-
-        mRootDisplay->addTexture(texture.mImageView, mTextureCount);
-        mTextureToBinding[name] = mTextureCount;
-        mTextureCount++;
-    }
-    else {
-        texture.mTextureSet = mDevice->createDescriptorSet(mDevice->singleTextureSetLayout());
-
-        VkDescriptorImageInfo descriptorImageInfo;
-        descriptorImageInfo.sampler = nullptr;
-        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        descriptorImageInfo.imageView = texture.mImageView;
-
-        VkDescriptorImageInfo samplerInfo{};
-        samplerInfo.sampler = mSampler;
-
-        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
-        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
-        VkWriteDescriptorSet setWrites[] = {textureSamplerWrite, textureWrite };
-
-        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
-    }
-
-
-    mTextures[name] = texture;
-    mDeletionQueue.push_function([=, this](){
-        deleteTexture(name);
-    });
-
-
-    return &mTextures[name];
-}
-
-bool Vulkan::deleteTexture(const std::string &name) {
-    //If it was implicitly deleted it potentially no longer be in the auto deletion queue
-    if(!mTextures.contains(name)) return false;
-
-    Texture &tex = mTextures[name];
-    vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
-    vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
-
-    uint32_t oldBinding = mTextureToBinding[name];
-    mTextures.erase(name);
-    mTextureToBinding.erase(name);
-
-    //New free space at binding x
-    std::string lastTexture = mBindingToTexture[mTextureCount - 1];
-    //Upload last item to binding x
-    mRootDisplay->addTexture(mTextures[lastTexture].mImageView, oldBinding);
-    //Remove reference to old binding
-    mTextureToBinding[lastTexture] = oldBinding;
-    //Profit, idk how to clean up a unused descriptor so yea....
-
-    //Make count smaller to account for the deleted texture
-    mTextureCount--;
-
-    return true;
 }
 
 void Vulkan::tick() {

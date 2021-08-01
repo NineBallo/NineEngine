@@ -61,6 +61,8 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
         mBindless = false;
     }
 
+    mSampleCount = getMaxSampleCount();
+
     return physicalDevice;
 }
 
@@ -99,7 +101,7 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
 //Color
      VkAttachmentDescription color_attachment = {};
     ///TODO MSAA
-    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.samples = mSampleCount;
 
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -108,20 +110,33 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
     color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment.format = format;
-
-//Other stuff
 
     VkAttachmentReference color_attachment_ref = {};
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 
+    VkAttachmentDescription colorAttachmentResolve{};
+    colorAttachmentResolve.format = format;
+    colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentResolveRef{};
+    colorAttachmentResolveRef.attachment = 2;
+    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+
     VkAttachmentDescription depth_attachment = {};
     depth_attachment.flags = 0;
     depth_attachment.format = VK_FORMAT_D32_SFLOAT;
-    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.samples = mSampleCount;
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -138,17 +153,26 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
+    subpass.pResolveAttachments = &colorAttachmentResolveRef;
     //hook the depth attachment into the subpass
     subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
     //Tape em all together
-    VkAttachmentDescription attachments[2] = { color_attachment, depth_attachment };
+    VkAttachmentDescription attachments[3] = { color_attachment, depth_attachment, colorAttachmentResolve};
 
     VkRenderPassCreateInfo render_pass_info = {};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
-    render_pass_info.attachmentCount = 2;
-    render_pass_info.pAttachments = &attachments[0];
+    render_pass_info.attachmentCount = 3;
+    render_pass_info.pAttachments = attachments;
 
     render_pass_info.subpassCount = 1;
     render_pass_info.pSubpasses = &subpass;
@@ -244,7 +268,7 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
 
     //Wireframe, points, or filled I think...
     builder.mRasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-    builder.mMultisampling = vkinit::multisampling_state_create_info();
+    builder.mMultisampling = vkinit::multisampling_state_create_info(mSampleCount, false);
 
     builder.mColorBlendAttachment = vkinit::color_blend_attachment_state();
 
@@ -352,7 +376,7 @@ void NEDevice::init_descriptors() {
 
     VkDescriptorPoolCreateInfo pool_info = {};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = 0;
+    pool_info.flags = mBindless ? 0 : VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     pool_info.maxSets = 10;
     pool_info.poolSizeCount = (uint32_t)sizes.size();
     pool_info.pPoolSizes = sizes.data();
@@ -538,55 +562,34 @@ VkSampler NEDevice::createSampler() {
     return sampler;
 }
 
+VkSampleCountFlagBits NEDevice::getMaxSampleCount() {
+    VkSampleCountFlags counts = mGPUProperties.limits.framebufferColorSampleCounts
+                              & mGPUProperties.limits.framebufferDepthSampleCounts;
+
+    VkSampleCountFlagBits count;
+
+    if(counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT;}
+    else if(counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT;}
+    else if(counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT;}
+    else if(counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT;}
+    else if(counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT;}
+    else if(counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT;}
+    else { return VK_SAMPLE_COUNT_1_BIT;}
+}
+
 ///Getters
-VkDevice NEDevice::device() {
-    return mDevice;
-}
-VkPhysicalDevice NEDevice::GPU() {
-    return mGPU;
-}
-VkQueue NEDevice::presentQueue() {
-    return mPresentQueue;
-}
-VkQueue NEDevice::graphicsQueue() {
-    return mGraphicsQueue;
-}
-
-uint32_t NEDevice::presentQueueFamily() {
-    return mPresentQueueFamily;
-}
-
-uint32_t NEDevice::graphicsQueueFamily() {
-    return mGraphicsQueueFamily;
-}
-
-VkRenderPass NEDevice::defaultRenderpass() {
-    return mDefaultRenderpass;
-}
-VmaAllocator NEDevice::allocator() {
-    return mAllocator;
-}
-
-VkDescriptorPool NEDevice::descriptorPool() {
-    return mDescriptorPool;
-}
-
-VkDescriptorSetLayout NEDevice::globalSetLayout() {
-    return mGlobalSetLayout;
-}
-
-VkDescriptorSetLayout NEDevice::objectSetLayout() {
-    return mObjectSetLayout;
-}
-
-VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {
-    return mSingleTextureSetLayout;
-}
-
-VkDescriptorSetLayout NEDevice::textureSetLayout() {
-    return mTextureSetLayout;
-}
-
-bool NEDevice::bindless() {
-    return mBindless;
-}
+VkDevice NEDevice::device() {return mDevice;}
+VkPhysicalDevice NEDevice::GPU() {return mGPU;}
+VkQueue NEDevice::presentQueue() {return mPresentQueue;}
+VkQueue NEDevice::graphicsQueue() {return mGraphicsQueue;}
+uint32_t NEDevice::presentQueueFamily() {return mPresentQueueFamily;}
+uint32_t NEDevice::graphicsQueueFamily() {return mGraphicsQueueFamily;}
+VkRenderPass NEDevice::defaultRenderpass() {return mDefaultRenderpass;}
+VmaAllocator NEDevice::allocator() {return mAllocator;}
+VkDescriptorPool NEDevice::descriptorPool() {return mDescriptorPool;}
+VkDescriptorSetLayout NEDevice::globalSetLayout() {return mGlobalSetLayout;}
+VkDescriptorSetLayout NEDevice::objectSetLayout() {return mObjectSetLayout;}
+VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {return mSingleTextureSetLayout;}
+VkDescriptorSetLayout NEDevice::textureSetLayout() {return mTextureSetLayout;}
+bool NEDevice::bindless() {return mBindless;}
+VkSampleCountFlagBits NEDevice::sampleCount() {return mSampleCount;}

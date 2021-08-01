@@ -71,6 +71,11 @@ public:
     VmaAllocator allocator();
 
     bool bindless();
+    VkSampleCountFlagBits sampleCount();
+
+private:
+    VkSampleCountFlagBits getMaxSampleCount();
+
 private:
     //Actual Device this will not be exposed
     VkDevice mDevice = VK_NULL_HANDLE;
@@ -79,6 +84,8 @@ private:
     VkPhysicalDeviceProperties mGPUProperties;
     VkPhysicalDeviceFeatures2 mGPUFeatures;
     VkPhysicalDeviceVulkan12Features mGPUFeaturesVK12;
+    VkSampleCountFlagBits mSampleCount;
+
 
     VkQueue mGraphicsQueue = VK_NULL_HANDLE;
     uint32_t mGraphicsQueueFamily = 0;

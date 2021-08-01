@@ -118,14 +118,14 @@ VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(V
     return info;
 }
 
-VkPipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info() {
+VkPipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info(VkSampleCountFlagBits samples, VkBool32 sampleShading) {
     VkPipelineMultisampleStateCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     info.pNext = nullptr;
 
-    info.sampleShadingEnable = VK_FALSE;
+    info.sampleShadingEnable = sampleShading;
     //multisampling defaulted to no multisampling (1 sample per pixel)
-    info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    info.rasterizationSamples = samples;
     info.minSampleShading = 1.0f;
     info.pSampleMask = nullptr;
     info.alphaToCoverageEnable = VK_FALSE;

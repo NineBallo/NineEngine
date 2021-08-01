@@ -32,7 +32,7 @@ namespace vkinit {
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info();
     VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info(VkPrimitiveTopology topology);
     VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode);
-    VkPipelineMultisampleStateCreateInfo multisampling_state_create_info();
+    VkPipelineMultisampleStateCreateInfo multisampling_state_create_info(VkSampleCountFlagBits samples, VkBool32 sampleShading);
     VkPipelineColorBlendAttachmentState color_blend_attachment_state();
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info(VkDynamicState dynamicStates[]);
 

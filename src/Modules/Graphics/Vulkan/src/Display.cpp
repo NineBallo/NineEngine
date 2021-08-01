@@ -2,6 +2,7 @@
 // Created by nineball on 7/6/21.
 //
 
+#include "../../Common/ImGuiHelpers.h"
 #include "Display.h"
 #include <iostream>
 #include <VkBootstrap.h>
@@ -11,6 +12,8 @@
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
+//Circular include issues..
+
 
 NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
@@ -29,11 +32,14 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
 
     mExtent = createInfo.extent;
     mInstance = createInfo.instance;
+
+    mGUI = std::make_unique<NEGUI>(this);
 }
 
 NEDisplay::~NEDisplay() {
     vkDeviceWaitIdle(mDevice->device());
 
+    mSwapchainQueue.flush();
     mDeletionQueue.flush();
 
     if(mSurface != VK_NULL_HANDLE) {
@@ -68,53 +74,66 @@ void NEDisplay::createSurface(VkInstance instance) {
     }
 }
 
-void NEDisplay::createSwapchain(std::shared_ptr<NEDevice> device, VkPresentModeKHR presentMode) {
+void NEDisplay::createSwapchain(const std::shared_ptr<NEDevice>& device, VkPresentModeKHR presentMode) {
+    int width, height;
+    glfwGetWindowSize(mWindow, &width, &height);
+    mExtent.width = width; mExtent.height = height;
     vkb::SwapchainBuilder swapchainBuilder{device->GPU(), device->device(), mSurface};
     vkb::Swapchain vkbSwapchain = swapchainBuilder
             .use_default_format_selection()
             .set_desired_present_mode(presentMode)
-            .set_desired_extent(mExtent.width, mExtent.height)
+            .set_desired_extent(width, height)
             .build()
             .value();
+
 
     mSwapchain = vkbSwapchain.swapchain;
     mImages = vkbSwapchain.get_images().value();
     mImageViews = vkbSwapchain.get_image_views().value();
     mFormat = vkbSwapchain.image_format;
-
+    mPresentMode = presentMode;
     mDevice = device;
 
-    mDeletionQueue.push_function([=, this]() {
+    mSwapchainQueue.push_function([=, this]() {
         vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
     });
 
-    VkExtent3D depthImageExtent = {
-            mExtent.width,
-            mExtent.height,
-            1
-    };
-
-    mDepthFormat = VK_FORMAT_D32_SFLOAT;
-    VkImageCreateInfo dimg_info = init::image_create_info(mDepthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent);
-
-    VmaAllocationCreateInfo dimg_allocinfo = {};
-    dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    vmaCreateImage(mDevice->allocator(), &dimg_info, &dimg_allocinfo, &mDepthImage.mImage, &mDepthImage.mAllocation, nullptr);
-
-    VkImageViewCreateInfo dview_info = init::imageview_create_info(mDepthFormat, mDepthImage.mImage, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-    vkCreateImageView(mDevice->device(), &dview_info, nullptr, &mDepthImageView);
-
-    mDeletionQueue.push_function([=, this]() {
-        vkDestroyImageView(mDevice->device(), mDepthImageView, nullptr);
-        vmaDestroyImage(mDevice->allocator(), mDepthImage.mImage, mDepthImage.mAllocation);
-    });
+    createImage({mExtent.width, mExtent.height, 1}, mDepthImage, mDepthImageView, VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
+    createImage({mExtent.width, mExtent.height, 1}, mColorImage, mColorImageView, VK_IMAGE_ASPECT_COLOR_BIT, mFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
 
     //Gonna need this later...
     populateFrameData();
 }
+
+void NEDisplay::createImage(VkExtent3D extent, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount) {
+
+    VkImageCreateInfo img_info = init::image_create_info(format, usage, extent, sampleCount);
+
+    VmaAllocationCreateInfo img_allocinfo = {};
+    img_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    img_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    vmaCreateImage(mDevice->allocator(), &img_info, &img_allocinfo, &image.mImage, &image.mAllocation, nullptr);
+
+    VkImageViewCreateInfo view_info = init::imageview_create_info(format, image.mImage, aspect);
+
+    vkCreateImageView(mDevice->device(), &view_info, nullptr, &imageView);
+
+    mSwapchainQueue.push_function([=, this]() {
+        vkDestroyImageView(mDevice->device(), imageView, nullptr);
+        vmaDestroyImage(mDevice->allocator(), image.mImage, image.mAllocation);
+    });
+}
+
+void NEDisplay::recreateSwapchain() {
+    vkDeviceWaitIdle(mDevice->device());
+    std::cout << "Recreating Swapchain\n";
+    mSwapchainQueue.flush();
+
+    createSwapchain(mDevice, mPresentMode);
+    createFramebuffers();
+}
+
 
 void NEDisplay::createDescriptors() {
     const size_t sceneParamBufferSize = MAX_FRAMES * mDevice->padUniformBufferSize(sizeof(GPUSceneData));
@@ -177,10 +196,10 @@ void NEDisplay::createDescriptors() {
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
-            vkDestroySampler(mDevice->device(), mSampler, nullptr);
         });
     }
     mDeletionQueue.push_function([=, this]() {
+        vkDestroySampler(mDevice->device(), mSampler, nullptr);
         vmaDestroyBuffer(mDevice->allocator(), mSceneParameterBuffer.mBuffer, mSceneParameterBuffer.mAllocation);
     });
 }
@@ -218,7 +237,7 @@ void NEDisplay::initImGUI() {
     ImGui_ImplGlfw_InitForVulkan(mWindow, true);
 
     //Init Data
-    ImGui_ImplVulkan_InitInfo initInfo{};
+
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = mInstance;
     init_info.PhysicalDevice = mDevice->GPU();
@@ -227,7 +246,7 @@ void NEDisplay::initImGUI() {
     init_info.DescriptorPool = imguiPool;
     init_info.MinImageCount = 3;
     init_info.ImageCount = 3;
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.MSAASamples = mDevice->sampleCount();
 
     ImGui_ImplVulkan_Init(&init_info, mDevice->defaultRenderpass());
 
@@ -243,11 +262,10 @@ void NEDisplay::initImGUI() {
         vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
     });
-
 }
 
-void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
-    mRenderpass = renderpass;
+void NEDisplay::createFramebuffers() {
+    mRenderpass = mDevice->defaultRenderpass();
     VkFramebufferCreateInfo fb_info = {};
     fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fb_info.pNext = nullptr;
@@ -265,18 +283,19 @@ void NEDisplay::createFramebuffers(VkRenderPass renderpass) {
     //Create a corresponding framebuffer for each image
     for (int i = 0; i < swapchain_imagecount; i++) {
 
-        VkImageView attachments[2];
-        attachments[0] = mImageViews[i];
+        VkImageView attachments[3];
+        attachments[0] = mColorImageView;
         attachments[1] = mDepthImageView;
+        attachments[2] = mImageViews[i];
 
-        fb_info.pAttachments = &attachments[0];
-        fb_info.attachmentCount = 2;
+        fb_info.pAttachments = attachments;
+        fb_info.attachmentCount = 3;
 
         if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &mFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");
         };
 
-        mDeletionQueue.push_function([=, this]() {
+        mSwapchainQueue.push_function([=, this]() {
             vkDestroyFramebuffer(mDevice->device(), mFramebuffers[i], nullptr);
             vkDestroyImageView(mDevice->device(), mImageViews[i], nullptr);
         });
@@ -333,7 +352,6 @@ void NEDisplay::populateFrameData() {
         createSyncStructures(frame);
 
         mDeletionQueue.push_function([=, this]() {
-            vkFreeCommandBuffers(mDevice->device(), mFrames[i].mCommandPool, 1, &mFrames[i].mCommandBuffer);
             vkDestroyCommandPool(mDevice->device(), mFrames[i].mCommandPool, nullptr);
         });
     }
@@ -359,8 +377,16 @@ VkCommandBuffer NEDisplay::startFrame() {
     vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
     vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
 
-    //Get current swapchain index
-    vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+    //Get current swapchain index && result
+    VkResult result = vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();
+        return startFrame();
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("failed to acquire swap chain image!");
+    }
+
 
     //Wipe and prep command buffer to be handed to the renderer
     vkResetCommandBuffer(frame.mCommandBuffer, 0);
@@ -370,8 +396,8 @@ VkCommandBuffer NEDisplay::startFrame() {
     vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
 
     //Clear framebuffer
-    VkClearValue clearValue;
-    clearValue.color = { { 0.01f, 0.01f, 0.01f, 1.f}};
+    VkClearValue colorClear;
+    colorClear.color = { { 0.01f, 0.01f, 0.01f, 1.f}};
 
     VkClearValue depthClear;
     depthClear.depthStencil.depth = 1.f;
@@ -388,9 +414,9 @@ VkCommandBuffer NEDisplay::startFrame() {
     rpInfo.framebuffer = mFramebuffers[mSwapchainImageIndex];
 
     //Set the value to clear to in renderpass
-    rpInfo.clearValueCount = 2;
-    VkClearValue clearValues[] = { clearValue, depthClear };
-    rpInfo.pClearValues = &clearValues[0];
+    rpInfo.clearValueCount = 3;
+    VkClearValue clearValues[] = { colorClear, colorClear, depthClear };
+    rpInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(frame.mCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -427,6 +453,9 @@ VkCommandBuffer NEDisplay::startFrame() {
     ImGui::SliderFloat("G", &mSceneData.ambientColor.y, -1.0f, 1.0f);
     ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
     ImGui::End();
+
+    mGUI->tick();
+
 
     ImGui::Render();
 
@@ -473,14 +502,19 @@ void NEDisplay::endFrame() {
     presentInfo.pImageIndices = &mSwapchainImageIndex;
 
 
-    vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        recreateSwapchain();
+    } else if (result != VK_SUCCESS) {
+        throw std::runtime_error("failed to present swap chain image!");
+    }
 
     //Rage, rage against the dying of the light.
     //Should flippy flop between 0 and MAX_FRAMES - 1
    mCurrentFrame = (mCurrentFrame + 1) % (MAX_FRAMES);
    mFrameCount++;
 }
-
 
 bool NEDisplay::shouldExit() {
     if (!glfwWindowShouldClose(mWindow)) {
@@ -490,15 +524,26 @@ bool NEDisplay::shouldExit() {
     }
 }
 
-FrameData NEDisplay::currentFrame() {
-    return mFrames[mCurrentFrame];
+void NEDisplay::toggleFullscreen() {
+
+    if(!mFullScreen) {
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* vidMode = glfwGetVideoMode(monitor);
+
+        glfwSetWindowMonitor(mWindow, monitor, 0, 0, vidMode->width, vidMode->height, vidMode->refreshRate);
+        mFullScreen = true;
+    }
+    else {
+        glfwSetWindowMonitor(mWindow, NULL, 0, 0, 800, 600, 0);
+        mFullScreen = false;
+    }
+
 }
 
+FrameData NEDisplay::currentFrame() {return mFrames[mCurrentFrame];}
 VkSurfaceKHR NEDisplay::surface() {return mSurface;}
 VkFormat NEDisplay::format() {return mFormat;}
 VkExtent2D NEDisplay::extent() {return mExtent;}
 GLFWwindow *NEDisplay::window() {return mWindow;}
-
-uint32_t NEDisplay::frameIndex() {
-    return mCurrentFrame;
-}
+uint32_t NEDisplay::frameIndex() {return mCurrentFrame;}
+float NEDisplay::aspect() {return mAspect;}

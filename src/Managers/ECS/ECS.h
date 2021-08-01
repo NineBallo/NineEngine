@@ -14,7 +14,7 @@
 #include <iostream>
 #include "Common.h"
 
-#define MAX_ENTITYS 15000
+#define MAX_ENTITYS 1000
 #define MAX_DISPLAYS 5
 #define MAX_COMPONENTS 10
 #define MAX_MODULES 2
