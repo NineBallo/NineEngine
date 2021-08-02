@@ -35,22 +35,44 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     vk12Features.runtimeDescriptorArray = VK_TRUE;
 
  //   selector.add_required_extension_features(vk12Features);
-    vkb::PhysicalDevice physicalDevice = selector
-            .set_minimum_version(1, 1)
-            .set_surface(surface)
-            .select()
-            .value();
+
+
+ vkb::PhysicalDevice physicalDevice;
+
+ auto selectorReturn = selector
+         .set_minimum_version(1, 2)
+         .set_surface(surface)
+         .add_required_extension_features(vk12Features)
+         .select();
+
+ ///Test if all desired extensions are supported, if not then fallback to "legacy" mode...
+ if(selectorReturn) {
+    physicalDevice = selectorReturn.value();
+ }
+ else {
+     std::cout << "Needed vulkan features unsupported, falling back to legacy backend\n";
+     physicalDevice = selector
+             .set_minimum_version(1, 1)
+             .set_surface(surface)
+             .add_required_extension_features(vk12Features)
+             .select()
+             .value();
+ }
 
     mGPU = physicalDevice.physical_device;
+
 
     vkGetPhysicalDeviceProperties(mGPU, &mGPUProperties);
     std::cout << "The GPU has a minimum buffer alignment of " << mGPUProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 
-    mGPUFeaturesVK12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+
     mGPUFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     mGPUFeatures.pNext = &mGPUFeaturesVK12;
+    mGPUFeaturesVK12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 
     vkGetPhysicalDeviceFeatures2(mGPU, &mGPUFeatures);
+
+
     if(mGPUFeaturesVK12.descriptorBindingPartiallyBound  &&
        mGPUFeaturesVK12.runtimeDescriptorArray           &&
        mGPUFeaturesVK12.shaderSampledImageArrayNonUniformIndexing) {
@@ -132,7 +154,6 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     colorAttachmentResolveRef.attachment = 2;
     colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-
     VkAttachmentDescription depth_attachment = {};
     depth_attachment.flags = 0;
     depth_attachment.format = VK_FORMAT_D32_SFLOAT;
@@ -156,14 +177,6 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     subpass.pResolveAttachments = &colorAttachmentResolveRef;
     //hook the depth attachment into the subpass
     subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     //Tape em all together
     VkAttachmentDescription attachments[3] = { color_attachment, depth_attachment, colorAttachmentResolve};
@@ -397,14 +410,6 @@ void NEDevice::init_descriptors() {
     mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
 
 
-    VkDescriptorSetLayoutBinding singleTexBindings[2];
-    singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-    singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-    mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
-
-
-
     ///TODO make the descriptor count variable
     if(mBindless) {
         VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
@@ -425,11 +430,11 @@ void NEDevice::init_descriptors() {
 
     }
     else {
-        VkDescriptorSetLayoutBinding textureSamplerBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-        VkDescriptorSetLayoutBinding textureBindings[] = { textureSamplerBind, textureBind };
+        VkDescriptorSetLayoutBinding singleTexBindings[2];
+        singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
-        mSingleTextureSetLayout = createDescriptorSetLayout(0, textureBindings, 2);
+        mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
     }
 
 }
@@ -568,13 +573,16 @@ VkSampleCountFlagBits NEDevice::getMaxSampleCount() {
 
     VkSampleCountFlagBits count;
 
-    if(counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT;}
-    else if(counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT;}
-    else if(counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT;}
-    else if(counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT;}
-    else if(counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT;}
-    else if(counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT;}
-    else { return VK_SAMPLE_COUNT_1_BIT;}
+    std::cout << "Max MSAA supported for device is: ";
+    if(counts & VK_SAMPLE_COUNT_64_BIT) { count = VK_SAMPLE_COUNT_64_BIT; std::cout << "64x\n";}
+    else if(counts & VK_SAMPLE_COUNT_32_BIT) { count = VK_SAMPLE_COUNT_32_BIT; std::cout << "32x\n";}
+    else if(counts & VK_SAMPLE_COUNT_16_BIT) { count = VK_SAMPLE_COUNT_16_BIT; std::cout << "16x\n";}
+    else if(counts & VK_SAMPLE_COUNT_8_BIT) { count = VK_SAMPLE_COUNT_8_BIT; std::cout << "8x\n";}
+    else if(counts & VK_SAMPLE_COUNT_4_BIT) { count = VK_SAMPLE_COUNT_4_BIT; std::cout << "4x\n";}
+    else if(counts & VK_SAMPLE_COUNT_2_BIT) { count = VK_SAMPLE_COUNT_2_BIT; std::cout << "2x\n";}
+    else { count = VK_SAMPLE_COUNT_1_BIT; std::cout << "MSAA not supported\n";}
+
+    return count;
 }
 
 ///Getters

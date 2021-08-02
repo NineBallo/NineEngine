@@ -64,7 +64,9 @@ bool MeshGroup::load_objects_from_file(std::string filename) {
 
     //With assimp it will automatically strip the duplicate vertices for us
     const aiScene *scene = importer.ReadFile(filename,
-                                             aiProcessPreset_TargetRealtime_MaxQuality);
+                                             aiProcess_JoinIdenticalVertices         |
+                                             aiProcess_ImproveCacheLocality          |
+                                             aiProcess_Triangulate);
 
     if (!scene) {
         throw std::runtime_error(importer.GetErrorString());
@@ -74,8 +76,13 @@ bool MeshGroup::load_objects_from_file(std::string filename) {
     mMeshes.reserve(scene->mNumMeshes);
     for (size_t i = 0; i < scene->mNumMeshes; i++) {
 
+
+
         aiMesh *mesh = scene->mMeshes[i];
         Mesh renderMesh{};
+
+
+      //  aiString name = scene->mMaterials[mesh->mMaterialIndex]->GetName();
 
 
 

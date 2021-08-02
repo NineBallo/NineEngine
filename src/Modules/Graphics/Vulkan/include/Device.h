@@ -81,10 +81,10 @@ private:
     VkDevice mDevice = VK_NULL_HANDLE;
     VkPhysicalDevice mGPU = VK_NULL_HANDLE;
 
-    VkPhysicalDeviceProperties mGPUProperties;
-    VkPhysicalDeviceFeatures2 mGPUFeatures;
-    VkPhysicalDeviceVulkan12Features mGPUFeaturesVK12;
-    VkSampleCountFlagBits mSampleCount;
+    VkPhysicalDeviceProperties mGPUProperties {};
+    VkPhysicalDeviceFeatures2 mGPUFeatures {};
+    VkPhysicalDeviceVulkan12Features mGPUFeaturesVK12 {};
+    VkSampleCountFlagBits mSampleCount {};
 
 
     VkQueue mGraphicsQueue = VK_NULL_HANDLE;

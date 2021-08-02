@@ -39,9 +39,8 @@ int main(){
 
 
     renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
-    renderer.createMesh("./models/viking_room.obj", "room");
-    renderer.loadTexture("./models/textures/viking_room.png", "roomtex");
-    renderer.loadTexture("./models/textures/viking_room.png", "roomtex2");
+    renderer.createMesh("./models/blaster.fbx", "gun");
+    renderer.loadTexture("./models/textures/1001_albedo.jpg", "tex");
 
     Entity mainEntity = ecs.createEntity(0);
     Position position;
@@ -54,11 +53,9 @@ int main(){
     position2.coordinates.x = 10;
     ecs.addComponent(secondEntity, position2);
 
-    std::string textures = "roomtex";
-    std::string textures2 = "roomtex2";
-    uint32_t meshToTextureIdx = {1};
-    renderer.makeRenderable(mainEntity, NE_SHADER_TEXTURE_BIT, "room", &textures, &meshToTextureIdx);
-    renderer.makeRenderable(secondEntity, NE_SHADER_TEXTURE_BIT, "room", &textures, &meshToTextureIdx);
+    std::string textures = "tex";
+    uint32_t meshToTextureIdx[25] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    renderer.makeRenderable(mainEntity, NE_SHADER_TEXTURE_BIT, "gun", &textures, meshToTextureIdx);
 
   //  for(uint32_t x = 1; x <= 50; x++) {
   //      for(uint32_t y = 1; y <= 50; y++) {

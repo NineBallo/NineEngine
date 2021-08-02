@@ -174,19 +174,22 @@ void NEDisplay::createDescriptors() {
 
         VkWriteDescriptorSet setWrites[5] = { cameraWrite, sceneWrite, objectWrite};
         size_t writeSize = 3;
+
         if(mDevice->bindless()) {
             mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
-            VkDescriptorImageInfo samplerInfo{};
+            VkDescriptorImageInfo samplerInfo;
             samplerInfo.sampler = mSampler;
+            samplerInfo.imageView = nullptr;
+            samplerInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
             VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, mFrames[i].mTextureDescriptor, &samplerInfo, 0);
-            VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, nullptr, 1);
+          //  VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor,nullptr, 1);
 
             setWrites[writeSize] = textureSamplerWrite;
             writeSize++;
-            setWrites[writeSize] = textureWrite;
-            writeSize++;
+           // setWrites[writeSize] = textureWrite;
+           // writeSize++;
         }
 
 
@@ -415,7 +418,7 @@ VkCommandBuffer NEDisplay::startFrame() {
 
     //Set the value to clear to in renderpass
     rpInfo.clearValueCount = 3;
-    VkClearValue clearValues[] = { colorClear, colorClear, depthClear };
+    VkClearValue clearValues[] = { colorClear, depthClear, colorClear};
     rpInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(frame.mCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
