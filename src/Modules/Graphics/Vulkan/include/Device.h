@@ -45,10 +45,14 @@ public:
 
     void immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 
-    VkSampler createSampler();
+    VkSampler createSampler(uint32_t mipLevels = 1);
 
     template<typename T>
     void uploadToBuffer(std::vector<T>& data, AllocatedBuffer& buffer, size_t size);
+
+    void transitionImageLayout(VkImage image, VkImageLayout srcLayout, VkImageLayout dstLayout, uint32_t mipLevel);
+    void copyBufferToImage(VkBuffer buffer, VkImage image, VkExtent2D extent);
+    void generateMipmaps(VkImage image, VkFormat imageFormat, VkExtent2D texSize, uint32_t mipLevels);
 
 public:
     //Getters

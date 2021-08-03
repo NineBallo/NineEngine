@@ -50,7 +50,7 @@ public:
     void createDescriptors();
     void initImGUI();
 
-    void addTexture(VkImageView imageView, uint32_t dstIdx);
+    void addTexture(Texture& tex, uint32_t dstIdx);
 
     //Render methods
     VkCommandBuffer startFrame();
@@ -78,7 +78,7 @@ private:
     VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
 
-    void createImage(VkExtent3D extent, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount);
+    void createImage(VkExtent2D extent, uint32_t mipLevels, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount);
     //Depth
     VkImageView mDepthImageView;
     AllocatedImage mDepthImage;

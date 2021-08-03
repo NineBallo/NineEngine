@@ -24,11 +24,16 @@ struct AllocatedBuffer {
 struct AllocatedImage {
     VkImage mImage;
     VmaAllocation mAllocation;
+
 };
 
 struct Texture {
     AllocatedImage mImage;
     VkImageView mImageView;
+    VkSampler mSampler;
+    uint32_t mMipLevels;
+
+    //Optional for legacy
     VkDescriptorSet mTextureSet;
 };
 

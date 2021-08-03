@@ -37,7 +37,6 @@ int main(){
 
     Vulkan renderer(ecs, player);
 
-
     renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
     renderer.createMesh("./models/sponza.obj", "model");
     renderer.loadTexture("./models/textures/lion.tga", "lion");

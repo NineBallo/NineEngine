@@ -44,16 +44,16 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
 
     Texture texture {};
-    init::loadImageFromFile(mDevice, filepath.c_str(), texture.mImage);
+    init::loadTextureFromFile(mDevice, filepath.c_str(), texture);
 
     VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
-                                                                  VK_IMAGE_ASPECT_COLOR_BIT);
+                                                                  texture.mMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
     vkCreateImageView(mDevice->device(), &imageInfo, nullptr, &texture.mImageView);
 
     if(mDevice->bindless()) {
-
-        mRootDisplay->addTexture(texture.mImageView, mTextureCount);
+        mRootDisplay->addTexture(texture, mTextureCount);
         mTextureToBinding[name] = mTextureCount;
+        mBindingToTexture[mTextureCount] = name;
         mTextureCount++;
     }
     else {
@@ -86,19 +86,25 @@ auto Vulkan::deleteTexture(const std::string &name) {
     Texture &tex = mTextures[name];
     vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
     vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
-
+    vkDestroySampler(mDevice->device(), tex.mSampler, nullptr);
 
     if(mDevice->bindless()) {
         uint32_t oldBinding = mTextureToBinding[name];
         mTextureToBinding.erase(name);
 
-        //New free space at binding x
         std::string lastTexture = mBindingToTexture[mTextureCount - 1];
-        //Upload last item to binding x
-        mRootDisplay->addTexture(mTextures[lastTexture].mImageView, oldBinding);
-        //Remove reference to old binding
-        mTextureToBinding[lastTexture] = oldBinding;
-        //Profit, idk how to clean up a unused descriptor so yea....
+        if(lastTexture != name) {
+
+            //New free space at binding x
+            Texture& newTexture = mTextures[lastTexture];
+            //Upload last item to binding x
+            mRootDisplay->addTexture(newTexture, oldBinding);
+            //Remove reference to old binding
+            mTextureToBinding[lastTexture] = oldBinding;
+            //Profit, idk how to clean up a unused descriptor so yea....
+
+        }
+
     }
     else {
         vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &tex.mTextureSet);
@@ -106,18 +112,17 @@ auto Vulkan::deleteTexture(const std::string &name) {
 
     //Make count smaller to account for the deleted texture
     mTextureCount--;
-
     return mTextures.erase(name);
 }
 
 Vulkan::~Vulkan(){
     vkDeviceWaitIdle(mDevice->device());
+    mDeletionQueue.flush();
+    mRootDisplay.reset();
+
     for(auto it = mTextures.begin(); it != mTextures.end();) {
         deleteTexture((it++)->first);
     }
-
-    mRootDisplay.reset();
-    mDeletionQueue.flush();
 
     mDevice.reset();
 

@@ -98,25 +98,23 @@ void NEDisplay::createSwapchain(const std::shared_ptr<NEDevice>& device, VkPrese
         vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
     });
 
-    createImage({mExtent.width, mExtent.height, 1}, mDepthImage, mDepthImageView, VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
-    createImage({mExtent.width, mExtent.height, 1}, mColorImage, mColorImageView, VK_IMAGE_ASPECT_COLOR_BIT, mFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
+    createImage(mExtent, 1, mDepthImage, mDepthImageView, VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
+    createImage(mExtent, 1, mColorImage, mColorImageView, VK_IMAGE_ASPECT_COLOR_BIT, mFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
 
     //Gonna need this later...
     populateFrameData();
 }
 
-void NEDisplay::createImage(VkExtent3D extent, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount) {
+void NEDisplay::createImage(VkExtent2D extent, uint32_t mipLevels, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount) {
 
-    VkImageCreateInfo img_info = init::image_create_info(format, usage, extent, sampleCount);
+    VkImageCreateInfo img_info = init::image_create_info(format, usage, extent, mipLevels, sampleCount);
 
     VmaAllocationCreateInfo img_allocinfo = {};
     img_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     img_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
     vmaCreateImage(mDevice->allocator(), &img_info, &img_allocinfo, &image.mImage, &image.mAllocation, nullptr);
 
-    VkImageViewCreateInfo view_info = init::imageview_create_info(format, image.mImage, aspect);
-
+    VkImageViewCreateInfo view_info = init::imageview_create_info(format, image.mImage, mipLevels, aspect);
     vkCreateImageView(mDevice->device(), &view_info, nullptr, &imageView);
 
     mSwapchainQueue.push_function([=, this]() {
@@ -172,33 +170,19 @@ void NEDisplay::createDescriptors() {
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
         VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
 
-        VkWriteDescriptorSet setWrites[5] = { cameraWrite, sceneWrite, objectWrite};
+        VkWriteDescriptorSet setWrites[3] = { cameraWrite, sceneWrite, objectWrite};
         size_t writeSize = 3;
 
-        if(mDevice->bindless()) {
-            mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
-            VkDescriptorImageInfo samplerInfo;
-            samplerInfo.sampler = mSampler;
-            samplerInfo.imageView = nullptr;
-            samplerInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-            VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, mFrames[i].mTextureDescriptor, &samplerInfo, 0);
-          //  VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor,nullptr, 1);
-
-            setWrites[writeSize] = textureSamplerWrite;
-            writeSize++;
-           // setWrites[writeSize] = textureWrite;
-           // writeSize++;
-        }
+        if(mDevice->bindless()) mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
 
         vkUpdateDescriptorSets(mDevice->device(), writeSize, setWrites, 0, nullptr);
 
-
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
+         //   vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &mFrames[i].mTextureDescriptor);
         });
     }
     mDeletionQueue.push_function([=, this]() {
@@ -360,14 +344,15 @@ void NEDisplay::populateFrameData() {
     }
 }
 
-void NEDisplay::addTexture(VkImageView imageView, uint32_t dstIdx) {
+void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
     VkWriteDescriptorSet writes[MAX_FRAMES];
     for(uint32_t i = 0; i < MAX_FRAMES; i++) {
+        tex.mSampler = mDevice->createSampler(tex.mMipLevels);
         VkDescriptorImageInfo descriptorImageInfo;
-        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.sampler = tex.mSampler;
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        descriptorImageInfo.imageView = imageView;
-        writes[i] = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, mFrames[i].mTextureDescriptor, &descriptorImageInfo, 1);
+        descriptorImageInfo.imageView = tex.mImageView;
+        writes[i] = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, mFrames[i].mTextureDescriptor, &descriptorImageInfo, 0);
         writes[i].dstArrayElement = dstIdx;
     }
     vkUpdateDescriptorSets(mDevice->device(), MAX_FRAMES, writes, 0, nullptr);

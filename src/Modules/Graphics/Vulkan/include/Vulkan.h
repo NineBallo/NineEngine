@@ -89,7 +89,7 @@ private:
     std::unordered_map<std::string, Texture> mTextures;
     std::unordered_map<std::string, uint32_t> mTextureToBinding;
     std::unordered_map<uint32_t, std::string> mBindingToTexture;
-    uint32_t mTextureCount = 0;
+    uint32_t mTextureCount {0};
 
 private:
     ECS *mECS;

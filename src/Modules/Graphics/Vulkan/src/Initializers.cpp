@@ -26,7 +26,7 @@ VkCommandBufferAllocateInfo init::command_buffer_allocate_info(VkCommandPool poo
     return info;
 }
 
-VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent, VkSampleCountFlagBits sampleCount) {
+VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent2D extent, uint32_t mipLevels, VkSampleCountFlagBits sampleCount) {
     VkImageCreateInfo info = { };
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info.pNext = nullptr;
@@ -34,9 +34,13 @@ VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usa
     info.imageType = VK_IMAGE_TYPE_2D;
 
     info.format = format;
-    info.extent = extent;
+    info.extent = {
+            extent.width,
+            extent.height,
+            1
+    };
 
-    info.mipLevels = 1;
+    info.mipLevels = mipLevels;
     info.arrayLayers = 1;
     info.samples = sampleCount;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -45,7 +49,7 @@ VkImageCreateInfo init::image_create_info(VkFormat format, VkImageUsageFlags usa
     return info;
 }
 
-VkImageViewCreateInfo init::imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags) {
+VkImageViewCreateInfo init::imageview_create_info(VkFormat format, VkImage image, uint32_t mipLevels, VkImageAspectFlags aspectFlags) {
     VkImageViewCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     info.pNext = nullptr;
@@ -54,7 +58,7 @@ VkImageViewCreateInfo init::imageview_create_info(VkFormat format, VkImage image
     info.image = image;
     info.format = format;
     info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.levelCount = mipLevels;
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = 1;
     info.subresourceRange.aspectMask = aspectFlags;
@@ -140,7 +144,7 @@ VkSubmitInfo init::submitInfo(VkCommandBuffer* cmd, size_t size) {
    return info;
 }
 
-VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, float anisotropy, VkSamplerAddressMode samplerAddressMode) {
+VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, float anisotropy, uint32_t mipLevels, VkSamplerAddressMode samplerAddressMode) {
     VkSamplerCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.pNext = nullptr;
@@ -151,7 +155,14 @@ VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, float anisotropy, 
     info.addressModeV = samplerAddressMode;
     info.addressModeW = samplerAddressMode;
 
-    if(anisotropy > 0) {
+    if(mipLevels >= 1) {
+        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        info.maxLod = static_cast<float>(mipLevels);
+        info.minLod = 0.0f; //op
+        info.mipLodBias = 0.0f; //op
+    }
+
+    if(anisotropy > 1) {
         info.anisotropyEnable = VK_TRUE;
         info.maxAnisotropy = anisotropy;
     }

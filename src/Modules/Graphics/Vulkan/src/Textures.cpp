@@ -11,12 +11,14 @@
 #include <stb_image.h>
 #include <iostream>
 
-bool init::loadImageFromFile(std::shared_ptr<NEDevice> device, const char *file, AllocatedImage &outImage) {
+bool init::loadTextureFromFile(std::shared_ptr<NEDevice> device, const char *file, Texture &outTex) {
 
     int texWidth = 0, texHeight = 0, texChannels = 0;
 
     ///Load Texture from file into cpu memory
     stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+    outTex.mMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
     if(!pixels) {
         std::cout << "Failed to load texture file" << file << std::endl;
@@ -45,79 +47,29 @@ bool init::loadImageFromFile(std::shared_ptr<NEDevice> device, const char *file,
     stbi_image_free(pixels);
 
 
-    VkExtent3D imageExtent;
+    VkExtent2D imageExtent;
     imageExtent.width = static_cast<uint32_t>(texWidth);
     imageExtent.height = static_cast<uint32_t>(texHeight);
-    imageExtent.depth = 1;
 
-    VkImageCreateInfo dimg_info = init::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, imageExtent);
+    VkImageCreateInfo dimg_info = init::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT |
+    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, imageExtent, outTex.mMipLevels);
 
-    AllocatedImage newImage {};
 
     VmaAllocationCreateInfo dimg_allocinfo = {};
     dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
     //allocate and create the image
-    vmaCreateImage(device->allocator(), &dimg_info, &dimg_allocinfo, &newImage.mImage, &newImage.mAllocation, nullptr);
+    vmaCreateImage(device->allocator(), &dimg_info, &dimg_allocinfo, &outTex.mImage.mImage, &outTex.mImage.mAllocation, nullptr);
 
-    ///Transition image and copy to GPU buffer
-    device->immediateSubmit([=](VkCommandBuffer cmd) {
-        //Transition
-        VkImageSubresourceRange range;
-        range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        range.baseMipLevel = 0;
-        range.levelCount = 1;
-        range.baseArrayLayer = 0;
-        range.layerCount = 1;
+    //Get texture to the gpu in an optimal format
+    device->transitionImageLayout(outTex.mImage.mImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, outTex.mMipLevels);
+    device->copyBufferToImage(stagingBuffer.mBuffer, outTex.mImage.mImage, imageExtent);
+    device->generateMipmaps(outTex.mImage.mImage, VK_FORMAT_R8G8B8A8_SRGB, imageExtent, outTex.mMipLevels);
 
-        VkImageMemoryBarrier imageBarrier_toTransfer = {};
-        imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    //Generate MipMaps
 
-        imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrier_toTransfer.image = newImage.mImage;
-        imageBarrier_toTransfer.subresourceRange = range;
-
-        imageBarrier_toTransfer.srcAccessMask = 0;
-        imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-        //barrier the image into the transfer-receive layout
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
-
-
-        VkBufferImageCopy copyRegion = {};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = imageExtent;
-
-        //copy the buffer into the image
-        vkCmdCopyBufferToImage(cmd, stagingBuffer.mBuffer, newImage.mImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                               1, &copyRegion);
-
-
-
-        VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
-
-        imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        //barrier the image into the shader readable layout
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                             0, 0, nullptr, 0,
-                             nullptr, 1, &imageBarrier_toReadable);
-    });
 
     vmaDestroyBuffer(device->allocator(), stagingBuffer.mBuffer, stagingBuffer.mAllocation);
 
-    outImage = newImage;
     return true;
 }

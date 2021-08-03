@@ -10,7 +10,7 @@
 #include <memory>
 
 namespace init {
-    bool loadImageFromFile(std::shared_ptr<NEDevice> device, const char* file, AllocatedImage& outImage);
+    bool loadTextureFromFile(std::shared_ptr<NEDevice> device, const char* file, Texture& outTex);
 }
 
 
