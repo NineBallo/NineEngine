@@ -227,7 +227,7 @@ void Vulkan::createMesh(const std::string &filepath, const std::string &meshName
         uploadMesh(mesh);
     }
 
-    mMeshes[meshName] = meshGroup;
+    mMeshGroups[meshName] = meshGroup;
     mDeletionQueue.push_function([=, this]() {
         deleteMesh(meshName);
     });
@@ -236,14 +236,14 @@ void Vulkan::createMesh(const std::string &filepath, const std::string &meshName
 
 bool Vulkan::deleteMesh(const std::string& meshName) {
     //Check if it was already deleted...
-    if(!mMeshes.contains(meshName)) return false;
+    if(!mMeshGroups.contains(meshName)) return false;
 
-    MeshGroup& meshGroup = mMeshes[meshName];
+    MeshGroup& meshGroup = mMeshGroups[meshName];
 
     for(auto& mesh : meshGroup.mMeshes) {
         vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
         vmaDestroyBuffer(mDevice->allocator(), mesh.mIndexBuffer.mBuffer, mesh.mIndexBuffer.mAllocation);
-        mMeshes.erase(meshName);
+        mMeshGroups.erase(meshName);
     }
 
     return true;
@@ -268,7 +268,7 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     mDevice->uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
 }
 
-void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, uint32_t* textureIndex) {
+void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, std::string* textureIndex) {
     //Set hidden bits/flags
     if(!mDevice->bindless()) {
         material += NE_SHADER_BINDING_BIT;
@@ -276,15 +276,16 @@ void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string 
 
     RenderObject renderObject{};
     renderObject.material = &mMaterials[material];
-    renderObject.meshGroup = &mMeshes[mesh];
-
+    renderObject.meshGroup = &mMeshGroups[mesh];
+    MeshGroup& meshGroup = mMeshGroups[mesh];
 
     if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
-        MeshGroup& meshGroup = mMeshes[mesh];
+        //For each material, get the respective texture
+        for (int i = 0; i < meshGroup.mMatToIdx.size(); i++) {
 
-        for (int i = 0; i < meshGroup.mMeshes.size(); i++) {
-            uint32_t indexOfEntityTex = textureIndex[i];
-            mMeshes[mesh].mMeshes[i].texture = Textures[indexOfEntityTex];
+            uint32_t texIdx = meshGroup.mMatToIdx[textureIndex[i]];
+            meshGroup.mTextures[texIdx] = Textures[i];
+
         }
     }
 
@@ -390,15 +391,19 @@ void Vulkan::draw() {
             PushData pushData{};
             pushData.entityID = currentEntityID;
 
-            if(mDevice->bindless()) {
-                pushData.textureIndex = mTextureToBinding[mesh.texture];
+            //Get texture for mesh
+            uint32_t texIdx = meshGroup.mMatToIdx[mesh.mMaterial];
+            std::string tex = meshGroup.mTextures[texIdx];
 
+
+            if(mDevice->bindless()) {
+                pushData.textureIndex = mTextureToBinding[tex];
             }
-            else if(mLastTexture != &mTextures[mesh.texture]) {
-                mLastTexture = &mTextures[mesh.texture];
+            else if(mLastTexture != &mTextures[tex]) {
+                mLastTexture = &mTextures[tex];
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         currentEntity.material->mPipelineLayout, 2, 1,
-                                        &mTextures[mesh.texture].mTextureSet, 0, nullptr);
+                                        &mTextures[tex].mTextureSet, 0, nullptr);
             }
 
 

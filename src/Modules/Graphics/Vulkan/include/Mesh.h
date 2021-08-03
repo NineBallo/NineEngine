@@ -11,7 +11,7 @@
 #include <glm/vec3.hpp>
 #include <glm/mat4x4.hpp>
 #include "Types.h"
-
+#include "assimp/scene.h"
 
 struct VertexInputDescription {
 
@@ -55,12 +55,16 @@ struct Mesh {
     std::vector<uint32_t> mIndices {};
     AllocatedBuffer mIndexBuffer;
 
-    std::string texture;
+    std::string mMaterial;
 };
 
 struct MeshGroup {
     std::vector<Mesh> mMeshes;
     std::vector<bool> enabled;
+
+    std::vector<std::string> mTextures;
+    std::unordered_map<std::string, uint32_t> mMatToIdx;
+
     bool load_objects_from_file(std::string filename);
 };
 

@@ -75,6 +75,7 @@ public:
 
 private:
     VkSampleCountFlagBits getMaxSampleCount();
+    float getMaxAnisotropy();
 
 private:
     //Actual Device this will not be exposed
@@ -85,24 +86,24 @@ private:
     VkPhysicalDeviceFeatures2 mGPUFeatures {};
     VkPhysicalDeviceVulkan12Features mGPUFeaturesVK12 {};
     VkSampleCountFlagBits mSampleCount {};
+    float mMaxAnisotropy {0};
 
+    VkQueue mGraphicsQueue {VK_NULL_HANDLE};
+    uint32_t mGraphicsQueueFamily {0};
 
-    VkQueue mGraphicsQueue = VK_NULL_HANDLE;
-    uint32_t mGraphicsQueueFamily = 0;
-
-    VkQueue mPresentQueue = VK_NULL_HANDLE;
-    uint32_t mPresentQueueFamily = 0;
+    VkQueue mPresentQueue{VK_NULL_HANDLE};
+    uint32_t mPresentQueueFamily {0};
 
     VkDescriptorPool mDescriptorPool;
-    VkDescriptorSetLayout mGlobalSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout mObjectSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout mSingleTextureSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout mTextureSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout mGlobalSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout mObjectSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout mSingleTextureSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout mTextureSetLayout {VK_NULL_HANDLE};
 
-    VkRenderPass mDefaultRenderpass = VK_NULL_HANDLE;
+    VkRenderPass mDefaultRenderpass {VK_NULL_HANDLE};
 
     ///Memory allocator
-    VmaAllocator mAllocator = nullptr;
+    VmaAllocator mAllocator {nullptr};
 
 private:
     bool mBindless {};

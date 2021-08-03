@@ -140,7 +140,7 @@ VkSubmitInfo init::submitInfo(VkCommandBuffer* cmd, size_t size) {
    return info;
 }
 
-VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, VkSamplerAddressMode samplerAddressMode) {
+VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, float anisotropy, VkSamplerAddressMode samplerAddressMode) {
     VkSamplerCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.pNext = nullptr;
@@ -150,6 +150,12 @@ VkSamplerCreateInfo init::samplerCreateInfo(VkFilter filters, VkSamplerAddressMo
     info.addressModeU = samplerAddressMode;
     info.addressModeV = samplerAddressMode;
     info.addressModeW = samplerAddressMode;
+
+    if(anisotropy > 0) {
+        info.anisotropyEnable = VK_TRUE;
+        info.maxAnisotropy = anisotropy;
+    }
+
     return info;
 }
 

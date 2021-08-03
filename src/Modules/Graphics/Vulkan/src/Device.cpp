@@ -34,7 +34,9 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     vk12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     vk12Features.runtimeDescriptorArray = VK_TRUE;
 
- //   selector.add_required_extension_features(vk12Features);
+    VkPhysicalDeviceFeatures deviceFeatures{};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
 
 
  vkb::PhysicalDevice physicalDevice;
@@ -42,7 +44,8 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
  auto selectorReturn = selector
          .set_minimum_version(1, 2)
          .set_surface(surface)
-         .add_required_extension_features(vk12Features)
+         .set_required_features_12(vk12Features)
+         .set_required_features(deviceFeatures)
          .select();
 
  ///Test if all desired extensions are supported, if not then fallback to "legacy" mode...
@@ -54,7 +57,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
      physicalDevice = selector
              .set_minimum_version(1, 1)
              .set_surface(surface)
-             .add_required_extension_features(vk12Features)
+             .set_required_features(deviceFeatures)
              .select()
              .value();
  }
@@ -84,6 +87,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     }
 
     mSampleCount = getMaxSampleCount();
+    mMaxAnisotropy = getMaxAnisotropy();
 
     return physicalDevice;
 }
@@ -559,7 +563,8 @@ void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) 
 
 VkSampler NEDevice::createSampler() {
     //create a sampler for the texture
-    VkSamplerCreateInfo samplerInfo = init::samplerCreateInfo(VK_FILTER_NEAREST);
+    VkSamplerCreateInfo samplerInfo = init::samplerCreateInfo(VK_FILTER_LINEAR, mMaxAnisotropy);
+
 
     VkSampler sampler;
     vkCreateSampler(mDevice, &samplerInfo, nullptr, &sampler);
@@ -583,6 +588,20 @@ VkSampleCountFlagBits NEDevice::getMaxSampleCount() {
     else { count = VK_SAMPLE_COUNT_1_BIT; std::cout << "MSAA not supported\n";}
 
     return count;
+}
+
+float NEDevice::getMaxAnisotropy() {
+    float counts = mGPUProperties.limits.maxSamplerAnisotropy;
+
+    std::cout << "Max Anisotropy supported for device is: ";
+
+    if(counts >= 16) {std::cout << "16x\n"; counts = 16;}
+    else if (counts >= 8) {std::cout << "8x\n"; counts = 8;}
+    else if (counts >= 4) {std::cout << "4x\n"; counts = 4;}
+    else if (counts >= 2) {std::cout << "2x\n"; counts = 2;}
+    else {std::cout << "Unsupported\n"; counts = 0;}
+
+    return counts;
 }
 
 ///Getters

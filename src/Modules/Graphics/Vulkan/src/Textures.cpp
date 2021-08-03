@@ -13,7 +13,7 @@
 
 bool init::loadImageFromFile(std::shared_ptr<NEDevice> device, const char *file, AllocatedImage &outImage) {
 
-    int texWidth, texHeight, texChannels;
+    int texWidth = 0, texHeight = 0, texChannels = 0;
 
     ///Load Texture from file into cpu memory
     stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);

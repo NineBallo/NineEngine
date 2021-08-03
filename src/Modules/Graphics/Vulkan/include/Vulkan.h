@@ -41,7 +41,7 @@ public:
     Material* createMaterial(uint32_t features);
     void deleteMaterial(uint32_t features);
 
-    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, std::string* Textures = {}, uint32_t* textureIndex = {});
+    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, std::string* Textures = {}, std::string* textureIndex = {});
 
     void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
@@ -83,7 +83,7 @@ private:
 
 private:
     std::unordered_map<uint32_t, Material> mMaterials;
-    std::unordered_map<std::string, MeshGroup> mMeshes;
+    std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
  //   std::array<
     std::unordered_map<std::string, Texture> mTextures;
