@@ -43,7 +43,7 @@ FetchContent_MakeAvailable(vma)
 
 FetchContent_Declare(
         imgui
-        GIT_REPOSITORY https://github.com/ocornut/imgui
+        GIT_REPOSITORY https://github.com/NineBallAYAYA/imgui
         GIT_TAG        docking   #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
@@ -127,6 +127,8 @@ FetchContent_MakeAvailable(stb)
 message(STATUS "GIT modules fetched")
 
 
+
+
 set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 
 add_executable(NineEngine ${imgui_FILES} src/NineEngine.cpp src/NineEngine.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Managers/ECS/ECS.cpp src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h src/Modules/Graphics/Vulkan/include/Textures.h src/Modules/Graphics/Vulkan/src/Textures.cpp src/Modules/Graphics/Vulkan/shaders/Fragment.h src/Modules/Graphics/Vulkan/shaders/Vertex.h src/Modules/Graphics/Vulkan/shaders/Shaders.cpp src/Modules/Graphics/Vulkan/shaders/Shaders.h src/Modules/Graphics/Common/ImGuiHelpers.h src/Modules/Graphics/Common/ImGuiHelpers.cpp)
@@ -158,6 +160,8 @@ if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models/textures))
     message(STATUS "Texture dir not found, generating...")
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/models/textures)
 endif()
+
+
 
 add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy

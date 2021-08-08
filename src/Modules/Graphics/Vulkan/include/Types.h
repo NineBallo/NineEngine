@@ -111,5 +111,14 @@ struct FrameData {
     VkDescriptorSet mTextureDescriptor;
 };
 
+struct RenderPassInfo {
+    VkRenderPass renderPass;
+    std::vector<VkFramebuffer> frameBuffers;
+
+    //Keyed to the SC idx
+    std::vector<VkImageView> colorImageViews, depthImageViews, resolveImageViews;
+    std::vector<AllocatedImage> colorImages, depthImages, resolveImages;
+};
+
 
 #endif //NINEENGINE_TYPES_H

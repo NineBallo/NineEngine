@@ -19,7 +19,7 @@ class NEGUI;
 
 #include "Types.h"
 #include "Device.h"
-#define MAX_FRAMES 2
+#define MAX_FRAMES 3
 
 struct displayCreateInfo {
     VkExtent2D extent = {800, 600};
@@ -40,12 +40,13 @@ public:
     NEDisplay(const NEDisplay&) = delete;
     NEDisplay& operator = (const NEDisplay&) = delete;
 
-
     //Initialization methods (Necessary that all of these are done before the render methods are called)
     void createSurface(VkInstance);
     void createSwapchain(const std::shared_ptr<NEDevice>& device, VkPresentModeKHR presentMode);
 
-    void createFramebuffers();
+    void finishInit();
+
+    void createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t flags, bool MSAA);
     void createSyncStructures(FrameData &frame);
     void createDescriptors();
     void initImGUI();
@@ -58,6 +59,7 @@ public:
     bool shouldExit();
 
     void toggleFullscreen();
+    void resizeFrameBuffer(VkExtent2D FBSize, uint32_t flags);
 
 public:
     VkSurfaceKHR surface();
@@ -66,36 +68,29 @@ public:
     GLFWwindow* window();
     FrameData currentFrame();
     uint32_t frameIndex();
+    VkRenderPass texturePass();
+    VkRenderPass swapchainPass();
     float aspect();
-
+    std::shared_ptr<NEDevice> device();
+    VkDescriptorPool guiDescriptorPool();
 
 private:
-
     void recreateSwapchain();
-    void cleanupSwapchain();
     void populateFrameData();
     void createWindow(VkExtent2D extent, const std::string& title, bool resizable);
     VkCommandBuffer createCommandBuffer(VkCommandPool commandPool);
 
+    void setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExtent2D extent);
+    void setPipelineDynamics(VkCommandBuffer cmd, VkExtent2D extent);
 
     void createImage(VkExtent2D extent, uint32_t mipLevels, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount);
-    //Depth
-    VkImageView mDepthImageView;
-    AllocatedImage mDepthImage;
-    VkFormat mDepthFormat;
 
-    //MSAA
-    VkImageView mColorImageView;
-    AllocatedImage mColorImage;
-    VkFormat mColorFormat;
 
     //Swapchain variables
-    VkSwapchainKHR mSwapchain = VK_NULL_HANDLE;
+    VkSwapchainKHR mSwapchain {VK_NULL_HANDLE};
     VkFormat mFormat;
-    std::vector<VkImage> mImages;
-    std::vector<VkImageView> mImageViews;
-    std::vector<VkFramebuffer> mFramebuffers;
-    VkRenderPass mRenderpass = VK_NULL_HANDLE;
+
+    std::unordered_map<uint32_t, RenderPassInfo> mRenderPasses;
 
     //Window variables
     VkExtent2D mExtent;
@@ -103,9 +98,6 @@ private:
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
     std::string mTitle;
 
-
-    //Texture
-    VkSampler mSampler;
 private:
     //Frame "Data"
     std::array<FrameData, MAX_FRAMES> mFrames;
@@ -114,13 +106,18 @@ private:
     AllocatedBuffer mSceneParameterBuffer;
     VkPresentModeKHR mPresentMode;
 
+    //Stuff
+    VkSampler mSimpleSampler;
+    VkDescriptorPool mGuiDescriptorPool;
     //Sync
-    uint32_t mSwapchainImageIndex = 0;
-    uint8_t mCurrentFrame = 0;
-    uint32_t mFrameCount = 0;
+    uint32_t mSwapchainImageIndex {0};
+    uint32_t mCurrentFrame {0};
+    uint32_t mFrameCount {0};
+    uint32_t mSwapchainImageCount {0};
+    float mAspect {800.f/600.f};
+    bool mFullScreen {false};
 
-    float mAspect = 0.f;
-    bool mFullScreen;
+
 private:
     //Mainly destruction variables
     std::shared_ptr<NEDevice> mDevice;

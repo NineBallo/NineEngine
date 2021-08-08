@@ -23,6 +23,7 @@ using Entity = uint32_t;
 using Display = uint8_t;
 using Signature = std::bitset<MAX_COMPONENTS>;
 using Component = unsigned short;
+using System = std::string_view;
 
 template <typename T>
 constexpr auto type_name() noexcept {
@@ -154,6 +155,8 @@ public:
         //Update new size of packed array
         displaySize[display]++;
 
+
+
         return newEntity;
     };
 
@@ -205,6 +208,10 @@ public:
         return componentTypes[typeName];
     };
 
+    Signature getEntitySignature(Entity entity) {
+        return entitySignatures[entity];
+    };
+
     template<typename T>
     void addComponent(Entity entityID, T component) {
 
@@ -242,7 +249,6 @@ public:
         std::string_view typeName = type_name<T>();
 
         componentTypes.insert({typeName, nextComponentID});
-
         componentArrays.insert({typeName, std::make_shared<ComponentArray<T>>()});
 
         nextComponentID++;
@@ -253,24 +259,44 @@ public:
     void registerSystem(SubscribeData subscriber) {
 
         //Convert type to name
-        std::string_view typeName = type_name<T>();
-
+        System typeName = type_name<T>();
         systems.insert({typeName, subscriber});
     };
 
     template<typename T>
     void setSystemSignature(Signature signature) {
 
-        std::string_view typeName = type_name<T>();
-
+        System typeName = type_name<T>();
         systemSignatures[typeName] = signature;
+
+        updateSystemSignature(signature, typeName);
     };
 
+    void updateSystemSignature(Signature signature, System system) {
+        //Create a "3D" iterator so that we can check each entity and see if it matches the changed system
+        //This is a relatively expensive operation, so it should be only really used on signature set.
+        SubscribeData data = systems[system];
+
+        for (Display display = 0; display < MAX_DISPLAYS; display++) {
+            for(Entity i = 0; i < displaySize[display]; i++) {
+                Entity entity = displays[display][i];
+
+                std::pair<uint32_t, uint32_t> allegedPosition = (*data.entityToPos)[entity];
+
+                if((*data.localEntityList)[allegedPosition.first][allegedPosition.second] != entity || (*data.size) == 0) {
+                    if ((entitySignatures[entity] & signature) == signature) {
+                        (*data.localEntityList)[0][(*data.size)] = entity;
+                        (*data.entityToPos)[entity] = std::pair(0, (*data.size));
+                        (*data.size)++;
+                    }
+                }
+            }
+        }
+    }
 
     void updateEntitySignature(Entity entity, Signature entitySig) {
 
         entitySignatures[entity] = entitySig;
-
 
         //Update System lists
         for(auto& pair : systems) {
@@ -286,8 +312,8 @@ public:
             Display allegedDisplay = std::get<0>((*system.entityToPos)[entity]);
             uint32_t allegedIndex = std::get<1>((*system.entityToPos)[entity]);
 
-
-            if ((*system.localEntityList)[allegedIndex][allegedDisplay] == entity) {
+            //Check if we are potentially updating or adding entity
+            if ((*system.localEntityList)[allegedDisplay][allegedIndex] == entity) {
                 if(!((entitySig & systemSig) == systemSig)) {
 
                     (*system.size)--;
@@ -303,7 +329,7 @@ public:
                     (*system.entityToPos)[entity] = {display, *system.size};
                 }
             }
-            //Entity must include needed signatures
+            ////Entity must include needed signatures
             else if((entitySig & systemSig) == systemSig) {
                 uint32_t newIndex = *system.size;
 
@@ -324,25 +350,25 @@ private:
     //Display + Index
     std::array<std::pair<Display, Entity>, MAX_ENTITYS> entityToPos{};
 
+    //Log of last entity/size of each "display"
+    std::array<uint32_t, MAX_DISPLAYS> displaySize{};
+
     //Queue of available entity id's
     std::queue<Entity> availableEntitys{};
-
-    //Log of last entity/size of each "display"
-    std::array<u_int32_t, MAX_DISPLAYS> displaySize{};
 
 private:
 
     ///Modules/Systems
-    std::unordered_map<std::string_view, Signature> systemSignatures{};
-    std::unordered_map<std::string_view, SubscribeData> systems{};
+    std::unordered_map<System, Signature> systemSignatures{};
+    std::unordered_map<System, SubscribeData> systems{};
     std::unordered_map<Entity, Signature> entitySignatures{};
 
 
 private:
     ///Components
-    Component nextComponentID {};
-    std::unordered_map<std::string_view, Component> componentTypes{};
-    std::unordered_map<std::string_view, std::shared_ptr<ComponentBase>> componentArrays{};
+    Component nextComponentID {0};
+    std::unordered_map<System, Component> componentTypes{};
+    std::unordered_map<System, std::shared_ptr<ComponentBase>> componentArrays{};
 
 
 private:

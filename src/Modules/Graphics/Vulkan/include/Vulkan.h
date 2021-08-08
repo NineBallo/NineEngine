@@ -51,7 +51,8 @@ public:
 
     GLFWwindow* getWindow(Display display);
 
-
+    ImTextureID textureId;
+    bool firstRun = true;
 private:
 
     void draw();
@@ -85,7 +86,6 @@ private:
     std::unordered_map<uint32_t, Material> mMaterials;
     std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
- //   std::array<
     std::unordered_map<std::string, Texture> mTextures;
     std::unordered_map<std::string, uint32_t> mTextureToBinding;
     std::unordered_map<uint32_t, std::string> mBindingToTexture;
@@ -101,6 +101,8 @@ private:
     bool mShouldExit = false;
 
     Entity mCameraEntity = 0;
+
+
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

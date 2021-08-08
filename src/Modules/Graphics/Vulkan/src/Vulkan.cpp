@@ -17,6 +17,7 @@
 #include "memory"
 #include <vk_mem_alloc.h>
 #include "unistd.h"
+#include "backends/imgui_impl_vulkan.h"
 
 Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
     mCameraEntity = cameraEntity;
@@ -84,27 +85,29 @@ auto Vulkan::deleteTexture(const std::string &name) {
     //If it was implicitly deleted it potentially no longer be in the auto deletion queue
 
     Texture &tex = mTextures[name];
-    vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
+
+
     vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
     vkDestroySampler(mDevice->device(), tex.mSampler, nullptr);
+    vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
+
 
     if(mDevice->bindless()) {
         uint32_t oldBinding = mTextureToBinding[name];
         mTextureToBinding.erase(name);
+        mBindingToTexture.erase(oldBinding);
 
         std::string lastTexture = mBindingToTexture[mTextureCount - 1];
-        if(lastTexture != name) {
-
+        if(lastTexture != name && !lastTexture.empty()) {
             //New free space at binding x
             Texture& newTexture = mTextures[lastTexture];
             //Upload last item to binding x
             mRootDisplay->addTexture(newTexture, oldBinding);
             //Remove reference to old binding
             mTextureToBinding[lastTexture] = oldBinding;
+            mBindingToTexture[oldBinding] = lastTexture;
             //Profit, idk how to clean up a unused descriptor so yea....
-
         }
-
     }
     else {
         vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &tex.mTextureSet);
@@ -117,15 +120,14 @@ auto Vulkan::deleteTexture(const std::string &name) {
 
 Vulkan::~Vulkan(){
     vkDeviceWaitIdle(mDevice->device());
-    mDeletionQueue.flush();
-    mRootDisplay.reset();
 
     for(auto it = mTextures.begin(); it != mTextures.end();) {
         deleteTexture((it++)->first);
     }
 
+    mRootDisplay.reset();
+    mDeletionQueue.flush();
     mDevice.reset();
-
 
     vkb::destroy_debug_utils_messenger(mInstance, mDebugMessenger);
     vkDestroyInstance(mInstance, nullptr);
@@ -139,13 +141,10 @@ void Vulkan::init() {
     mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_IMMEDIATE_KHR);
     //VK_PRESENT_MODE_FIFO_KHR
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
-    mDevice->createDefaultRenderpass(mRootDisplay->format());
     mDevice->init_descriptors();
     mDevice->init_upload_context();
 
-    mRootDisplay->createFramebuffers();
-    mRootDisplay->createDescriptors();
-    mRootDisplay->initImGUI();
+    mRootDisplay->finishInit();
 
 
     if(!mDevice->bindless()) {
@@ -200,8 +199,8 @@ Material* Vulkan::createMaterial(uint32_t features) {
     vertex = compileShader("vertex", shaderc_glsl_vertex_shader, shaders.first, true);
     fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
 
-    std::pair<VkPipeline, VkPipelineLayout> pipelines = mDevice->createPipeline(vertex, fragment, features);
-
+    std::pair<VkPipeline, VkPipelineLayout> pipelines =
+            mDevice->createPipeline(mRootDisplay->texturePass(),vertex, fragment, features);
 
     Material material{};
     material.mPipeline = std::get<0>(pipelines);
@@ -297,6 +296,7 @@ void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string 
     mECS->addComponent<RenderObject>(entity, renderObject);
 }
 
+
 void Vulkan::draw() {
     VkCommandBuffer cmd = mRootDisplay->startFrame();
 
@@ -312,7 +312,7 @@ void Vulkan::draw() {
     direction = glm::normalize(direction);
 
     glm::mat4 view = glm::lookAt(camera.Pos, camera.Pos + direction, glm::vec3(0, 1.f, 0));
-    glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), (float)mRootDisplay->extent().width / mRootDisplay->extent().height,
+    glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect,
                                             camera.znear, camera.zfar);
     projection[1][1] *= -1;
 
@@ -327,7 +327,6 @@ void Vulkan::draw() {
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation);
 
 
-
     ///Calculate all positions and send to gpu
     void* objectData;
     vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation, &objectData);
@@ -339,12 +338,12 @@ void Vulkan::draw() {
         Entity currentEntityID = mLocalEntityList[0][i];
         auto& position = ECS::Get().getComponent<Position>(currentEntityID);
 
-        glm::mat4 model {1.f};
-        model = glm::translate(model, position.coordinates);
-        model = glm::scale(model, position.scalar);
+        glm::mat4 model {1.0f};
+        model = glm::translate(model, glm::vec3{position.coordinates});
         model = glm::rotate(model, position.rotations.x * (3.14f/180), {1.f, 0.f , 0.f});
         model = glm::rotate(model, position.rotations.y * (3.14f/180), {0.f, 1.f , 0.f});
         model = glm::rotate(model, position.rotations.z * (3.14f/180), {0.f, 0.f , 1.f});
+        model = glm::scale(model, position.scalar);
 
         objectSSBO[currentEntityID].modelMatrix = model;
     }

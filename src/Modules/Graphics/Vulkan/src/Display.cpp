@@ -33,6 +33,7 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     mExtent = createInfo.extent;
     mInstance = createInfo.instance;
 
+
     mGUI = std::make_unique<NEGUI>(this);
 }
 
@@ -64,8 +65,7 @@ void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool r
 
     mWindow = glfwCreateWindow(extent.width, extent.height, title.c_str(), nullptr, nullptr);
 
-    //  glfwSetWindowUserPointer(window, vulkan);
-    //  glfwSetFramebufferSizeCallback(window, VKBareAPI::Window::framebufferResizeCallback);
+
 }
 
 void NEDisplay::createSurface(VkInstance instance) {
@@ -87,19 +87,24 @@ void NEDisplay::createSwapchain(const std::shared_ptr<NEDevice>& device, VkPrese
             .value();
 
 
+    RenderPassInfo &RPInfo = mRenderPasses[NE_RENDERPASS_TOSWAPCHAIN_BIT];
+
     mSwapchain = vkbSwapchain.swapchain;
-    mImages = vkbSwapchain.get_images().value();
-    mImageViews = vkbSwapchain.get_image_views().value();
+    std::vector<VkImage> images = vkbSwapchain.get_images().value();
+    RPInfo.resolveImageViews = vkbSwapchain.get_image_views().value();
     mFormat = vkbSwapchain.image_format;
     mPresentMode = presentMode;
     mDevice = device;
+
+    mSwapchainImageCount = images.size();
+    for(uint32_t i = 0; i > mSwapchainImageCount; i++) {
+        RPInfo.resolveImages[i].mImage = images[i];
+    }
 
     mSwapchainQueue.push_function([=, this]() {
         vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
     });
 
-    createImage(mExtent, 1, mDepthImage, mDepthImageView, VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
-    createImage(mExtent, 1, mColorImage, mColorImageView, VK_IMAGE_ASPECT_COLOR_BIT, mFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
 
     //Gonna need this later...
     populateFrameData();
@@ -112,15 +117,13 @@ void NEDisplay::createImage(VkExtent2D extent, uint32_t mipLevels, AllocatedImag
     VmaAllocationCreateInfo img_allocinfo = {};
     img_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     img_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    vmaCreateImage(mDevice->allocator(), &img_info, &img_allocinfo, &image.mImage, &image.mAllocation, nullptr);
+    auto wawa = vmaCreateImage(mDevice->allocator(), &img_info, &img_allocinfo, &image.mImage, &image.mAllocation, nullptr);
 
+    if(wawa != VK_SUCCESS) {
+        std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n";
+    }
     VkImageViewCreateInfo view_info = init::imageview_create_info(format, image.mImage, mipLevels, aspect);
     vkCreateImageView(mDevice->device(), &view_info, nullptr, &imageView);
-
-    mSwapchainQueue.push_function([=, this]() {
-        vkDestroyImageView(mDevice->device(), imageView, nullptr);
-        vmaDestroyImage(mDevice->allocator(), image.mImage, image.mAllocation);
-    });
 }
 
 void NEDisplay::recreateSwapchain() {
@@ -129,16 +132,14 @@ void NEDisplay::recreateSwapchain() {
     mSwapchainQueue.flush();
 
     createSwapchain(mDevice, mPresentMode);
-    createFramebuffers();
-}
 
+    resizeFrameBuffer(mExtent, NE_RENDERPASS_TOSWAPCHAIN_BIT);
+}
 
 void NEDisplay::createDescriptors() {
     const size_t sceneParamBufferSize = MAX_FRAMES * mDevice->padUniformBufferSize(sizeof(GPUSceneData));
 
     mSceneParameterBuffer = mDevice->createBuffer(sceneParamBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-    mSampler = mDevice->createSampler();
 
     for (int i = 0; i < MAX_FRAMES; i++)
     {
@@ -182,11 +183,9 @@ void NEDisplay::createDescriptors() {
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mCameraBuffer.mBuffer, mFrames[i].mCameraBuffer.mAllocation);
-         //   vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &mFrames[i].mTextureDescriptor);
         });
     }
     mDeletionQueue.push_function([=, this]() {
-        vkDestroySampler(mDevice->device(), mSampler, nullptr);
         vmaDestroyBuffer(mDevice->allocator(), mSceneParameterBuffer.mBuffer, mSceneParameterBuffer.mAllocation);
     });
 }
@@ -215,8 +214,8 @@ void NEDisplay::initImGUI() {
     pool_info.poolSizeCount = std::size(pool_sizes);
     pool_info.pPoolSizes = pool_sizes;
 
-    VkDescriptorPool imguiPool;
-    vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &imguiPool);
+
+    vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &mGuiDescriptorPool);
 
 
     ImGui::CreateContext();
@@ -230,12 +229,12 @@ void NEDisplay::initImGUI() {
     init_info.PhysicalDevice = mDevice->GPU();
     init_info.Device = mDevice->device();
     init_info.Queue = mDevice->graphicsQueue();
-    init_info.DescriptorPool = imguiPool;
+    init_info.DescriptorPool = mGuiDescriptorPool;
     init_info.MinImageCount = 3;
     init_info.ImageCount = 3;
     init_info.MSAASamples = mDevice->sampleCount();
 
-    ImGui_ImplVulkan_Init(&init_info, mDevice->defaultRenderpass());
+    ImGui_ImplVulkan_Init(&init_info, mRenderPasses[NE_RENDERPASS_TOSWAPCHAIN_BIT].renderPass);
 
     //execute a gpu command to upload imgui font textures
     mDevice->immediateSubmit([&](VkCommandBuffer cmd) {
@@ -246,47 +245,101 @@ void NEDisplay::initImGUI() {
     ImGui_ImplVulkan_DestroyFontUploadObjects();
 
     mDeletionQueue.push_function([=, this]() {
-        vkDestroyDescriptorPool(mDevice->device(), imguiPool, nullptr);
+        vkDestroyDescriptorPool(mDevice->device(), mGuiDescriptorPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
     });
 }
 
-void NEDisplay::createFramebuffers() {
-    mRenderpass = mDevice->defaultRenderpass();
+void NEDisplay::createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t flags, bool MSAA) {
     VkFramebufferCreateInfo fb_info = {};
     fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fb_info.pNext = nullptr;
 
-    fb_info.renderPass = mRenderpass;
+    RenderPassInfo& rpInfo = mRenderPasses[flags];
+    fb_info.renderPass = rpInfo.renderPass;
     fb_info.attachmentCount = 1;
-    fb_info.width = mExtent.width;
-    fb_info.height = mExtent.height;
+    fb_info.width = FBSize.width;
+    fb_info.height = FBSize.height;
     fb_info.layers = 1;
 
+
+
+
     //Swapchain size
-    const uint32_t swapchain_imagecount = mImages.size();
-    mFramebuffers = std::vector<VkFramebuffer>(swapchain_imagecount);
+    rpInfo.frameBuffers = std::vector<VkFramebuffer>(mSwapchainImageCount);
+    if(rpInfo.colorImages.size() != mSwapchainImageCount) {
+        rpInfo.depthImages.resize(mSwapchainImageCount);
+        rpInfo.depthImageViews.resize(mSwapchainImageCount);
+        rpInfo.colorImages.resize(mSwapchainImageCount);
+        rpInfo.colorImageViews.resize(mSwapchainImageCount);
+
+
+        if((flags & NE_RENDERPASS_TOTEXTURE_BIT) == NE_RENDERPASS_TOTEXTURE_BIT) {
+            rpInfo.resolveImageViews.resize(mSwapchainImageCount);
+            rpInfo.resolveImages.resize(mSwapchainImageCount);
+        }
+    }
+
 
     //Create a corresponding framebuffer for each image
-    for (int i = 0; i < swapchain_imagecount; i++) {
+    for (int i = 0; i < mSwapchainImageCount; i++) {
+        createImage(FBSize, 1, rpInfo.depthImages[i], rpInfo.depthImageViews[i], VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
+        createImage(FBSize, 1, rpInfo.colorImages[i], rpInfo.colorImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT, format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
+
+        if((flags & NE_RENDERPASS_TOTEXTURE_BIT) == NE_RENDERPASS_TOTEXTURE_BIT) {
+            createImage(FBSize, 1, rpInfo.resolveImages[i], rpInfo.resolveImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT,
+                        format, static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
+                        VK_SAMPLE_COUNT_1_BIT);
+
+            mGUI->addRenderSpace(rpInfo.resolveImageViews[i], mSimpleSampler);
+        }
 
         VkImageView attachments[3];
-        attachments[0] = mColorImageView;
-        attachments[1] = mDepthImageView;
-        attachments[2] = mImageViews[i];
+        attachments[0] = rpInfo.colorImageViews[i];
+        attachments[1] = rpInfo.depthImageViews[i];
+        if(MSAA) {
+            attachments[2] = rpInfo.resolveImageViews[i];
+        }
 
         fb_info.pAttachments = attachments;
-        fb_info.attachmentCount = 3;
+        fb_info.attachmentCount = MSAA ? 3 : 2;
 
-        if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &mFramebuffers[i]) != VK_SUCCESS) {
+        if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &rpInfo.frameBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");
         };
-
-        mSwapchainQueue.push_function([=, this]() {
-            vkDestroyFramebuffer(mDevice->device(), mFramebuffers[i], nullptr);
-            vkDestroyImageView(mDevice->device(), mImageViews[i], nullptr);
-        });
     }
+}
+
+void NEDisplay::resizeFrameBuffer(VkExtent2D extent, uint32_t flags) {
+    vkDeviceWaitIdle(mDevice->device());
+
+    VkFormat format;
+    if((flags & NE_RENDERPASS_TOSWAPCHAIN_BIT) == NE_RENDERPASS_TOSWAPCHAIN_BIT) {
+        format = mFormat;
+    }
+    else {
+        mAspect = (extent.height / extent.width);
+        format = VK_FORMAT_R8G8B8A8_SRGB;
+    }
+    std::cout << "Resizing Framebuffer\n";
+    RenderPassInfo& rpInfo = mRenderPasses[flags];
+
+    for (int i = 0; i < mSwapchainImageCount; i++) {
+        vkDestroyFramebuffer(mDevice->device(), rpInfo.frameBuffers[i], nullptr);
+
+        vkDestroyImageView(mDevice->device(), rpInfo.colorImageViews[i], nullptr);
+        vmaDestroyImage(mDevice->allocator(), rpInfo.colorImages[i].mImage, rpInfo.colorImages[i].mAllocation);
+
+        vkDestroyImageView(mDevice->device(), rpInfo.depthImageViews[i], nullptr);
+        vmaDestroyImage(mDevice->allocator(), rpInfo.depthImages[i].mImage, rpInfo.depthImages[i].mAllocation);
+
+        if((flags & NE_RENDERPASS_TOTEXTURE_BIT) == NE_RENDERPASS_TOTEXTURE_BIT) {
+            vkDestroyImageView(mDevice->device(), rpInfo.resolveImageViews[i], nullptr);
+            vmaDestroyImage(mDevice->allocator(), rpInfo.resolveImages[i].mImage, rpInfo.resolveImages[i].mAllocation);
+        }
+    }
+
+    createFramebuffers(extent, format, flags, true);
 }
 
 void NEDisplay::createSyncStructures(FrameData &frame) {
@@ -346,8 +399,9 @@ void NEDisplay::populateFrameData() {
 
 void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
     VkWriteDescriptorSet writes[MAX_FRAMES];
-    for(uint32_t i = 0; i < MAX_FRAMES; i++) {
+    if(tex.mSampler == VK_NULL_HANDLE)
         tex.mSampler = mDevice->createSampler(tex.mMipLevels);
+    for(uint32_t i = 0; i < MAX_FRAMES; i++) {
         VkDescriptorImageInfo descriptorImageInfo;
         descriptorImageInfo.sampler = tex.mSampler;
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -358,31 +412,7 @@ void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
     vkUpdateDescriptorSets(mDevice->device(), MAX_FRAMES, writes, 0, nullptr);
 }
 
-VkCommandBuffer NEDisplay::startFrame() {
-    FrameData &frame = mFrames[mCurrentFrame];
-
-    //Wait for frame to be ready/(returned to "back")
-    vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
-    vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
-
-    //Get current swapchain index && result
-    VkResult result = vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapchain();
-        return startFrame();
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("failed to acquire swap chain image!");
-    }
-
-
-    //Wipe and prep command buffer to be handed to the renderer
-    vkResetCommandBuffer(frame.mCommandBuffer, 0);
-
-    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-    vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
-
+void NEDisplay::setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExtent2D extent) {
     //Clear framebuffer
     VkClearValue colorClear;
     colorClear.color = { { 0.01f, 0.01f, 0.01f, 1.f}};
@@ -395,45 +425,86 @@ VkCommandBuffer NEDisplay::startFrame() {
     rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpInfo.pNext = nullptr;
 
-    rpInfo.renderPass = mRenderpass;
+    RenderPassInfo& RPDetails = mRenderPasses[flags];
+
+   // std::cout << "Ex: W: " << extent.width << "Ex: H: " << extent.height << std::endl;
+
+    rpInfo.renderPass = RPDetails.renderPass;
     rpInfo.renderArea.offset.x = 0;
     rpInfo.renderArea.offset.y = 0;
-    rpInfo.renderArea.extent = mExtent;
-    rpInfo.framebuffer = mFramebuffers[mSwapchainImageIndex];
+    rpInfo.renderArea.extent = extent;
+    rpInfo.framebuffer = RPDetails.frameBuffers[mSwapchainImageIndex];
 
     //Set the value to clear to in renderpass
     rpInfo.clearValueCount = 3;
     VkClearValue clearValues[] = { colorClear, depthClear, colorClear};
     rpInfo.pClearValues = clearValues;
 
-    vkCmdBeginRenderPass(frame.mCommandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
 
-    VkRect2D scissor = {0,0, mExtent.width, mExtent.height};
-    vkCmdSetScissor(frame.mCommandBuffer, 0, 1, &scissor);
+void NEDisplay::setPipelineDynamics(VkCommandBuffer cmd, VkExtent2D extent) {
+    VkRect2D scissor = {0,0, extent.width, extent.height};
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     VkViewport viewport;
     viewport.x = 0.f;
     viewport.y = 0.f;
-    viewport.width = mExtent.width;
-    viewport.height = mExtent.height;
+    viewport.width = extent.width;
+    viewport.height = extent.height;
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
-    vkCmdSetViewport(frame.mCommandBuffer, 0, 1, &viewport);
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+}
+
+VkCommandBuffer NEDisplay::startFrame() {
+    FrameData &frame = mFrames[mCurrentFrame];
+
+    //Wait for frame to be ready/(returned to "back")
+    vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
+    vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
+
+    //Get current swapchain index && result
+    VkResult result = vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+
+    vkResetCommandBuffer(frame.mCommandBuffer, 0);
+
+    mGUI->checkFrameBuffers(mDevice->device());
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();
+        return startFrame();
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("failed to acquire swap chain image!");
+    }
 
 
-    //float framed = (mFrameCount / 120.f);
-//
-    //mSceneData.ambientColor = { sin(framed),0,cos(framed),1 };
+    //Wipe and prep command buffer to be handed to the renderer
+
+    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
+
+    VkExtent2D texExtent = mGUI->getRenderWindowSize();
+    //Bind the first renderpass that we will draw the entity's/objects with.
+    setupBindRenderpass(frame.mCommandBuffer, NE_RENDERPASS_TOTEXTURE_BIT, texExtent);
+    setPipelineDynamics(frame.mCommandBuffer, texExtent);
 
     char* sceneData;
     vmaMapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation, (void**)&sceneData);
-
     sceneData += mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mCurrentFrame;
-
     memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
-
     vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
 
+    //Farewell command buffer o/; May your errors gentle.
+    return frame.mCommandBuffer;
+}
+
+void NEDisplay::endFrame() {
+    FrameData &frame = mFrames[mCurrentFrame];
+    mGUI->drawGui(mSwapchainImageIndex);
+
+    vkCmdEndRenderPass(frame.mCommandBuffer);
+
+    setupBindRenderpass(frame.mCommandBuffer, NE_RENDERPASS_TOSWAPCHAIN_BIT, mExtent);
 
     ImGui::Begin("Environment");
     ImGui::Text("Environment Color");
@@ -442,20 +513,13 @@ VkCommandBuffer NEDisplay::startFrame() {
     ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
     ImGui::End();
 
-    mGUI->tick();
-
+    ////Prepare image to show to SwapChain
 
     ImGui::Render();
 
-    //Farewell command buffer o/; May your errors gentle.
-    return frame.mCommandBuffer;
-}
-
-void NEDisplay::endFrame() {
     //Though wise men at their end know dark is right,
     //Because their words had forked no lightning they
     //Do not go gentle into that good night.
-    FrameData &frame = mFrames[mCurrentFrame];
 
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), frame.mCommandBuffer);
     vkCmdEndRenderPass(frame.mCommandBuffer);
@@ -473,9 +537,8 @@ void NEDisplay::endFrame() {
     submit.pSignalSemaphores = &frame.mRenderSemaphore;
 
 
-
     //Submit command buffer and execute it.
-    vkQueueSubmit(mDevice->presentQueue(), 1, &submit, frame.mRenderFence);
+    vkQueueSubmit(mDevice->graphicsQueue(), 1, &submit, frame.mRenderFence);
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -490,13 +553,13 @@ void NEDisplay::endFrame() {
     presentInfo.pImageIndices = &mSwapchainImageIndex;
 
 
-    VkResult result = vkQueuePresentKHR(mDevice->presentQueue(), &presentInfo);
+   VkResult result = vkQueuePresentKHR(mDevice->graphicsQueue(), &presentInfo);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        recreateSwapchain();
-    } else if (result != VK_SUCCESS) {
-        throw std::runtime_error("failed to present swap chain image!");
-    }
+   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+       recreateSwapchain();
+   } else if (result != VK_SUCCESS) {
+       throw std::runtime_error("failed to present swap chain image!");
+   }
 
     //Rage, rage against the dying of the light.
     //Should flippy flop between 0 and MAX_FRAMES - 1
@@ -513,7 +576,6 @@ bool NEDisplay::shouldExit() {
 }
 
 void NEDisplay::toggleFullscreen() {
-
     if(!mFullScreen) {
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
         const GLFWvidmode* vidMode = glfwGetVideoMode(monitor);
@@ -525,9 +587,24 @@ void NEDisplay::toggleFullscreen() {
         glfwSetWindowMonitor(mWindow, NULL, 0, 0, 800, 600, 0);
         mFullScreen = false;
     }
-
 }
 
+void NEDisplay::finishInit() {
+    //Create simple 1 mip generic sampler
+    mSimpleSampler = mDevice->createSampler();
+
+    //Create both RenderPasses
+    mRenderPasses[NE_RENDERPASS_TOSWAPCHAIN_BIT].renderPass = mDevice->createRenderpass(mFormat, NE_RENDERPASS_TOSWAPCHAIN_BIT | NE_RENDERPASS_MSAA8x_BIT);
+    mRenderPasses[NE_RENDERPASS_TOTEXTURE_BIT].renderPass = mDevice->createRenderpass(VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERPASS_TOTEXTURE_BIT | NE_RENDERPASS_MSAA8x_BIT);
+    createDescriptors();
+    initImGUI();
+
+    createFramebuffers(mExtent, mFormat, NE_RENDERPASS_TOSWAPCHAIN_BIT, true);
+    createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERPASS_TOTEXTURE_BIT, true);
+}
+
+VkRenderPass NEDisplay::swapchainPass() {return mRenderPasses[NE_RENDERPASS_TOSWAPCHAIN_BIT].renderPass;}
+VkRenderPass NEDisplay::texturePass() {return mRenderPasses[NE_RENDERPASS_TOTEXTURE_BIT].renderPass;}
 FrameData NEDisplay::currentFrame() {return mFrames[mCurrentFrame];}
 VkSurfaceKHR NEDisplay::surface() {return mSurface;}
 VkFormat NEDisplay::format() {return mFormat;}
@@ -535,3 +612,5 @@ VkExtent2D NEDisplay::extent() {return mExtent;}
 GLFWwindow *NEDisplay::window() {return mWindow;}
 uint32_t NEDisplay::frameIndex() {return mCurrentFrame;}
 float NEDisplay::aspect() {return mAspect;}
+std::shared_ptr<NEDevice> NEDisplay::device() {return mDevice;}
+VkDescriptorPool NEDisplay::guiDescriptorPool() {return mGuiDescriptorPool;}

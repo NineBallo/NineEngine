@@ -12,6 +12,12 @@
 #include <vk_mem_alloc.h>
 #include "Common.h"
 
+#define NE_RENDERPASS_TOSWAPCHAIN_BIT 1 << 0
+#define NE_RENDERPASS_TOTEXTURE_BIT   1 << 1
+
+#define NE_RENDERPASS_MSAA8x_BIT 1 << 2
+#define NE_RENDERPASS_MSAA4x_BIT 1 << 3
+#define NE_RENDERPASS_MSAA2x_BIT 1 << 4
 
 class NEDevice {
 public:
@@ -26,7 +32,7 @@ public:
     void init_descriptors();
     void init_upload_context();
 
-    VkRenderPass createDefaultRenderpass(VkFormat format);
+    VkRenderPass createRenderpass(VkFormat format, uint32_t flags);
 
 public:
     //Helper funtions
@@ -37,7 +43,7 @@ public:
 
     size_t padUniformBufferSize(size_t originalSize);
 
-    std::pair<VkPipeline, VkPipelineLayout> createPipeline(std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags);
+    std::pair<VkPipeline, VkPipelineLayout> createPipeline(VkRenderPass renderPass, std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags);
     bool loadShaderModule(std::vector<uint32_t> spirv, VkShaderModule &outShaderModule);
 
     AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
@@ -71,7 +77,6 @@ public:
     VkDescriptorSetLayout singleTextureSetLayout();
     VkDescriptorSetLayout textureSetLayout();
 
-    VkRenderPass defaultRenderpass();
     VmaAllocator allocator();
 
     bool bindless();
@@ -104,7 +109,8 @@ private:
     VkDescriptorSetLayout mSingleTextureSetLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout mTextureSetLayout {VK_NULL_HANDLE};
 
-    VkRenderPass mDefaultRenderpass {VK_NULL_HANDLE};
+    //VkRenderPass mToTextureRenderpass {VK_NULL_HANDLE};
+    //VkRenderPass mToSwapchainRenderpass {VK_NULL_HANDLE};
 
     ///Memory allocator
     VmaAllocator mAllocator {nullptr};

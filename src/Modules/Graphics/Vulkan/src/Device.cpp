@@ -121,47 +121,48 @@ void NEDevice::init_Allocator(VkInstance instance) {
     });
 }
 
-VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
-    if(mDefaultRenderpass != VK_NULL_HANDLE) return mDefaultRenderpass;
+VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
+    bool ToSC = false;
+    bool ToTex = false;
 
-//Color
-     VkAttachmentDescription color_attachment = {};
-    ///TODO MSAA
-    color_attachment.samples = mSampleCount;
+    bool MSAA;
 
-    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    VkSampleCountFlagBits MSAAStrength;
 
-    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //RenderMode
+    if((flags & NE_RENDERPASS_TOSWAPCHAIN_BIT) == NE_RENDERPASS_TOSWAPCHAIN_BIT) {
+        ToSC = true;
+    }
+    else if ((flags & NE_RENDERPASS_TOTEXTURE_BIT) == NE_RENDERPASS_TOTEXTURE_BIT) {
+        ToTex = true;
+    }
+    else {
+        throw std::runtime_error("Didnt specify renderpass type");
+    }
 
-    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color_attachment.format = format;
+    //MSAA
+    if((flags & NE_RENDERPASS_MSAA8x_BIT) == NE_RENDERPASS_MSAA8x_BIT) {
+        MSAAStrength = VK_SAMPLE_COUNT_8_BIT;
+        MSAA = true;
+    }
+    else if ((flags & NE_RENDERPASS_MSAA4x_BIT) == NE_RENDERPASS_MSAA4x_BIT) {
+        MSAAStrength = VK_SAMPLE_COUNT_4_BIT;
+        MSAA = true;
+    }
+    else if ((flags & NE_RENDERPASS_MSAA2x_BIT) == NE_RENDERPASS_MSAA2x_BIT) {
+        MSAAStrength = VK_SAMPLE_COUNT_2_BIT;
+        MSAA = true;
+    }
+    else {
+        MSAAStrength = VK_SAMPLE_COUNT_1_BIT;
+        MSAA = false;
+    }
 
-    VkAttachmentReference color_attachment_ref = {};
-    color_attachment_ref.attachment = 0;
-    color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-
-    VkAttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = format;
-    colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference colorAttachmentResolveRef{};
-    colorAttachmentResolveRef.attachment = 2;
-    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
+    //Depth
     VkAttachmentDescription depth_attachment = {};
     depth_attachment.flags = 0;
     depth_attachment.format = VK_FORMAT_D32_SFLOAT;
-    depth_attachment.samples = mSampleCount;
+    depth_attachment.samples = MSAAStrength;
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -172,6 +173,62 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     VkAttachmentReference depth_attachment_ref = {};
     depth_attachment_ref.attachment = 1;
     depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    //Color
+    VkAttachmentDescription color_attachment = {};
+
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    color_attachment.samples = MSAAStrength;
+    color_attachment.format = format;
+
+    if(MSAA) {
+        color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
+    else {
+        if(ToSC) {
+            color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        }
+        else if (ToTex) {
+            color_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+    }
+
+
+    VkAttachmentReference color_attachment_ref = {};
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    //Only needed for MSAA
+    VkAttachmentDescription colorAttachmentResolve{};
+    VkAttachmentReference colorAttachmentResolveRef{};
+
+    if(MSAA) {
+        colorAttachmentResolve.format = format;
+        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        if(ToSC) {
+            colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        }
+        else if(ToTex) {
+            colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+
+        colorAttachmentResolveRef.attachment = 2;
+        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
 
 //Subpasses
     VkSubpassDescription subpass = {};
@@ -188,7 +245,7 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
     VkRenderPassCreateInfo render_pass_info = {};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
-    render_pass_info.attachmentCount = 3;
+    render_pass_info.attachmentCount = MSAA ? 3 : 2;
     render_pass_info.pAttachments = attachments;
 
     render_pass_info.subpassCount = 1;
@@ -200,15 +257,10 @@ VkRenderPass NEDevice::createDefaultRenderpass(VkFormat format) {
         throw std::runtime_error("Renderpass failed to initialize\n");
     }
 
-    mDeletionQueue.push_function([=, this]() {
-        vkDestroyRenderPass(mDevice, renderPass, nullptr);
-    });
-
-    mDefaultRenderpass = renderPass;
     return renderPass;
 }
 
-std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags) {
+std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass renderpass, std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags) {
     VkShaderModule vertexShader;
     if (!loadShaderModule(std::move(vertexShaderSpirv), vertexShader))
     {
@@ -222,10 +274,8 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
 
     }
 
-
     //Pipeline creation
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-
 
     VkPushConstantRange push_constants;
     push_constants.offset = 0;
@@ -299,7 +349,7 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(std::vector<uin
     VkPipeline pipeline;
 
     builder.mPipelineLayout = layout;
-    pipeline = builder.build_pipeline(mDevice, mDefaultRenderpass);
+    pipeline = builder.build_pipeline(mDevice, renderpass);
 
     temp = {pipeline, layout};
 
@@ -436,7 +486,6 @@ void NEDevice::init_descriptors() {
 
         mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
     }
-
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -763,7 +812,6 @@ VkQueue NEDevice::presentQueue() {return mPresentQueue;}
 VkQueue NEDevice::graphicsQueue() {return mGraphicsQueue;}
 uint32_t NEDevice::presentQueueFamily() {return mPresentQueueFamily;}
 uint32_t NEDevice::graphicsQueueFamily() {return mGraphicsQueueFamily;}
-VkRenderPass NEDevice::defaultRenderpass() {return mDefaultRenderpass;}
 VmaAllocator NEDevice::allocator() {return mAllocator;}
 VkDescriptorPool NEDevice::descriptorPool() {return mDescriptorPool;}
 VkDescriptorSetLayout NEDevice::globalSetLayout() {return mGlobalSetLayout;}

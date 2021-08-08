@@ -24,6 +24,7 @@ float getTimeToComplete(std::function<void()> &&function) {
     return duration.count();
 }
 
+
 int main(){
     ECS &ecs = ECS::Get();
 
@@ -101,40 +102,12 @@ int main(){
 
     mouse.registerMovement(0.1, std::addressof(cameraRef.Angle));
 
-    std::chrono::time_point<std::chrono::steady_clock> currentTick, lastTick;
-
-    float lastRenderTime;
-
     while(!renderer.shouldExit()) {
         glfwPollEvents();
 
-        ///Calculate FPS
-        currentTick = std::chrono::steady_clock::now();
-        std::chrono::duration<float> duration = std::chrono::duration_cast<std::chrono::duration<float>>(currentTick - lastTick);
-        float seconds = duration.count();
-        std::string FPS = std::to_string((uint32_t)(std::floor(1/seconds)));
-        lastTick = currentTick;
-
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        ImGui::Begin("FPS");
-        ImGui::Text("%s", FPS.c_str());
-        ImGui::End();
-
-        ImGui::Begin("Timings");
-        std::string mouseTime = "Mouse polling time: " + std::to_string(getTimeToComplete([&]{mouse.tick();}) * 1000) + "ms";
-        ImGui::Text("%s", mouseTime.c_str());
-
-        std::string keyboardTime = "Keyboard polling time: " + std::to_string(getTimeToComplete([&]{keyboard.tick();}) * 1000) + "ms";
-        ImGui::Text("%s", keyboardTime.c_str());
-
-        std::string renderString = "Render Time: " + std::to_string(lastRenderTime * 1000) + "ms";
-        ImGui::Text("%s", renderString.c_str());
-        ImGui::End();
-
-        lastRenderTime = getTimeToComplete([&]{renderer.tick();});
+        mouse.tick();
+        keyboard.tick();
+        renderer.tick();
     }
 }
 
