@@ -138,7 +138,8 @@ void Vulkan::init() {
     init_vulkan();
 
     ///Create Swapchain, Finalize root display
-    mRootDisplay->createSwapchain(mDevice, VK_PRESENT_MODE_IMMEDIATE_KHR);
+    mRootDisplay->startInit(mDevice);
+
     //VK_PRESENT_MODE_FIFO_KHR
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
     mDevice->init_descriptors();
@@ -190,21 +191,13 @@ void Vulkan::init_vulkan() {
 Material* Vulkan::createMaterial(uint32_t features) {
 
     if(!mDevice->bindless()) {
-        features += NE_SHADER_BINDING_BIT;
+        features += NE_FLAG_BINDING_BIT;
     }
 
-    std::pair<std::string, std::string> shaders = assembleShaders(features);
-
-    std::vector<uint32_t>  vertex, fragment;
-    vertex = compileShader("vertex", shaderc_glsl_vertex_shader, shaders.first, true);
-    fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
-
-    std::pair<VkPipeline, VkPipelineLayout> pipelines =
-            mDevice->createPipeline(mRootDisplay->texturePass(),vertex, fragment, features);
-
     Material material{};
-    material.mPipeline = std::get<0>(pipelines);
-    material.mPipelineLayout = std::get<1>(pipelines);
+    material.features = features;
+    material.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
+
     mMaterials[features] = material;
 
     mDeletionQueue.push_function([=, this]() {
@@ -216,9 +209,10 @@ Material* Vulkan::createMaterial(uint32_t features) {
 
 void Vulkan::deleteMaterial(uint32_t features) {
     Material& material = mMaterials[features];
+    auto pipelineInfo = mDevice->getPipeline(material.renderMode, material.features);
 
-    vkDestroyPipeline(mDevice->device(), material.mPipeline, nullptr);
-    vkDestroyPipelineLayout(mDevice->device(), material.mPipelineLayout, nullptr);
+    vkDestroyPipeline(mDevice->device(), pipelineInfo.first, nullptr);
+    vkDestroyPipelineLayout(mDevice->device(), pipelineInfo.second, nullptr);
 
     mMaterials.erase(features);
 }
@@ -275,7 +269,7 @@ void Vulkan::uploadMesh(Mesh &mesh) {
 void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, std::string* textureIndex) {
     //Set hidden bits/flags
     if(!mDevice->bindless()) {
-        material += NE_SHADER_BINDING_BIT;
+        material += NE_FLAG_BINDING_BIT;
     }
 
     RenderObject renderObject{};
@@ -295,7 +289,6 @@ void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string 
 
     mECS->addComponent<RenderObject>(entity, renderObject);
 }
-
 
 void Vulkan::draw() {
     VkCommandBuffer cmd = mRootDisplay->startFrame();
@@ -349,19 +342,18 @@ void Vulkan::draw() {
     }
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
 
-
     Material* mLastMaterial = nullptr;
     Texture* mLastTexture = nullptr;
-
 
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
         MeshGroup& meshGroup = *currentEntity.meshGroup;
 
-
+        auto pipelineInfo = mDevice->getPipeline(currentEntity.material->renderMode, currentEntity.material->features);
         if(currentEntity.material != mLastMaterial) {
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipeline);
+
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
             mLastMaterial = currentEntity.material;
 
             VkDescriptorSet globalDescriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
@@ -369,23 +361,21 @@ void Vulkan::draw() {
             VkDescriptorSet textureDescriptorSet = mRootDisplay->currentFrame().mTextureDescriptor;
 
             //object data descriptor
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
                                     1, 1, &objectDescriptorSet, 0, nullptr);
 
             uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mRootDisplay->frameIndex();
             uniform_offset = 0;
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, currentEntity.material->mPipelineLayout,
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
                                     0, 1, &globalDescriptorSet, 1, &uniform_offset);
-
 
             if(mDevice->bindless()) {
                 //texture descriptor
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        currentEntity.material->mPipelineLayout, 2, 1,
+                                        pipelineInfo.second, 2, 1,
                                         &textureDescriptorSet, 0, nullptr);
             }
         }
-
 
         for(auto & mesh : meshGroup.mMeshes) {
             VkDeviceSize offset = 0;
@@ -406,12 +396,12 @@ void Vulkan::draw() {
             else if(mLastTexture != &mTextures[tex]) {
                 mLastTexture = &mTextures[tex];
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        currentEntity.material->mPipelineLayout, 2, 1,
+                                        pipelineInfo.second, 2, 1,
                                         &mTextures[tex].mTextureSet, 0, nullptr);
             }
 
 
-            vkCmdPushConstants(cmd, currentEntity.material->mPipelineLayout,
+            vkCmdPushConstants(cmd, pipelineInfo.second,
                                VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(PushData), &pushData);
 
 

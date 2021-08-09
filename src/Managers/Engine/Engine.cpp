@@ -4,68 +4,72 @@
 #include <iostream>
 #include <utility>
 
-
 #include "Engine.h"
 
-//void Engine::setRenderer(const std::string& renderer) {
-//    if (renderer == "VK")
-//    {
-//        //VKRenderer.emplace();
-//    }
-//    else {
-//        std::cout << "Bad Renderer create \n";
-//    }
-//}
-//
-//std::string Engine::getRendererType() {
-//    if(VKRenderer.has_value())
-//    {
-//        return "VK";
-//    }
-//    else {
-//        return "NONE";
-//    }
-//}
-//
-//NERenderer* Engine::getVKRenderer() {
-//    if (VKRenderer.has_value())
-//    {
-//        return &VKRenderer.value();
-//    }
-//    else {
-//        std::cout << "Graphics engine requested but none found \n";
-//        return nullptr;
-//    }
-//}
-//
-//uint32_t Engine::createEntity() {
-//    std::string rendererType = Engine::Get().getRendererType();
-//    Coordinator& coordinator = Coordinator::Get();
-//
-//    if(rendererType == "VK") {
-//        uint32_t entity = Coordinator::Get().CreateEntity(0);
-//        Coordinator::Get().AddComponent(entity, VKRenderer->loadEntityObjects("Textures/image0.jpg", ""));
-//        Coordinator::Get().AddComponent(entity, Transform {
-//            .position = {0, 0, 0},
-//            .rotation = {0, 0, 0},
-//            .scale = 1
-//        });
-//        return entity;
-//    }
-//}
-//
-//uint32_t Engine::createEntity(std::string modelPath) {
-//    std::string rendererType = Engine::Get().getRendererType();
-//    Coordinator& coordinator = Coordinator::Get();
-//
-//    if(rendererType == "VK") {
-//        uint32_t entity = Coordinator::Get().CreateEntity(0);
-//        Coordinator::Get().AddComponent(entity, VKRenderer->loadEntityObjects("Textures/image0.jpg", std::move(modelPath)));
-//        Coordinator::Get().AddComponent(entity, Transform {
-//                .position = {0, 0, 0},
-//                .rotation = {0, 0, 0},
-//                .scale = 1
-//        });
-//        return entity;
-//    }
-//}
+
+Engine::Engine() : mECS {ECS::Get()} {
+    mSettings["Renderer"] = VK;
+    mSettings["Display Count"] = 0;
+    mSettings["MSAA"] = VK_SAMPLE_COUNT_1_BIT;
+    mSettings["Editor"] = true;
+}
+
+
+std::shared_ptr<Vulkan> Engine::getVKRenderer() {
+    if (mSettings["Renderer"] == VK)
+    {
+        return VKRenderer;
+    }
+    else {
+        std::cout << "Graphics engine requested but none found \n";
+        return nullptr;
+    }
+}
+
+uint32_t Engine::createEntity() {
+    Entity newEntity = mECS.createEntity(0);
+    return newEntity;
+}
+
+uint32_t Engine::createEntity(std::string modelPath) {
+    if (mSettings["Renderer"] == VK)
+    {
+        Entity newEntity = mECS.createEntity(0);
+        VKRenderer->createMaterial(NE_SHADER_COLOR_BIT);
+        VKRenderer->createMesh(modelPath, modelPath);
+        VKRenderer->makeRenderable(newEntity, NE_SHADER_COLOR_BIT, modelPath);
+        return newEntity;
+    }
+    else {
+        std::cout << "Graphics engine requested but none found \n";
+        return 0;
+    }
+}
+
+uint32_t Engine::createEntity(const std::string& modelPath, std::string texturePath) {
+    if (mSettings["Renderer"] == VK)
+    {
+        Entity newEntity = mECS.createEntity(0);
+        VKRenderer->createMaterial(NE_SHADER_TEXTURE_BIT);
+        VKRenderer->createMesh(modelPath, modelPath);
+        VKRenderer->loadTexture(texturePath, texturePath);
+        VKRenderer->makeRenderable(newEntity, NE_SHADER_COLOR_BIT, modelPath);
+        return newEntity;
+    }
+    else {
+        std::cout << "Graphics engine requested but none found \n";
+        return 0;
+    }
+}
+
+uint32_t Engine::getSetting(std::string key) {
+    return mSettings[key];
+}
+
+void Engine::setSetting(std::string key, uint32_t value) {
+    mSettings[key] = value;
+}
+
+void Engine::startEngine() {
+
+}

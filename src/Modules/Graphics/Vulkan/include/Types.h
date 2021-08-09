@@ -16,6 +16,10 @@
 #define MAX_TEXTURES 768
 
 
+#define NE_SHADER_TEXTURE_BIT 1 << 1 //0001
+#define NE_SHADER_COLOR_BIT 1 << 2   //0010
+#define NE_FLAG_BINDING_BIT 1 << 3  //0100
+
 struct AllocatedBuffer {
     VkBuffer mBuffer;
     VmaAllocation mAllocation;
@@ -80,9 +84,9 @@ struct GPUMaterialData {
 
 struct Material {
     VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
-    VkPipeline mPipeline;
-    VkPipelineLayout mPipelineLayout;
     VkSampler mSampler;
+    uint32_t renderMode;
+    uint32_t features;
 };
 
 struct Camera {
@@ -111,14 +115,14 @@ struct FrameData {
     VkDescriptorSet mTextureDescriptor;
 };
 
-struct RenderPassInfo {
-    VkRenderPass renderPass;
+struct FrameBufferInfo {
     std::vector<VkFramebuffer> frameBuffers;
-
     //Keyed to the SC idx
     std::vector<VkImageView> colorImageViews, depthImageViews, resolveImageViews;
     std::vector<AllocatedImage> colorImages, depthImages, resolveImages;
 };
+
+
 
 
 #endif //NINEENGINE_TYPES_H

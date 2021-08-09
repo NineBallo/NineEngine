@@ -9,7 +9,9 @@
 #include <imgui.h>
 #include "ECS.h"
 #include "Display.h"
+#include "Engine.h"
 class NEDisplay;
+class Engine;
 
 class NEGUI {
 public:
@@ -35,6 +37,7 @@ private:
 
 private:
     ECS& mECS;
+    Engine& mEngine;
 
     Entity mFocusedEntity {0};
     bool mMenuBarEnabled {true};

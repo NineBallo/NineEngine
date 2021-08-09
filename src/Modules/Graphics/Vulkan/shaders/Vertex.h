@@ -28,7 +28,7 @@ std::string vertexBase = "#version 460\n"
                          "    ObjectData objects[];\n"
                          "} objectBuffer;\n";
 
-//Passing in color directly
+//Using vertex data for color sampling and shading
 std::string vertexColor = "layout (location = 0) out vec3 outColor;\n"
                           "void main() {\n"
                           "    mat4 modelMatrix = objectBuffer.objects[gl_BaseInstance].model;\n"
@@ -37,7 +37,7 @@ std::string vertexColor = "layout (location = 0) out vec3 outColor;\n"
                           "    outColor = vColor;\n"
                           "}\n";
 
-//Passing in color through texture
+//Using a texture for color sampling and shading
 std::string vertexTexture = "layout (location = 0) out vec2 texCoord;\n"
                             "\n"
                             "layout(push_constant) uniform VertexData\n"

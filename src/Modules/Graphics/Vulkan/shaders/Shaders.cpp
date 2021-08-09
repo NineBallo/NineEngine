@@ -6,9 +6,7 @@
 
 #include "Vertex.h"
 #include "Fragment.h"
-#include "spirv-tools/libspirv.hpp"
-#include "spirv-tools/optimizer.hpp"
-
+#include "Types.h"
 
 std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
     std::string vertex = vertexBase;
@@ -19,8 +17,8 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
     if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
         textured = true;
-    };
-    if((flags & NE_SHADER_BINDING_BIT) == NE_SHADER_BINDING_BIT) {
+    }
+    if((flags & NE_FLAG_BINDING_BIT) == NE_FLAG_BINDING_BIT) {
         bindless = false;
     }
 
@@ -48,7 +46,7 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
 
     return assembledShaders;
-};
+}
 
 std::string preProcessShader(const std::string& shader, const std::string& name, shaderc_shader_kind kind) {
     shaderc::Compiler compiler;
@@ -77,7 +75,7 @@ std::vector<uint32_t> compileShader(const std::string& source_name, shaderc_shad
 
     if(module.GetCompilationStatus() != shaderc_compilation_status_success) {
         std::cerr << module.GetErrorMessage();
-        return std::vector<uint32_t>();
+        return {};
     }
 
     return {module.cbegin(), module.cend()};

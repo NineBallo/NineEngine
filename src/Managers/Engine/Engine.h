@@ -7,8 +7,9 @@
 
 #include <optional>
 #include <string>
-
-
+#include "ECS.h"
+#include "Vulkan.h"
+class Vulkan;
 
 class Engine {
 public:
@@ -22,10 +23,10 @@ public:
 
 
 public:
-    void setRenderer(const std::string& renderer);
 
+    std::shared_ptr<Vulkan> getVKRenderer();
 
-    uint32_t createEntity(std::string modelPath, std::string texturePath);
+    uint32_t createEntity(const std::string& modelPath, std::string texturePath);
     uint32_t createEntity(std::string modelPath);
     uint32_t createEntity();
 
@@ -37,10 +38,24 @@ public:
     bool updateEntityModel(std::string modelPath);
     bool updateEntityTexture(std::string texturePath);
 
+    void startEngine();
 
     std::string getRendererType();
+
+    uint32_t getSetting(std::string key);
+    void setSetting(std::string key, uint32_t value);
+
+
+    enum Renderers {
+        VK,
+    };
+
 private:
     Engine();
+    //This holds every setting for the engine in a key-value pair, ideally it is persistent.
+    std::unordered_map<std::string, uint32_t> mSettings;
+    std::shared_ptr<Vulkan> VKRenderer;
+    ECS& mECS {ECS::Get()};
 };
 
 

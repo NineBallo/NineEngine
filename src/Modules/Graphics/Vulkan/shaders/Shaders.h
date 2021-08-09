@@ -8,10 +8,10 @@
 #include <vector>
 #include "shaderc/shaderc.hpp"
 
-#define NE_SHADER_TEXTURE_BIT 1 //0001
-#define NE_SHADER_COLOR_BIT 2   //0010
-#define NE_SHADER_PUSHCONSTANTS_BIT 4 //0100
-#define NE_SHADER_BINDING_BIT 8 //1000
+//Pushes are kinda needed for current implementation TODO evaluate if this is needed
+#define NE_FLAG_PUSHCONSTANTS_BIT 1 << 4 //1000
+
+
 
 //vertex, fragment
 std::pair<std::string, std::string> assembleShaders(uint32_t flags);

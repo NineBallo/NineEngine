@@ -8,8 +8,8 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
-#include <Pipeline.h>
-#include "ECS.h"
+
+#include "Pipeline.h"
 #include "Device.h"
 #include "Initializers.h"
 #include "Mesh.h"
@@ -23,6 +23,7 @@ NEDevice::~NEDevice() {
     mDeletionQueue.flush();
 }
 
+//Init methods
 vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Instance &vkb_inst) {
     ///Create/Select rootDevice;
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
@@ -36,8 +37,6 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
 
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
-
-
 
  vkb::PhysicalDevice physicalDevice;
 
@@ -121,6 +120,124 @@ void NEDevice::init_Allocator(VkInstance instance) {
     });
 }
 
+void NEDevice::init_descriptors() {
+    //create a descriptor pool that will hold 10 uniform buffers
+    std::vector<VkDescriptorPoolSize> sizes =
+            {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+            //wawawwa image sampler wawawawawawawawaw
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES}
+            };
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 100;
+    pool_info.poolSizeCount = (uint32_t)sizes.size();
+    pool_info.pPoolSizes = sizes.data();
+
+    vkCreateDescriptorPool(mDevice, &pool_info, nullptr, &mDescriptorPool);
+
+    mDeletionQueue.push_function([&]() {
+        vkDestroyDescriptorPool(mDevice, mDescriptorPool, nullptr);
+    });
+
+    VkDescriptorSetLayoutBinding cameraBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    VkDescriptorSetLayoutBinding sceneBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
+
+    mGlobalSetLayout = createDescriptorSetLayout(0, bindings, 2);
+
+    VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
+
+
+    ///TODO make the descriptor count variable
+    if(mBindless) {
+        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        textureBind.descriptorCount = MAX_TEXTURES;
+        VkDescriptorSetLayoutBinding textureBindings[] = { textureBind };
+
+        VkDescriptorBindingFlags flags[3];
+        flags[0] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+        VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
+        binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+        binding_flags.bindingCount = 1;
+        binding_flags.pBindingFlags = flags;
+
+        mTextureSetLayout = createDescriptorSetLayout(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, textureBindings, 1, &binding_flags);
+    }
+    else {
+        VkDescriptorSetLayoutBinding singleTexBindings[2];
+        singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+
+        mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
+    }
+}
+
+void NEDevice::init_upload_context() {
+    VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
+    vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mUploadContext.mUploadFence);
+
+    mDeletionQueue.push_function([=, this]() {
+        vkDestroyFence(mDevice, mUploadContext.mUploadFence, nullptr);
+    });
+
+    mUploadContext.mCommandPool = createCommandPool(mGraphicsQueueFamily);
+
+    mDeletionQueue.push_function([=, this]() {
+        vkDestroyCommandPool(mDevice, mUploadContext.mCommandPool, nullptr);
+    });
+}
+
+VkRenderPass NEDevice::getRenderPass(uint32_t flags, VkFormat format) {
+    ///TODO proper msaa support built into the gui/ Engine.mSettings
+
+    if(mRenderPassList.contains(flags)) {
+        return mRenderPassList[flags];
+    }
+    else if(format != VK_FORMAT_UNDEFINED) {
+        mRenderPassList[flags] = createRenderpass(format, flags | NE_FLAG_MSAA8x_BIT);
+        return mRenderPassList[flags];
+    }
+    else{
+        std::cout << "RenderPass not created, and not format was provided to crate one.\n";
+        return VK_NULL_HANDLE;
+    }
+}
+
+std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermode, uint32_t features) {
+    if(mBindless) {
+    //    features |= NE_FLAG_BINDING_BIT;
+    }
+
+    if(mRenderPassList.contains(rendermode)) {
+       if(mPipelineList[rendermode].contains(features)) {
+           return mPipelineList[rendermode][features];
+       }
+       else {
+           //Load shader
+           std::pair<std::string, std::string> shaders = assembleShaders(features);
+           std::vector<uint32_t> vertex, fragment;
+           vertex = compileShader("vertex", shaderc_glsl_vertex_shader, shaders.first, true);
+           fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
+
+           //create and return pipeline
+           mPipelineList[rendermode][features] = createPipeline(mRenderPassList[rendermode],
+                                                                vertex, fragment,
+                                                                features | NE_FLAG_MSAA8x_BIT);
+           return mPipelineList[rendermode][features];
+       }
+    } else {
+        std::cout << "No renderpass to fulfill pipeline with requested rendermode";
+        return{};
+    }
+}
+
 VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     bool ToSC = false;
     bool ToTex = false;
@@ -130,10 +247,10 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     VkSampleCountFlagBits MSAAStrength;
 
     //RenderMode
-    if((flags & NE_RENDERPASS_TOSWAPCHAIN_BIT) == NE_RENDERPASS_TOSWAPCHAIN_BIT) {
+    if((flags & NE_RENDERMODE_TOSWAPCHAIN_BIT) == NE_RENDERMODE_TOSWAPCHAIN_BIT) {
         ToSC = true;
     }
-    else if ((flags & NE_RENDERPASS_TOTEXTURE_BIT) == NE_RENDERPASS_TOTEXTURE_BIT) {
+    else if ((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
         ToTex = true;
     }
     else {
@@ -141,15 +258,15 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     }
 
     //MSAA
-    if((flags & NE_RENDERPASS_MSAA8x_BIT) == NE_RENDERPASS_MSAA8x_BIT) {
+    if((flags & NE_FLAG_MSAA8x_BIT) == NE_FLAG_MSAA8x_BIT) {
         MSAAStrength = VK_SAMPLE_COUNT_8_BIT;
         MSAA = true;
     }
-    else if ((flags & NE_RENDERPASS_MSAA4x_BIT) == NE_RENDERPASS_MSAA4x_BIT) {
+    else if ((flags & NE_FLAG_MSAA4x_BIT) == NE_FLAG_MSAA4x_BIT) {
         MSAAStrength = VK_SAMPLE_COUNT_4_BIT;
         MSAA = true;
     }
-    else if ((flags & NE_RENDERPASS_MSAA2x_BIT) == NE_RENDERPASS_MSAA2x_BIT) {
+    else if ((flags & NE_FLAG_MSAA2x_BIT) == NE_FLAG_MSAA2x_BIT) {
         MSAAStrength = VK_SAMPLE_COUNT_2_BIT;
         MSAA = true;
     }
@@ -288,7 +405,7 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
     uint8_t layoutSize = 2;
 
-        if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+    if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
             if(mBindless){
                 layouts[layoutSize] = mTextureSetLayout;
             }
@@ -360,22 +477,6 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
 }
 
 bool NEDevice::loadShaderModule(std::vector<uint32_t> spirv, VkShaderModule &outShaderModule) {
-    //std::ifstream file(filepath, std::ios::ate | std::ios::binary);
-    //if (!file.is_open()) {
-    //    return false;
-    //}
-//
-    ////Create buffer for asm
-    //size_t fileSize = (size_t)file.tellg();
-    //std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-//
-    ////Read asm into buffer
-    //file.seekg(0);
-    //file.read((char*)buffer.data(), fileSize);
-//
-    ////close
-    //file.close();
-
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext = nullptr;
@@ -427,65 +528,6 @@ AllocatedBuffer NEDevice::createBuffer(size_t allocSize, VkBufferUsageFlags usag
     }
 
     return newBuffer;
-}
-
-void NEDevice::init_descriptors() {
-    //create a descriptor pool that will hold 10 uniform buffers
-    std::vector<VkDescriptorPoolSize> sizes =
-            {
-                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-                    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
-                    //wawawwa image sampler wawawawawawawawaw
-                    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES}
-            };
-
-    VkDescriptorPoolCreateInfo pool_info = {};
-    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 100;
-    pool_info.poolSizeCount = (uint32_t)sizes.size();
-    pool_info.pPoolSizes = sizes.data();
-
-    vkCreateDescriptorPool(mDevice, &pool_info, nullptr, &mDescriptorPool);
-
-    mDeletionQueue.push_function([&]() {
-        vkDestroyDescriptorPool(mDevice, mDescriptorPool, nullptr);
-    });
-
-    VkDescriptorSetLayoutBinding cameraBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-    VkDescriptorSetLayoutBinding sceneBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-    VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
-
-    mGlobalSetLayout = createDescriptorSetLayout(0, bindings, 2);
-
-    VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-    mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
-
-
-    ///TODO make the descriptor count variable
-    if(mBindless) {
-        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-        textureBind.descriptorCount = MAX_TEXTURES;
-        VkDescriptorSetLayoutBinding textureBindings[] = { textureBind };
-
-        VkDescriptorBindingFlags flags[3];
-        flags[0] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
-
-        VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
-        binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-        binding_flags.bindingCount = 1;
-        binding_flags.pBindingFlags = flags;
-
-        mTextureSetLayout = createDescriptorSetLayout(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, textureBindings, 1, &binding_flags);
-    }
-    else {
-        VkDescriptorSetLayoutBinding singleTexBindings[2];
-        singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-        singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
-
-        mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
-    }
 }
 
 VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
@@ -562,21 +604,6 @@ size_t NEDevice::padUniformBufferSize(size_t originalSize) {
     return alignedSize;
 }
 
-void NEDevice::init_upload_context() {
-    VkFenceCreateInfo fenceCreateInfo = init::fenceCreateInfo();
-    vkCreateFence(mDevice, &fenceCreateInfo, nullptr, &mUploadContext.mUploadFence);
-
-    mDeletionQueue.push_function([=, this]() {
-        vkDestroyFence(mDevice, mUploadContext.mUploadFence, nullptr);
-    });
-
-    mUploadContext.mCommandPool = createCommandPool(mGraphicsQueueFamily);
-
-    mDeletionQueue.push_function([=, this]() {
-        vkDestroyCommandPool(mDevice, mUploadContext.mCommandPool, nullptr);
-    });
-}
-
 void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) {
 
     //allocate the default command buffer that we will use for the instant commands
@@ -606,6 +633,7 @@ void NEDevice::immediateSubmit(std::function<void(VkCommandBuffer)> &&function) 
     vkResetCommandPool(mDevice, mUploadContext.mCommandPool, 0);
 }
 
+
 VkSampler NEDevice::createSampler(uint32_t mipLevels) {
     //create a sampler for the texture
     VkSamplerCreateInfo samplerInfo = init::samplerCreateInfo(VK_FILTER_LINEAR, mMaxAnisotropy, mipLevels);
@@ -622,7 +650,6 @@ VkSampleCountFlagBits NEDevice::getMaxSampleCount() {
                               & mGPUProperties.limits.framebufferDepthSampleCounts;
 
     VkSampleCountFlagBits count;
-
     std::cout << "Max MSAA supported for device is: ";
     if(counts & VK_SAMPLE_COUNT_64_BIT) { count = VK_SAMPLE_COUNT_64_BIT; std::cout << "64x\n";}
     else if(counts & VK_SAMPLE_COUNT_32_BIT) { count = VK_SAMPLE_COUNT_32_BIT; std::cout << "32x\n";}
@@ -665,8 +692,6 @@ void NEDevice::transitionImageLayout(VkImage image, VkImageLayout srcLayout, VkI
         imageBarrier.subresourceRange.baseArrayLayer = 0;
         imageBarrier.subresourceRange.levelCount = mipLevel;
         imageBarrier.subresourceRange.layerCount = 1;
-
-
 
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;

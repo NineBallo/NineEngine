@@ -7,7 +7,8 @@
 #include "backends/imgui_impl_vulkan.h"
 #include "backends/imgui_impl_glfw.h"
 
-NEGUI::NEGUI(NEDisplay* display) : mECS {ECS::Get()} {
+
+NEGUI::NEGUI(NEDisplay* display) : mECS {ECS::Get()}, mEngine{Engine::Get()} {
     mDisplay = display;
 
     SubscribeData sd {
@@ -93,7 +94,7 @@ void NEGUI::checkFrameBuffers(VkDevice device) {
             .height = static_cast<uint32_t>(mNextRenderWindowSize.y),
             };
 
-        mDisplay->resizeFrameBuffer(extent, NE_RENDERPASS_TOTEXTURE_BIT);
+        mDisplay->resizeFrameBuffer(extent, NE_RENDERMODE_TOTEXTURE_BIT);
 
         mFrameBufferExpired = false;
 
@@ -105,11 +106,10 @@ void NEGUI::checkFrameBuffers(VkDevice device) {
 }
 
 void NEGUI::drawRenderSpace(uint16_t currentFrame) {
-    ImGui::Begin("Texture Test", nullptr , ImGuiWindowFlags_NoScrollbar);
+    ImGui::Begin("Game Viewer", nullptr , ImGuiWindowFlags_NoScrollbar);
     ImVec2 image = ImGui::GetWindowSize();
 
     if(mLastRenderWindowSize.x != image.x || mLastRenderWindowSize.y != image.y) {
-        std::cout << "X: " << image.x << "Y: " << image.y << std::endl;
         mFrameBufferExpired = true;
 
         mNextRenderWindowSize = image;
@@ -125,6 +125,7 @@ void NEGUI::drawMenuBar() {
         if(ImGui::BeginMenu("Options")) {
             if(ImGui::MenuItem("FullScreen")) {
                 mDisplay->toggleFullscreen();
+                mEngine.setSetting("FullScreen", true);
             }
             ImGui::EndMenu();
         }
@@ -175,19 +176,19 @@ void NEGUI::drawEntityPanel() {
 
                 ImGui::Text("Position Component");
                 ImGui::Text("Translation");
-                ImGui::SliderFloat("Coordinate X", &component.coordinates.x, 0.f, 1000.f);
-                ImGui::SliderFloat("Coordinate Y", &component.coordinates.y, 0.f, 1000.f);
-                ImGui::SliderFloat("Coordinate Z", &component.coordinates.z, 0.f, 1000.f);
+                ImGui::SliderFloat("Coordinate X", &component.coordinates.x, -1000.f, 1000.f);
+                ImGui::SliderFloat("Coordinate Y", &component.coordinates.y, -1000.f, 1000.f);
+                ImGui::SliderFloat("Coordinate Z", &component.coordinates.z, -1000.f, 1000.f);
 
                 ImGui::Text("Rotation");
-                ImGui::SliderFloat("Pitch", &component.rotations.x, -90.f, 90.f);
+                ImGui::SliderFloat("Pitch", &component.rotations.x, 0.f, 359.f);
                 ImGui::SliderFloat("Yaw", &component.rotations.y, 0.f, 359.f);
                 ImGui::SliderFloat("Roll", &component.rotations.z, 0.f, 359.f);
 
                 ImGui::Text("Scalar");
-                ImGui::SliderFloat("Scalar X", &component.scalar.x, 0.f, 1.f);
-                ImGui::SliderFloat("Scalar Y", &component.scalar.y, 0.f, 1.f);
-                ImGui::SliderFloat("Scalar Z", &component.scalar.z, 0.f, 1.f);
+                ImGui::SliderFloat("Scalar X", &component.scalar.x, 0.001f, 1.f);
+                ImGui::SliderFloat("Scalar Y", &component.scalar.y, 0.001f, 1.f);
+                ImGui::SliderFloat("Scalar Z", &component.scalar.z, 0.001f, 1.f);
             }
             else if(mSelected.second == camera) {
                 auto& component = mECS.getComponent<Camera>(mSelected.first);
@@ -203,7 +204,7 @@ void NEGUI::drawEntityPanel() {
                 ImGui::SliderFloat("Aspect", &component.aspect, 0.1f, 3.f);
                 ImGui::SliderFloat("Degrees", &component.degrees, 0.1f, 90.f);
                 ImGui::SliderFloat("ZFar", &component.zfar, 0.1f, 1000.f);
-                ImGui::SliderFloat("ZNear", &component.znear, 0.0f, 1000.f);
+                ImGui::SliderFloat("ZNear", &component.znear, 0.0f, 10.f);
             }
 
         } ImGui::End();

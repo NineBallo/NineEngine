@@ -20,7 +20,7 @@ std::string fragmentBase = "#version 450\n"
                            "    vec4 sunlightColor;\n"
                            "} sceneData;\n";
 
-//Build with sampler and texcoord passthrough
+//Build with sampler and TexCoord passthrough
 std::string fragmentTexture = "#extension GL_EXT_nonuniform_qualifier : require\n"
                               "layout (location = 0) in vec2 uv;\n"
                               "layout(set = 2, binding = 0) uniform sampler2D combinedSampler[];\n"
@@ -37,7 +37,7 @@ std::string fragmentTexture = "#extension GL_EXT_nonuniform_qualifier : require\
                               "    outColor = texture(combinedSampler[fragData.texIdx], uv) + sceneData.ambientColor;\n"
                               "}";
 
-//Build with sampler and texcoord passthrough
+//Build with sampler and TexCoord passthrough
 std::string fragmentTextureBinding = "layout (location = 0) in vec2 uv;\n"
                                      "layout(set = 2, binding = 0) uniform sampler samp;\n"
                                      "layout(set = 2, binding = 1) uniform texture2D tex;\n"
