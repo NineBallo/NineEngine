@@ -10,6 +10,8 @@
 #include <string>
 #include <array>
 #include <optional>
+#include <chrono>
+
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
 
@@ -17,18 +19,11 @@
 #include "Display.h"
 #include "Types.h"
 #include "Mesh.h"
-
-#include "chrono"
-//Im sure this breaks a few design patterns lol
 #include "ECS.h"
 #include "Textures.h"
 #include "../shaders/Shaders.h"
 
-
-//using texture = uint32_t;
-
-
-class Vulkan : Module {
+class Vulkan {
 public:
     Vulkan(ECS &ecs, Entity cameraEntity);
     ~Vulkan();
@@ -38,10 +33,10 @@ public:
 
     bool shouldExit();
 
-    Material* createMaterial(uint32_t features);
-    void deleteMaterial(uint32_t features);
+    Material* createMaterial(const std::string& name, uint32_t features, glm::vec3 color = {});
+    void deleteMaterial(const std::string& name);
 
-    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, std::string* Textures = {}, std::string* textureIndex = {});
+    void makeRenderable(Entity entity, std::string material, const std::string& mesh, std::string* Textures = {}, std::string* textureIndex = {});
 
     void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
@@ -82,29 +77,11 @@ private:
     //Only used for legacy descriptor backend
     VkSampler mSampler;
 
-private:
-    std::unordered_map<uint32_t, Material> mMaterials;
-    std::unordered_map<std::string, MeshGroup> mMeshGroups;
-
-    std::unordered_map<std::string, Texture> mTextures;
-    std::unordered_map<std::string, uint32_t> mTextureToBinding;
-    std::unordered_map<uint32_t, std::string> mBindingToTexture;
-    uint32_t mTextureCount {0};
 
 private:
-    ECS *mECS;
-
-    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList;
-    uint32_t mEntityListSize = 0;
-    std::array<std::pair<Display, Entity>, MAX_ENTITYS> mEntityToPos;
-
     bool mShouldExit = false;
 
-    Entity mCameraEntity = 0;
-
-
-
-    ///Engine deletion queue
+    ///Vulkan deletion queue
     DeletionQueue mDeletionQueue;
 };
 

@@ -24,7 +24,6 @@ float getTimeToComplete(std::function<void()> &&function) {
     return duration.count();
 }
 
-
 int main(){
     ECS &ecs = ECS::Get();
 
@@ -38,7 +37,7 @@ int main(){
 
     Vulkan renderer(ecs, player);
 
-    renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
+    renderer.createMaterial("Tex", NE_SHADER_TEXTURE_BIT);
     renderer.createMesh("./models/sponza.obj", "model");
     renderer.loadTexture("./models/textures/lion.tga", "lion");
     renderer.loadTexture("./models/textures/background.tga", "background");
@@ -85,18 +84,19 @@ int main(){
                              "vase_round", "Material__47"
     };
 
-    renderer.makeRenderable(mainEntity, NE_SHADER_TEXTURE_BIT, "model", textures, index);
-
+    //renderer.createMaterial(NE_SHADER_COLOR_BIT);
+    //renderer.createMesh("./models/untitled.obj", "square");
+    renderer.makeRenderable(mainEntity, "Tex", "model", textures, index);
 
     Keyboard keyboard(renderer.getWindow(0));
     Mouse mouse(renderer.getWindow(0));
 
     auto& cameraRef = ecs.getComponent<Camera>(player);
 
-    keyboard.registerMovement(GLFW_KEY_W, {0, 0, 0}, 20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_S, {0,0,0}, -20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_A, {0,90,0}, -20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
-    keyboard.registerMovement(GLFW_KEY_D, {0,90,0}, 20, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_W, {0, 0, 0}, 30, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_S, {0,0,0}, -30, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_A, {0,90,0}, -30, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
+    keyboard.registerMovement(GLFW_KEY_D, {0,90,0}, 30, std::addressof(cameraRef.Pos), std::addressof(cameraRef.Angle));
     keyboard.registerValue(GLFW_KEY_LEFT_CONTROL, -20, 1, std::addressof(cameraRef.Pos));
     keyboard.registerValue(GLFW_KEY_SPACE, 20, 1, std::addressof(cameraRef.Pos));
 

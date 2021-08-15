@@ -52,10 +52,16 @@ struct GPUCameraData {
     glm::mat4 viewproj;
 };
 
-struct PushData {
+struct TexPushData {
     int textureIndex;
     int entityID;
 };
+
+struct ColorPushData {
+    glm::vec4 color;
+    int entityID;
+};
+
 
 struct GPUSceneData {
     //Need to use all vec4's for alignment purposes so not all values are used
@@ -85,8 +91,10 @@ struct GPUMaterialData {
 struct Material {
     VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
     VkSampler mSampler;
+
     uint32_t renderMode;
     uint32_t features;
+    glm::vec4 color;
 };
 
 struct Camera {
@@ -121,8 +129,6 @@ struct FrameBufferInfo {
     std::vector<VkImageView> colorImageViews, depthImageViews, resolveImageViews;
     std::vector<AllocatedImage> colorImages, depthImages, resolveImages;
 };
-
-
 
 
 #endif //NINEENGINE_TYPES_H

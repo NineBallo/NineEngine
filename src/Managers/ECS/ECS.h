@@ -38,31 +38,22 @@ constexpr auto type_name() noexcept {
     return name;
 }
 
-///All subscriber modules will extend this as they all require these variables
-class Module {
-protected:
-    Module() = default;
-
-    //Packed array for fast iteration
-    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList{};
-
-    //Current size / index of last entity + 1
-    uint32_t mEntityListSize = 0;
-
-    //Map for packed array, may be unnecessary
-    std::array<std::pair<Display, Entity>, MAX_ENTITYS> mEntityToPos{};
-};
 ///Subscribers will submit this
 ///Redundant but creates a faster interface as I dont have to lookup the vtable
 struct SubscribeData {
     //Packed array for fast iteration
-    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS>* localEntityList = nullptr;
+    std::array<Entity, MAX_ENTITYS>* localEntityList = nullptr;
 
     //Current size/index of last entity + 1
     uint32_t * size = nullptr;
 
     //Map for packed array, may be unnecessary
-    std::array<std::pair<Display, Entity>, MAX_ENTITYS>* entityToPos = nullptr;
+    std::array<uint32_t, MAX_ENTITYS>* entityToPos = nullptr;
+
+    //display used will be (display - 1) display 1 will be a ref to index 0, and display 0 will be a ref to all.
+    uint32_t display = 0;
+
+
 };
 
 class ComponentBase {
@@ -281,12 +272,12 @@ public:
             for(Entity i = 0; i < displaySize[display]; i++) {
                 Entity entity = displays[display][i];
 
-                std::pair<uint32_t, uint32_t> allegedPosition = (*data.entityToPos)[entity];
+                uint32_t allegedPosition = (*data.entityToPos)[entity];
 
-                if((*data.localEntityList)[allegedPosition.first][allegedPosition.second] != entity || (*data.size) == 0) {
+                if((*data.localEntityList)[allegedPosition] != entity || (*data.size) == 0) {
                     if ((entitySignatures[entity] & signature) == signature) {
-                        (*data.localEntityList)[0][(*data.size)] = entity;
-                        (*data.entityToPos)[entity] = std::pair(0, (*data.size));
+                        (*data.localEntityList)[(*data.size)] = entity;
+                        (*data.entityToPos)[entity] = (*data.size);
                         (*data.size)++;
                     }
                 }
@@ -309,32 +300,31 @@ public:
             Display display = std::get<0>(pos);
 
             //Test if entity already exists on system and exit if it does
-            Display allegedDisplay = std::get<0>((*system.entityToPos)[entity]);
-            uint32_t allegedIndex = std::get<1>((*system.entityToPos)[entity]);
+            uint32_t allegedIndex = (*system.entityToPos)[entity];
 
             //Check if we are potentially updating or adding entity
-            if ((*system.localEntityList)[allegedDisplay][allegedIndex] == entity) {
+            if ((*system.localEntityList)[allegedIndex] == entity) {
                 if(!((entitySig & systemSig) == systemSig)) {
 
                     (*system.size)--;
-                    uint32_t index = std::get<1>((*system.entityToPos)[entity]);
+                    uint32_t index = (*system.entityToPos)[entity];
 
                     //Get Entity in back
                     uint32_t backEntity = (*system.size);
 
                     //Repack array
-                    (*system.localEntityList)[display][index] = (*system.localEntityList)[display][backEntity];
+                    (*system.localEntityList)[index] = (*system.localEntityList)[backEntity];
 
                     //Update maps to keep track of entity
-                    (*system.entityToPos)[entity] = {display, *system.size};
+                    (*system.entityToPos)[entity] = (*system.size);
                 }
             }
             ////Entity must include needed signatures
             else if((entitySig & systemSig) == systemSig) {
                 uint32_t newIndex = *system.size;
 
-                (*system.localEntityList)[display][newIndex] = entity;
-                (*system.entityToPos)[entity] = {display, newIndex};
+                (*system.localEntityList)[newIndex] = entity;
+                (*system.entityToPos)[entity] = newIndex;
                 (*system.size)++;
             }
         }

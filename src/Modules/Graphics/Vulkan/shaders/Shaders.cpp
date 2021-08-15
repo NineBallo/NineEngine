@@ -2,15 +2,40 @@
 // Created by nineball on 7/21/21.
 //
 
+#include <sstream>
 #include "Shaders.h"
-
-#include "Vertex.h"
-#include "Fragment.h"
+#include "fstream"
 #include "Types.h"
+#include "iostream"
+
+std::string readFile(std::string path) {
+    std::ifstream file(path);
+
+    //, std::ios::ate | std::ios::binary
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+
+    //Create a buffer the size of the file
+    size_t fileSize = (size_t) file.tellg();
+    std::string buffer;
+    buffer.reserve(fileSize);
+
+    //Go to beginning of file them write to buffer
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    file.close();
+
+    buffer = ss.str();
+
+    return buffer;
+}
+
 
 std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
-    std::string vertex = vertexBase;
-    std::string fragment = fragmentBase;
+    std::string vertex; //= vertexBase;
+    std::string fragment; //= fragmentBase;
 
     bool bindless = true;
     bool textured = false;
@@ -24,18 +49,14 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
     ///Assembly time
     if(textured) {
-        vertex += vertexTexture;
-        if(bindless) {
-            fragment += fragmentTexture;
-        }
-        else {
-            fragment += fragmentTextureBinding;
-        }
+
+        vertex = readFile("./shaders/TexShader.vert");
+        fragment = readFile("./shaders/TexShader.frag");
 
     }
     else {
-        vertex += vertexColor;
-        fragment += fragmentColor;
+        vertex = readFile("./shaders/TexShader.vert");
+        fragment = readFile("./shaders/TexShader.frag");
     }
 
     //Vertex, Fragment
@@ -80,3 +101,4 @@ std::vector<uint32_t> compileShader(const std::string& source_name, shaderc_shad
 
     return {module.cbegin(), module.cend()};
 }
+

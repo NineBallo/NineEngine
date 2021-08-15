@@ -71,6 +71,8 @@ public:
     bool shouldExit();
     void toggleFullscreen();
 
+    void drawFrame();
+    void presentFrame();
 
 private:
     //Internal init abstraction
@@ -79,6 +81,7 @@ private:
     void createSyncStructures(FrameData &frame);
     void createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t flags, bool MSAA);
     void populateFrameData();
+    void cleanupFramebuffer(uint32_t FBflags);
 
     //Internal Swapchain/Framebuffer Recreation
     void recreateSwapchain();
@@ -112,9 +115,9 @@ private:
     std::string mTitle;
     bool mFullScreen {false};
 
-
     //Swapchain variables
     VkSwapchainKHR mSwapchain {VK_NULL_HANDLE};
+    VkSwapchainKHR mOldSwapchain {VK_NULL_HANDLE};
     VkFormat mFormat;
     VkPresentModeKHR mPresentMode;
 
@@ -137,6 +140,13 @@ private:
     //Ref's to "friend" classes. (not friend in the C++ sense however)
     std::shared_ptr<NEDevice> mDevice;
     std::unique_ptr<NEGUI> mGUI;
+
+    //For Draw
+    Entity mCameraEntity = 0;
+
+    std::array<Entity, MAX_ENTITYS> mLocalEntityList;
+    uint32_t mEntityListSize = 0;
+    std::array<Entity, MAX_ENTITYS> mEntityToPos;
 
 //Variables needed for cleanup and destruction
     VkInstance mInstance {VK_NULL_HANDLE};

@@ -80,6 +80,7 @@ private:
     //Timings
     std::chrono::time_point<std::chrono::steady_clock> currentTick, lastTick;
     std::vector<float> mFrameTimes;
+    uint32_t mFrameCount;
 };
 
 

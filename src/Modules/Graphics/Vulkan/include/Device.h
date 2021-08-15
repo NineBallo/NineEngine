@@ -11,6 +11,7 @@
 #include <VkBootstrap.h>
 #include <vk_mem_alloc.h>
 #include "Common.h"
+#include "Mesh.h"
 
 #define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0
 #define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1
@@ -68,7 +69,6 @@ public:
 private:
 //Internal abstraction
     //Descriptor set layout methods
-    VkDescriptorSetLayoutBinding createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
     VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutCreateFlags flags, VkDescriptorSetLayoutBinding* bindingArray,
                                                     uint8_t arraySize, void* pNext = nullptr);
 
@@ -133,6 +133,17 @@ private:
     VkDescriptorSetLayout mSingleTextureSetLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout mTextureSetLayout {VK_NULL_HANDLE};
 
+    //Per device allocated resources
+    std::unordered_map<std::string, Texture> mTextures;
+    std::unordered_map<std::string, uint32_t> mTextureToBinding;
+    std::unordered_map<uint32_t, std::string> mBindingToTexture;
+    uint32_t mTextureCount {0};
+
+    std::unordered_map<std::string, Material> mMaterials;
+    std::unordered_map<std::string, MeshGroup> mMeshGroups;
+
+
+
     //List of all allocated RenderPasses, keyed by the RenderPass flags.
     std::unordered_map<uint32_t, VkRenderPass> mRenderPassList;
         //key is the renderpass flags, second key is the features, result is a pair with pipeline and its layout
@@ -143,6 +154,9 @@ private:
 
     //The context used for one time immediate submit commands
     UploadContext mUploadContext {};
+
+
+
 
     //This will be flushed on destruction
     DeletionQueue mDeletionQueue {};

@@ -8,8 +8,7 @@
 #include <optional>
 #include <string>
 #include "ECS.h"
-#include "Vulkan.h"
-class Vulkan;
+#include "../../Modules/Graphics/Graphics.h"
 
 class Engine {
 public:
@@ -23,8 +22,7 @@ public:
 
 
 public:
-
-    std::shared_ptr<Vulkan> getVKRenderer();
+    //std::shared_ptr<Graphics> getVKRenderer();
 
     uint32_t createEntity(const std::string& modelPath, std::string texturePath);
     uint32_t createEntity(std::string modelPath);
@@ -54,7 +52,7 @@ private:
     Engine();
     //This holds every setting for the engine in a key-value pair, ideally it is persistent.
     std::unordered_map<std::string, uint32_t> mSettings;
-    std::shared_ptr<Vulkan> VKRenderer;
+  //  std::unique_ptr<Graphics> VKRenderer;
     ECS& mECS {ECS::Get()};
 };
 

@@ -12,9 +12,8 @@
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
+
 //Circular include issues..
-
-
 NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
     mTitle = createInfo.title;
@@ -33,19 +32,35 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
     mExtent = createInfo.extent;
     mInstance = createInfo.instance;
 
-
     mGUI = std::make_unique<NEGUI>(this);
+
+    SubscribeData subscribeData {
+        .localEntityList = &mLocalEntityList,
+        .size = &mEntityListSize,
+        .entityToPos = &mEntityToPos,
+        .display = 0,
+        };
+
+    ECS::Get().registerComponent<RenderObject>();
+    ECS::Get().registerComponent<Position>();
+
+    ECS::Get().registerSystem<Vulkan>(subscribeData);
+
+    Signature systemSig {};
+    systemSig.set(ECS::Get().getComponentType<RenderObject>());
+    systemSig.set(ECS::Get().getComponentType<Position>());
+
+    ECS::Get().setSystemSignature<Vulkan>(systemSig);
 }
 
 NEDisplay::~NEDisplay() {
     vkDeviceWaitIdle(mDevice->device());
 
     mSwapchainQueue.flush();
+    vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
+    cleanupFramebuffer(NE_RENDERMODE_TOTEXTURE_BIT);
+    cleanupFramebuffer(NE_RENDERMODE_TOSWAPCHAIN_BIT);
     mDeletionQueue.flush();
-
-    if(mSurface != VK_NULL_HANDLE) {
-        vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
-    }
 
     glfwDestroyWindow(mWindow);
     glfwTerminate();
@@ -61,6 +76,9 @@ void NEDisplay::finishInit() {
     //Create simple 1 mip generic sampler
     mSimpleSampler = mDevice->createSampler();
 
+    mDeletionQueue.push_function([=, this]() {
+        vkDestroySampler(mDevice->device(), mSimpleSampler, nullptr);
+    });
     //Create both RenderPasses
 
     createDescriptors();
@@ -89,6 +107,9 @@ void NEDisplay::createSurface(VkInstance instance) {
     if (glfwCreateWindowSurface(instance, mWindow, nullptr, &mSurface) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create window surface!\n");
     }
+    mDeletionQueue.push_function([=, this]() {
+        vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
+    });
 }
 
 
@@ -103,6 +124,7 @@ void NEDisplay::createSwapchain(VkPresentModeKHR presentMode) {
             .use_default_format_selection()
             .set_desired_present_mode(presentMode)
             .set_desired_extent(width, height)
+            .set_old_swapchain(mOldSwapchain)
             .build()
             .value();
 
@@ -121,7 +143,8 @@ void NEDisplay::createSwapchain(VkPresentModeKHR presentMode) {
     }
 
     mSwapchainQueue.push_function([=, this]() {
-        vkDestroySwapchainKHR(mDevice->device(), mSwapchain, nullptr);
+        vkDestroySwapchainKHR(mDevice->device(), mOldSwapchain, nullptr);
+        mOldSwapchain = mSwapchain;
     });
 
     //Gonna need this later...
@@ -147,7 +170,6 @@ void NEDisplay::createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t 
         fbInfo.depthImageViews.resize(mSwapchainImageCount);
         fbInfo.colorImages.resize(mSwapchainImageCount);
         fbInfo.colorImageViews.resize(mSwapchainImageCount);
-
 
         if((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
             fbInfo.resolveImageViews.resize(mSwapchainImageCount);
@@ -194,11 +216,16 @@ void NEDisplay::resizeFrameBuffer(VkExtent2D extent, uint32_t flags) {
     }
     else {
         format = VK_FORMAT_R8G8B8A8_SRGB;
+        cleanupFramebuffer(flags);
     }
 
-    FrameBufferInfo& fbInfo = mFrameBufferList[flags];
+    createFramebuffers(extent, format, flags, true);
+}
 
+void NEDisplay::cleanupFramebuffer(uint32_t FBflags) {
+    FrameBufferInfo& fbInfo = mFrameBufferList[FBflags];
     for (int i = 0; i < mSwapchainImageCount; i++) {
+
         vkDestroyFramebuffer(mDevice->device(), fbInfo.frameBuffers[i], nullptr);
 
         vkDestroyImageView(mDevice->device(), fbInfo.colorImageViews[i], nullptr);
@@ -207,13 +234,12 @@ void NEDisplay::resizeFrameBuffer(VkExtent2D extent, uint32_t flags) {
         vkDestroyImageView(mDevice->device(), fbInfo.depthImageViews[i], nullptr);
         vmaDestroyImage(mDevice->allocator(), fbInfo.depthImages[i].mImage, fbInfo.depthImages[i].mAllocation);
 
-        if((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
-            vkDestroyImageView(mDevice->device(), fbInfo.resolveImageViews[i], nullptr);
+        vkDestroyImageView(mDevice->device(), fbInfo.resolveImageViews[i], nullptr);
+
+        if((FBflags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
             vmaDestroyImage(mDevice->allocator(), fbInfo.resolveImages[i].mImage, fbInfo.resolveImages[i].mAllocation);
         }
     }
-
-    createFramebuffers(extent, format, flags, true);
 }
 
 void NEDisplay::createSyncStructures(FrameData &frame) {
@@ -231,8 +257,6 @@ void NEDisplay::createSyncStructures(FrameData &frame) {
         vkDestroyFence(mDevice->device(), frame.mRenderFence, nullptr);
     });
 
-
-
     VkSemaphoreCreateInfo semaphoreCreateInfo = init::semaphoreCreateInfo();
 
     if (vkCreateSemaphore(mDevice->device(), &semaphoreCreateInfo, nullptr, &frame.mPresentSemaphore) != VK_SUCCESS) {
@@ -246,6 +270,132 @@ void NEDisplay::createSyncStructures(FrameData &frame) {
         vkDestroySemaphore(mDevice->device(), frame.mPresentSemaphore, nullptr);
         vkDestroySemaphore(mDevice->device(), frame.mRenderSemaphore, nullptr);
     });
+}
+
+void NEDisplay::drawFrame() {
+    //TODO potential to add different pathways here so that branch complexity is marginally decreased per frame
+   VkCommandBuffer cmd = startFrame();
+
+   FrameData &frame = mFrames[mCurrentFrame];
+
+   //Camera setup
+   auto& camera = ECS::Get().getComponent<Camera>(mCameraEntity);
+   //x = pitch, y = yaw, z = roll
+   glm::vec3 angles = camera.Angle;
+
+   glm::vec3 direction;
+   direction.x = cos(glm::radians(angles.y)) * cos(glm::radians(angles.x));
+   direction.y = sin(glm::radians(angles.x));
+   direction.z = sin(glm::radians(angles.y)) * cos(glm::radians(angles.x));
+   direction = glm::normalize(direction);
+
+   glm::mat4 view = glm::lookAt(camera.Pos, camera.Pos + direction, glm::vec3(0, 1.f, 0));
+   glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect,
+                                           camera.znear, camera.zfar);
+   projection[1][1] *= -1;
+
+   GPUCameraData cameraData {};
+   cameraData.proj = projection;
+   cameraData.view = view;
+   cameraData.viewproj = projection * view;
+
+   void* data;
+   vmaMapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation, &data);
+   memcpy(data, &cameraData, sizeof(GPUCameraData));
+   vmaUnmapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation);
+
+   ///Calculate all positions and send to gpu
+   void* objectData;
+   vmaMapMemory(mDevice->allocator(), frame.mObjectBuffer.mAllocation, &objectData);
+
+   auto* objectSSBO = (GPUObjectData*)objectData;
+
+   for (int i = 0; i < mEntityListSize; i++)
+   {
+       Entity currentEntityID = mLocalEntityList[i];
+       auto& position = ECS::Get().getComponent<Position>(currentEntityID);
+
+       glm::mat4 model {1.0f};
+       model = glm::translate(model, glm::vec3{position.coordinates});
+       model = glm::rotate(model, position.rotations.x * (3.14f/180), {1.f, 0.f , 0.f});
+       model = glm::rotate(model, position.rotations.y * (3.14f/180), {0.f, 1.f , 0.f});
+       model = glm::rotate(model, position.rotations.z * (3.14f/180), {0.f, 0.f , 1.f});
+       model = glm::scale(model, position.scalar);
+
+       objectSSBO[currentEntityID].modelMatrix = model;
+   }
+   vmaUnmapMemory(mDevice->allocator(), frame.mObjectBuffer.mAllocation);
+
+   Material* mLastMaterial = nullptr;
+   Texture* mLastTexture = nullptr;
+
+   for(Entity i = 0; i < mEntityListSize; i++) {
+       Entity currentEntityID = mLocalEntityList[i];
+       auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
+       MeshGroup& meshGroup = *currentEntity.meshGroup;
+
+       auto pipelineInfo = mDevice->getPipeline(currentEntity.material->renderMode, currentEntity.material->features);
+       if(currentEntity.material != mLastMaterial) {
+
+           vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
+           mLastMaterial = currentEntity.material;
+
+           VkDescriptorSet globalDescriptorSet = frame.mGlobalDescriptor;
+           VkDescriptorSet objectDescriptorSet = frame.mObjectDescriptor;
+           VkDescriptorSet textureDescriptorSet = frame.mTextureDescriptor;
+
+           //object data descriptor
+           vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
+                                   1, 1, &objectDescriptorSet, 0, nullptr);
+
+           uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mCurrentFrame;
+           uniform_offset = 0;
+           vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
+                                   0, 1, &globalDescriptorSet, 1, &uniform_offset);
+
+           if(mDevice->bindless()) {
+               //texture descriptor
+               vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                       pipelineInfo.second, 2, 1,
+                                       &textureDescriptorSet, 0, nullptr);
+           }
+       }
+
+       for(auto & mesh : meshGroup.mMeshes) {
+           VkDeviceSize offset = 0;
+           vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
+           vkCmdBindIndexBuffer(cmd, mesh.mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
+
+           TexPushData pushData{};
+           pushData.entityID = currentEntityID;
+
+           //Get texture for mesh
+           uint32_t texIdx = meshGroup.mMatToIdx[mesh.mMaterial];
+           std::string tex = meshGroup.mTextures[texIdx];
+
+
+           if(mDevice->bindless()) {
+               pushData.textureIndex = mTextureToBinding[tex];
+           }
+           else if(mLastTexture != &mTextures[tex]) {
+               mLastTexture = &mTextures[tex];
+               vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                       pipelineInfo.second, 2, 1,
+                                       &mTextures[tex].mTextureSet, 0, nullptr);
+           }
+
+
+           vkCmdPushConstants(cmd, pipelineInfo.second,
+                              VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(TexPushData), &pushData);
+
+
+           vkCmdDrawIndexed(cmd, mesh.mIndices.size(), 1, 0, 0, 0);
+       }
+   }
+}
+
+void NEDisplay::presentFrame() {
+    endFrame();
 }
 
 
@@ -270,13 +420,12 @@ VkCommandBuffer NEDisplay::startFrame() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-
     //Wipe and prep command buffer to be handed to the renderer
-
     VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
 
     VkExtent2D texExtent = mGUI->getRenderWindowSize();
+
     //Bind the first renderpass that we will draw the entity's/objects with.
     setupBindRenderpass(frame.mCommandBuffer, NE_RENDERMODE_TOTEXTURE_BIT, texExtent);
     setPipelineDynamics(frame.mCommandBuffer, texExtent);
@@ -306,7 +455,6 @@ void NEDisplay::endFrame() {
     ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
     ImGui::End();
 
-
     ImGui::Render();
 
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), frame.mCommandBuffer);
@@ -324,7 +472,6 @@ void NEDisplay::endFrame() {
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &frame.mRenderSemaphore;
 
-
     //Submit command buffer and execute it.
     vkQueueSubmit(mDevice->graphicsQueue(), 1, &submit, frame.mRenderFence);
 
@@ -339,7 +486,6 @@ void NEDisplay::endFrame() {
     presentInfo.waitSemaphoreCount = 1;
 
     presentInfo.pImageIndices = &mSwapchainImageIndex;
-
 
     VkResult result = vkQueuePresentKHR(mDevice->graphicsQueue(), &presentInfo);
 
@@ -376,6 +522,7 @@ void NEDisplay::recreateSwapchain() {
     vkDeviceWaitIdle(mDevice->device());
     mSwapchainQueue.flush();
 
+    cleanupFramebuffer(NE_RENDERMODE_TOSWAPCHAIN_BIT);
     createSwapchain(mPresentMode);
     resizeFrameBuffer(mExtent, NE_RENDERMODE_TOSWAPCHAIN_BIT);
 }
@@ -394,7 +541,6 @@ void NEDisplay::createDescriptors() {
         mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(mDevice->globalSetLayout());
         mFrames[i].mObjectDescriptor = mDevice->createDescriptorSet(mDevice->objectSetLayout());
 
-
         VkDescriptorBufferInfo cameraInfo;
         cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
         cameraInfo.offset = 0;
@@ -410,7 +556,6 @@ void NEDisplay::createDescriptors() {
         objectBufferInfo.offset = 0;
         objectBufferInfo.range = sizeof(GPUObjectData) * MAX_ENTITYS;
 
-
         VkWriteDescriptorSet cameraWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mFrames[i].mGlobalDescriptor, &cameraInfo, 0);
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
         VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
@@ -418,9 +563,7 @@ void NEDisplay::createDescriptors() {
         VkWriteDescriptorSet setWrites[3] = { cameraWrite, sceneWrite, objectWrite};
         size_t writeSize = 3;
 
-
         if(mDevice->bindless()) mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
-
 
         vkUpdateDescriptorSets(mDevice->device(), writeSize, setWrites, 0, nullptr);
 
@@ -458,16 +601,13 @@ void NEDisplay::initImGUI() {
     pool_info.poolSizeCount = std::size(pool_sizes);
     pool_info.pPoolSizes = pool_sizes;
 
-
     vkCreateDescriptorPool(mDevice->device(), &pool_info, nullptr, &mGuiDescriptorPool);
-
 
     ImGui::CreateContext();
 
     ImGui_ImplGlfw_InitForVulkan(mWindow, true);
 
     //Init Data
-
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = mInstance;
     init_info.PhysicalDevice = mDevice->GPU();
@@ -501,10 +641,6 @@ VkCommandBuffer NEDisplay::createCommandBuffer(VkCommandPool commandPool) {
     if (vkAllocateCommandBuffers(mDevice->device(), &cmdAllocInfo, &temp) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create display primary command buffer\n");
     }
-
-    mSwapchainQueue.push_function([=, this]() {
-       // vkFreeCommandBuffers(mDevice->device(), commandPool, 1, &temp);
-    });
 
     return temp;
 }

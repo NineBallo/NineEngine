@@ -193,3 +193,19 @@ VkDescriptorImageInfo init::descriptorImageInfo(VkSampler sampler, VkImageView i
 
     return imageBufferInfo;
 }
+
+VkDescriptorSetLayoutBinding init::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
+
+    //information about the binding.
+    VkDescriptorSetLayoutBinding setBind = {};
+    setBind.binding = binding;
+    setBind.descriptorCount = 1;
+    // it's a uniform buffer binding
+    setBind.descriptorType = type;
+
+    // we use it from the vertex shader
+    setBind.stageFlags = stageFlags;
+
+    return setBind;
+
+}

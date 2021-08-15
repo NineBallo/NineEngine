@@ -30,6 +30,8 @@ namespace init {
     VkWriteDescriptorSet writeDescriptorImage(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorImageInfo* imageInfo, uint32_t binding);
 
     VkDescriptorImageInfo descriptorImageInfo(VkSampler sampler, VkImageView imageView);
+
+    VkDescriptorSetLayoutBinding createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
 }
 
 

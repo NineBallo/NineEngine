@@ -188,7 +188,7 @@ void Vulkan::init_vulkan() {
     mDevice->init_Allocator(vkb_inst.instance);
 }
 
-Material* Vulkan::createMaterial(uint32_t features) {
+Material* Vulkan::createMaterial(const std::string& name, uint32_t features, glm::vec3 color) {
 
     if(!mDevice->bindless()) {
         features += NE_FLAG_BINDING_BIT;
@@ -197,24 +197,24 @@ Material* Vulkan::createMaterial(uint32_t features) {
     Material material{};
     material.features = features;
     material.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
-
-    mMaterials[features] = material;
+    material.color = {color, 1.f};
+    mMaterials[name] = material;
 
     mDeletionQueue.push_function([=, this]() {
-        deleteMaterial(features);
+        deleteMaterial(name);
     });
 
-    return &mMaterials[features];
+    return &mMaterials[name];
 }
 
-void Vulkan::deleteMaterial(uint32_t features) {
-    Material& material = mMaterials[features];
+void Vulkan::deleteMaterial(const std::string& name) {
+    Material& material = mMaterials[name];
     auto pipelineInfo = mDevice->getPipeline(material.renderMode, material.features);
 
     vkDestroyPipeline(mDevice->device(), pipelineInfo.first, nullptr);
     vkDestroyPipelineLayout(mDevice->device(), pipelineInfo.second, nullptr);
 
-    mMaterials.erase(features);
+    mMaterials.erase(name);
 }
 
 void Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
@@ -266,18 +266,16 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     mDevice->uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
 }
 
-void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, std::string* Textures, std::string* textureIndex) {
+void Vulkan::makeRenderable(Entity entity, std::string material, const std::string &mesh, std::string* Textures, std::string* textureIndex) {
     //Set hidden bits/flags
-    if(!mDevice->bindless()) {
-        material += NE_FLAG_BINDING_BIT;
-    }
+
 
     RenderObject renderObject{};
     renderObject.material = &mMaterials[material];
     renderObject.meshGroup = &mMeshGroups[mesh];
     MeshGroup& meshGroup = mMeshGroups[mesh];
 
-    if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+    if((renderObject.material->features & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
         //For each material, get the respective texture
         for (int i = 0; i < meshGroup.mMatToIdx.size(); i++) {
 
@@ -382,7 +380,7 @@ void Vulkan::draw() {
             vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
             vkCmdBindIndexBuffer(cmd, mesh.mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
 
-            PushData pushData{};
+            TexPushData pushData{};
             pushData.entityID = currentEntityID;
 
             //Get texture for mesh
@@ -402,7 +400,7 @@ void Vulkan::draw() {
 
 
             vkCmdPushConstants(cmd, pipelineInfo.second,
-                               VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(PushData), &pushData);
+                               VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(TexPushData), &pushData);
 
 
             vkCmdDrawIndexed(cmd, mesh.mIndices.size(), 1, 0, 0, 0);

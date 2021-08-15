@@ -232,6 +232,7 @@ void NEGUI::drawTimings() {
                 if(mFrameTimes[i] > max) {
                     max = mFrameTimes[i];
                 }
+
                 //Get min value
                 if(mFrameTimes[i] < min && mFrameTimes[i] > 0.00001f) {
                     min = mFrameTimes[i];
@@ -240,19 +241,19 @@ void NEGUI::drawTimings() {
             }
             mFrameTimes[mFrameTimes.size() - 1] = seconds;
 
-            for(uint8_t i = 0; i < sampleFrames; ++i) {
-                roundedFrametime += mFrameTimes[mFrameTimes.size() - i];
+            for(uint16_t i = 0; i < sampleFrames; ++i) {
+                roundedFrametime += mFrameTimes[(mFrameTimes.size()) - i];
             }
 
+            roundedFrametime /= sampleFrames;
+            roundedFrametime = std::floor(1/roundedFrametime);
         }
         else {
             mFrameTimes.push_back(seconds);
-
+            roundedFrametime = 1;
         }
 
-        roundedFrametime /= sampleFrames;
-
-        std::string FPS = "Average FPS: " + std::to_string((uint32_t)(std::floor(1/roundedFrametime)));
+        std::string FPS = "Average FPS: " + std::to_string(static_cast<uint32_t>(roundedFrametime));
         ImGui::Text("%s", FPS.c_str());
         ImGui::Text("FrameTimes:");
         std::string timings = "Max: " + std::to_string(max) + " Min: " + std::to_string(min);

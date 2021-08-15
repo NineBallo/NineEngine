@@ -20,6 +20,9 @@ NEDevice::NEDevice() {
 }
 
 NEDevice::~NEDevice() {
+    for(auto it = mRenderPassList.begin(); it != mRenderPassList.end();) {
+        vkDestroyRenderPass(mDevice, mRenderPassList[(it++)->first], nullptr);
+    }
     mDeletionQueue.flush();
 }
 
@@ -144,19 +147,18 @@ void NEDevice::init_descriptors() {
         vkDestroyDescriptorPool(mDevice, mDescriptorPool, nullptr);
     });
 
-    VkDescriptorSetLayoutBinding cameraBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
-    VkDescriptorSetLayoutBinding sceneBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+    VkDescriptorSetLayoutBinding cameraBind = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    VkDescriptorSetLayoutBinding sceneBind = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 1);
     VkDescriptorSetLayoutBinding bindings[] = { cameraBind, sceneBind };
 
     mGlobalSetLayout = createDescriptorSetLayout(0, bindings, 2);
 
-    VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
+    VkDescriptorSetLayoutBinding objectBind = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
     mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
-
 
     ///TODO make the descriptor count variable
     if(mBindless) {
-        VkDescriptorSetLayoutBinding textureBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        VkDescriptorSetLayoutBinding textureBind = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
         textureBind.descriptorCount = MAX_TEXTURES;
         VkDescriptorSetLayoutBinding textureBindings[] = { textureBind };
 
@@ -172,8 +174,8 @@ void NEDevice::init_descriptors() {
     }
     else {
         VkDescriptorSetLayoutBinding singleTexBindings[2];
-        singleTexBindings[0] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-        singleTexBindings[1] = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
+        singleTexBindings[0] = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+        singleTexBindings[1] = init::createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
         mSingleTextureSetLayout = createDescriptorSetLayout(0, singleTexBindings, 2);
     }
@@ -396,7 +398,7 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
 
     VkPushConstantRange push_constants;
     push_constants.offset = 0;
-    push_constants.size = sizeof(PushData);
+    push_constants.size = sizeof(TexPushData);
     push_constants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pipelineLayoutInfo.pPushConstantRanges = &push_constants;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -528,22 +530,6 @@ AllocatedBuffer NEDevice::createBuffer(size_t allocSize, VkBufferUsageFlags usag
     }
 
     return newBuffer;
-}
-
-VkDescriptorSetLayoutBinding NEDevice::createDescriptorSetBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
-
-    //information about the binding.
-    VkDescriptorSetLayoutBinding setBind = {};
-    setBind.binding = binding;
-    setBind.descriptorCount = 1;
-    // it's a uniform buffer binding
-    setBind.descriptorType = type;
-
-    // we use it from the vertex shader
-    setBind.stageFlags = stageFlags;
-
-    return setBind;
-
 }
 
 VkDescriptorSetLayout NEDevice::createDescriptorSetLayout(VkDescriptorSetLayoutCreateFlags flags,
