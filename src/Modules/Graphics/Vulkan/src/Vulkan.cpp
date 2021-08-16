@@ -20,26 +20,9 @@
 #include "backends/imgui_impl_vulkan.h"
 
 Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
-    mCameraEntity = cameraEntity;
-    mECS = &ECS::Get();
-
-    SubscribeData subscribeData {
-            .localEntityList = &mLocalEntityList,
-            .size = &mEntityListSize,
-            .entityToPos = &mEntityToPos,
-    };
 
     ECS::Get().registerComponent<RenderObject>();
     ECS::Get().registerComponent<Position>();
-
-    ECS::Get().registerSystem<Vulkan>(subscribeData);
-
-    Signature systemSig {};
-    systemSig.set(ECS::Get().getComponentType<RenderObject>());
-    systemSig.set(ECS::Get().getComponentType<Position>());
-
-    ECS::Get().setSystemSignature<Vulkan>(systemSig);
-
     init();
 }
 Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &name) {

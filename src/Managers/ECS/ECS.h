@@ -17,13 +17,19 @@
 #define MAX_ENTITYS 1000
 #define MAX_DISPLAYS 5
 #define MAX_COMPONENTS 10
+#define MAX_SYSTEMS 15
 #define MAX_MODULES 2
 
 using Entity = uint32_t;
 using Display = uint8_t;
 using Signature = std::bitset<MAX_COMPONENTS>;
-using Component = unsigned short;
+
+using Component = std::string_view;
+using ComponentID = unsigned short;
+
 using System = std::string_view;
+using SystemID = uint32_t;
+
 
 template <typename T>
 constexpr auto type_name() noexcept {
@@ -178,9 +184,7 @@ public:
 
         ///Step 2: deallocate all components
 
-        for (auto& componentPair : componentArrays) {
-            auto& component = componentPair.second;
-
+        for (auto& component : componentArrays) {
             component->entityDestroyed(entity);
         }
         return true;
@@ -247,23 +251,22 @@ public:
 
     ///System Handler
     template<typename T>
-    void registerSystem(SubscribeData subscriber) {
+    SystemID registerSystem(SubscribeData subscriber) {
 
-        //Convert type to name
-        System typeName = type_name<T>();
-        systems.insert({typeName, subscriber});
+        systems[systemSize] = subscriber;
+        return systemSize++;
     };
 
-    template<typename T>
-    void setSystemSignature(Signature signature) {
 
-        System typeName = type_name<T>();
-        systemSignatures[typeName] = signature;
+    void setSystemSignature(SystemID systemID, Signature signature) {
 
-        updateSystemSignature(signature, typeName);
+
+        systemSigs[systemID] = signature;
+
+        updateSystemSignature(signature, systemID);
     };
 
-    void updateSystemSignature(Signature signature, System system) {
+    void updateSystemSignature(Signature signature, SystemID systemID) {
         //Create a "3D" iterator so that we can check each entity and see if it matches the changed system
         //This is a relatively expensive operation, so it should be only really used on signature set.
         SubscribeData data = systems[system];
@@ -290,11 +293,10 @@ public:
         entitySignatures[entity] = entitySig;
 
         //Update System lists
-        for(auto& pair : systems) {
+        for(uint32_t i = 0; i < systemSize; i++) {
 
-            auto const& type = pair.first;
-            auto const& system = pair.second;
-            auto const& systemSig = systemSignatures[type];
+            auto const& system = systems[i];
+            auto const& systemSig = systemSigs[i];
 
             std::pair<Display, uint32_t> pos = entityToPos[entity];
             Display display = std::get<0>(pos);
@@ -347,19 +349,31 @@ private:
     std::queue<Entity> availableEntitys{};
 
 private:
-
     ///Modules/Systems
-    std::unordered_map<System, Signature> systemSignatures{};
-    std::unordered_map<System, SubscribeData> systems{};
-    std::unordered_map<Entity, Signature> entitySignatures{};
+    //Sig pos == sys position
+    std::array<Signature, MAX_SYSTEMS> systemSigs{};
 
+    //Packed array of SubscribeData pointers
+    std::array<SubscribeData, MAX_SYSTEMS> systems{};
+
+    //The systemID will map to an index
+    std::array<uint32_t, MAX_SYSTEMS> sysToPos{};
+
+    //The index will map to a systemID
+    std::array<SystemID , MAX_SYSTEMS> posToSys{};
+    uint32_t systemSize {0};
+
+    std::unordered_map<Entity, Signature> entitySignatures{};
 
 private:
     ///Components
-    Component nextComponentID {0};
-    std::unordered_map<System, Component> componentTypes{};
-    std::unordered_map<System, std::shared_ptr<ComponentBase>> componentArrays{};
+    uint32_t nextComponentID {0};
 
+    //Component typename maps to a component signature
+    std::array<Component, MAX_COMPONENTS> componentTypes{};
+
+    //key = sysid, value = class that holds a list of one component types
+    std::array<std::shared_ptr<ComponentBase>, MAX_COMPONENTS> componentArrays{};
 
 private:
 
