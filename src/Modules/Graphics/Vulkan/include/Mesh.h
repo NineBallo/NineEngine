@@ -46,8 +46,6 @@ namespace std {
     };
 }
 
-
-
 struct Mesh {
     std::vector<Vertex> mVertices {};
     AllocatedBuffer mVertexBuffer;
@@ -55,7 +53,7 @@ struct Mesh {
     std::vector<uint32_t> mIndices {};
     AllocatedBuffer mIndexBuffer;
 
-    std::string mMaterial;
+    Material mMaterial;
 };
 
 struct MeshGroup {
@@ -65,12 +63,15 @@ struct MeshGroup {
     std::vector<std::string> mTextures;
     std::unordered_map<std::string, uint32_t> mMatToIdx;
 
+    std::string name;
+
     bool load_objects_from_file(std::string filename);
 };
 
 struct RenderObject {
     MeshGroup* meshGroup;
     Material* material;
+
 
     glm::mat4 transformMatrix;
 };

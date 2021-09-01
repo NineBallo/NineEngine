@@ -5,13 +5,14 @@
 #include <utility>
 
 #include "Engine.h"
-
+#include "../../Modules/Graphics/Graphics.h"
 
 Engine::Engine() : mECS {ECS::Get()} {
-    mSettings["Renderer"] = VK;
-    mSettings["Display Count"] = 0;
-    mSettings["MSAA"] = VK_SAMPLE_COUNT_1_BIT;
-    mSettings["Editor"] = true;
+    mSettings[Renderer] = VK;
+    mSettings[DisplayCount] = 0;
+    mSettings[FrameCount] = 2;
+    mSettings[MSAA] = VK_SAMPLE_COUNT_8_BIT;
+    mSettings[Editor] = true;
 }
 
 
@@ -62,11 +63,11 @@ uint32_t Engine::createEntity() {
 //    }
 //}
 
-uint32_t Engine::getSetting(std::string key) {
+uint32_t Engine::getSetting(uint32_t key) {
     return mSettings[key];
 }
 
-void Engine::setSetting(std::string key, uint32_t value) {
+void Engine::setSetting(uint32_t key, uint32_t value) {
     mSettings[key] = value;
 }
 

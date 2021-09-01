@@ -12,6 +12,8 @@
 #include <vk_mem_alloc.h>
 #include "Common.h"
 #include "Mesh.h"
+#include "ECS.h"
+#include "Engine.h"
 
 #define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0
 #define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1
@@ -37,12 +39,30 @@ public:
     void init_upload_context();
 
 
+public:
+
 //Helper methods primarily for the display class
     //Gets the requested renderpass if available, if not it creates it then returns the renderpass
     VkRenderPass getRenderPass(uint32_t flags, VkFormat format = VK_FORMAT_UNDEFINED);
 
-    //Same thing but pipeline
+    //Gets the requested pipeline data if available, if not it creates it then returns the pipelinedata
     std::pair<VkPipeline, VkPipelineLayout> getPipeline(uint32_t rendermode, uint32_t features);
+
+    //Textures
+    TextureID loadTexture(std::string pathToImage);
+
+    TextureID getTextureID(std::string name);
+    Texture& getTexture(TextureID id);
+
+    void deleteTexture(TextureID id);
+
+    //Meshes
+    MeshGroupID createMesh(const std::string& filepath, const std::string& meshName = nullptr);
+    void deleteMesh(MeshGroupID id);
+
+    ///What is oatmeal?
+    ///TODO move texture and mesh code over; Then it should be good to go assuming no bugs in the ecs.
+
 
     //Buffers
     template<typename T>
@@ -68,9 +88,14 @@ public:
 
 private:
 //Internal abstraction
+    //Loads a texture, but from a file.
+    bool loadTextureFromFile(const char* file, Texture& outTex);
+
     //Descriptor set layout methods
     VkDescriptorSetLayout createDescriptorSetLayout(VkDescriptorSetLayoutCreateFlags flags, VkDescriptorSetLayoutBinding* bindingArray,
                                                     uint8_t arraySize, void* pNext = nullptr);
+
+
 
     //RenderPass creation
     VkRenderPass createRenderpass(VkFormat format, uint32_t flags);
@@ -105,7 +130,7 @@ public:
     VkSampleCountFlagBits sampleCount();
 
 private:
-    //Actual Device this will not be exposed
+    //Actual Device this will not be exposed, will be index + 1
     VkDevice mDevice = VK_NULL_HANDLE;
     VkPhysicalDevice mGPU = VK_NULL_HANDLE;
 
@@ -133,21 +158,6 @@ private:
     VkDescriptorSetLayout mSingleTextureSetLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout mTextureSetLayout {VK_NULL_HANDLE};
 
-    //Per device allocated resources
-    std::unordered_map<std::string, Texture> mTextures;
-    std::unordered_map<std::string, uint32_t> mTextureToBinding;
-    std::unordered_map<uint32_t, std::string> mBindingToTexture;
-    uint32_t mTextureCount {0};
-
-    std::unordered_map<std::string, Material> mMaterials;
-    std::unordered_map<std::string, MeshGroup> mMeshGroups;
-
-
-
-    //List of all allocated RenderPasses, keyed by the RenderPass flags.
-    std::unordered_map<uint32_t, VkRenderPass> mRenderPassList;
-        //key is the renderpass flags, second key is the features, result is a pair with pipeline and its layout
-    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::pair<VkPipeline, VkPipelineLayout>>> mPipelineList;
 
     ///Memory allocator
     VmaAllocator mAllocator {nullptr};
@@ -156,13 +166,68 @@ private:
     UploadContext mUploadContext {};
 
 
+private: ///resource management
 
+//All meshes uploaded to device.
+    //Maps for packed array
+    std::array<MeshGroupID, MAX_ENTITYS> mPosToMeshID;
+    std::array<uint64_t, MAX_ENTITYS> mMeshIDToPos;
+    //Packed array of the actual data
+    std::array<MeshGroup, MAX_ENTITYS> mMeshGroups;
+    //Number of meshes allocated on the current device or last idx + 1
+    MeshGroupID mMeshCount;
+
+
+
+//A texture is the image projected on an object.
+    //<path, name>
+    std::unordered_map<std::string, std::string> mTexPathToName;
+    //<TexPos, name>
+    std::array<TextureID, MAX_TEXTURES> mTexIDToName;
+    //maps to maintain packed array indexes
+    std::array<uint32_t, MAX_TEXTURES> mTexIDToPos;
+    std::array<TextureID, MAX_TEXTURES> mPosToTexID;
+    //packed array of texture structures
+    std::array<Texture, MAX_TEXTURES> mTextures;
+    //Number of textures currently allocated
+    uint32_t mTexCount;
+
+
+
+//A material is a struct of data pertaining to that material. Rendermode, static-color, etc...
+//   std::array<uint32_t, MAX_MATERIALS> mMatIDToPos;
+//   std::array<MaterialID, MAX_MATERIALS> mPosToMatID;
+//   std::array<Material, MAX_MATERIALS> mMaterials;
+//   uint32_t mMatCount;
+
+//List of all allocated RenderPasses, keyed by the RenderPass flags.
+    std::unordered_map<uint32_t, uint32_t> mRenderModeToPos;
+    std::array<VkRenderPass, MAX_RENDERPASSES> mRenderPassList;
+    uint32_t mRenderPassCount;
+
+//List of all pipelines, keyed with the rendermode and features
+    std::array<uint32_t, MAX_RENDERPASSES> mRenderModeToPipelineList;
+    std::array<std::array<uint32_t, MAX_PIPELINES>, MAX_RENDERPASSES> mPipelineFeaturesToPos;
+
+    //"3D" array, each rendermode has an array of possible pipelines.
+    // Each pipeline array has a std::pair with a pipeline and pipelineLayout
+    std::array<
+                std::array<
+                    std::pair<VkPipeline, VkPipelineLayout>,
+                    MAX_PIPELINES>,
+
+    MAX_RENDERPASSES> mPipelines;
+
+    Engine &mEngine;
+
+    //Pipeline array size, keyed with rendermode.
+    std::array<uint32_t, MAX_RENDERPASSES> mPipelineCount;
 
     //This will be flushed on destruction
     DeletionQueue mDeletionQueue {};
 };
 
-//Templated functions cannot go in a cpp file so they chillin here.
+//Templated functions cannot go in a cpp file, so they're chilling here.
 template<typename T>
 void NEDevice::uploadToBuffer(std::vector<T> &data, AllocatedBuffer &buffer, size_t size) {
 

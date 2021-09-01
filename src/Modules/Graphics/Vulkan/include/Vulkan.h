@@ -80,7 +80,7 @@ private:
 
 private:
     bool mShouldExit = false;
-
+    ECS& mECS;
     ///Vulkan deletion queue
     DeletionQueue mDeletionQueue;
 };

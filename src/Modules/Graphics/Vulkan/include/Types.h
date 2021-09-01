@@ -14,11 +14,17 @@
 #include <glm/ext.hpp>
 
 #define MAX_TEXTURES 768
-
+#define MAX_MATERIALS 100
+#define MAX_RENDERPASSES 10
+#define MAX_PIPELINES 10
 
 #define NE_SHADER_TEXTURE_BIT 1 << 1 //0001
 #define NE_SHADER_COLOR_BIT 1 << 2   //0010
 #define NE_FLAG_BINDING_BIT 1 << 3  //0100
+
+using TextureID = uint32_t;
+using MaterialID = uint32_t;
+using MeshGroupID = uint64_t;
 
 struct AllocatedBuffer {
     VkBuffer mBuffer;
@@ -32,12 +38,14 @@ struct AllocatedImage {
 };
 
 struct Texture {
+    std::string name;
+
     AllocatedImage mImage;
     VkImageView mImageView;
     VkSampler mSampler;
     uint32_t mMipLevels;
 
-    //Optional for legacy
+    //Optional for legacy/mobile graphics cards
     VkDescriptorSet mTextureSet;
 };
 
@@ -89,11 +97,10 @@ struct GPUMaterialData {
 };
 
 struct Material {
-    VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
-    VkSampler mSampler;
-
     uint32_t renderMode;
     uint32_t features;
+
+    TextureID texture;
     glm::vec4 color;
 };
 

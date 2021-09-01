@@ -57,9 +57,7 @@ private:
     NEDisplay* mDisplay;
 
     //Subscribe Data
-    std::array<Entity, MAX_ENTITYS> mLocalEntityList;
-    uint32_t mEntityListSize = 0;
-    std::array<Entity, MAX_ENTITYS> mEntityToPos;
+    SubscribeData SData;
 
     enum mComponents {
         camera,

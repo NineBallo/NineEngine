@@ -30,6 +30,7 @@ using ComponentID = unsigned short;
 using System = std::string_view;
 using SystemID = uint32_t;
 
+using idx = uint32_t;
 
 template <typename T>
 constexpr auto type_name() noexcept {
@@ -48,18 +49,18 @@ constexpr auto type_name() noexcept {
 ///Redundant but creates a faster interface as I dont have to lookup the vtable
 struct SubscribeData {
     //Packed array for fast iteration
-    std::array<Entity, MAX_ENTITYS>* localEntityList = nullptr;
+    std::array<Entity, MAX_ENTITYS> localEntityList {};
 
     //Current size/index of last entity + 1
-    uint32_t * size = nullptr;
+    uint32_t size {0};
 
     //Map for packed array, may be unnecessary
-    std::array<uint32_t, MAX_ENTITYS>* entityToPos = nullptr;
+    std::array<uint32_t, MAX_ENTITYS> entityToPos {};
 
     //display used will be (display - 1) display 1 will be a ref to index 0, and display 0 will be a ref to all.
-    uint32_t display = 0;
+    Display display = 0;
 
-
+    SystemID systemRef = 0;
 };
 
 class ComponentBase {
@@ -184,7 +185,8 @@ public:
 
         ///Step 2: deallocate all components
 
-        for (auto& component : componentArrays) {
+        for (auto& componentPair : componentArrays) {
+            auto& component = componentPair.second;
             component->entityDestroyed(entity);
         }
         return true;
@@ -197,7 +199,7 @@ public:
     };
 
     template<typename T>
-    Component getComponentType() {
+    ComponentID getComponentType() {
         std::string_view typeName = type_name<T>();
 
         return componentTypes[typeName];
@@ -250,47 +252,54 @@ public:
     };
 
     ///System Handler
-    template<typename T>
-    SystemID registerSystem(SubscribeData subscriber) {
+    SystemID registerSystem(SubscribeData *subscriber) {
+
+        SystemID newID = systemSize;
+        subscriber->systemRef = newID;
 
         systems[systemSize] = subscriber;
-        return systemSize++;
+
+        sysToPos[newID] = systemSize;
+
+        systemSize++;
+        return newID;
     };
 
 
     void setSystemSignature(SystemID systemID, Signature signature) {
 
+        uint32_t pos = sysToPos[systemID];
+        systemSigs[pos] = signature;
 
-        systemSigs[systemID] = signature;
-
-        updateSystemSignature(signature, systemID);
+        updateSystemSignature(signature, pos);
     };
 
-    void updateSystemSignature(Signature signature, SystemID systemID) {
-        //Create a "3D" iterator so that we can check each entity and see if it matches the changed system
-        //This is a relatively expensive operation, so it should be only really used on signature set.
-        SubscribeData data = systems[system];
+    void updateSystemSignature(Signature signature, uint32_t pos) {
+        //This is a relatively expensive operation, so it should be only really used a few times on signature set.
+        SubscribeData* data = systems[pos];
 
-        for (Display display = 0; display < MAX_DISPLAYS; display++) {
-            for(Entity i = 0; i < displaySize[display]; i++) {
-                Entity entity = displays[display][i];
+        ///TODO subscribe to all...
 
-                uint32_t allegedPosition = (*data.entityToPos)[entity];
+        //Iterate through every entity in the subscribed display and test if it should be added to updated system
+        for(Entity i = 0; i < displaySize[data->display]; i++) {
+            Entity entity = displays[data->display][i];
+            uint32_t allegedPosition = data->entityToPos[entity];
 
-                if((*data.localEntityList)[allegedPosition] != entity || (*data.size) == 0) {
-                    if ((entitySignatures[entity] & signature) == signature) {
-                        (*data.localEntityList)[(*data.size)] = entity;
-                        (*data.entityToPos)[entity] = (*data.size);
-                        (*data.size)++;
-                    }
+            if(data->localEntityList[allegedPosition] != entity || data->size == 0) {
+                if ((entitySignatures[entity] & signature) == signature) {
+                    data->localEntityList[data->size] = entity;
+                    data->entityToPos[entity] = data->size;
+                    data->size++;
                 }
             }
         }
+
     }
 
     void updateEntitySignature(Entity entity, Signature entitySig) {
 
-        entitySignatures[entity] = entitySig;
+        Entity pos = entityToSigPos[entity];
+        entitySignatures[pos] = entitySig;
 
         //Update System lists
         for(uint32_t i = 0; i < systemSize; i++) {
@@ -298,36 +307,34 @@ public:
             auto const& system = systems[i];
             auto const& systemSig = systemSigs[i];
 
-            std::pair<Display, uint32_t> pos = entityToPos[entity];
-            Display display = std::get<0>(pos);
-
             //Test if entity already exists on system and exit if it does
-            uint32_t allegedIndex = (*system.entityToPos)[entity];
+            uint32_t allegedIndex = system->entityToPos[entity];
 
             //Check if we are potentially updating or adding entity
-            if ((*system.localEntityList)[allegedIndex] == entity) {
+            if (system->localEntityList[allegedIndex] == entity) {
                 if(!((entitySig & systemSig) == systemSig)) {
 
-                    (*system.size)--;
-                    uint32_t index = (*system.entityToPos)[entity];
+                    system->size--;
+
+                    uint32_t index = system->entityToPos[entity];
 
                     //Get Entity in back
-                    uint32_t backEntity = (*system.size);
+                    uint32_t backEntity = system->size;
 
                     //Repack array
-                    (*system.localEntityList)[index] = (*system.localEntityList)[backEntity];
+                    system->localEntityList[index] = system->localEntityList[backEntity];
 
                     //Update maps to keep track of entity
-                    (*system.entityToPos)[entity] = (*system.size);
+                    system->entityToPos[entity] = system->size;
                 }
             }
             ////Entity must include needed signatures
             else if((entitySig & systemSig) == systemSig) {
-                uint32_t newIndex = *system.size;
+                uint32_t newIndex = system->size;
 
-                (*system.localEntityList)[newIndex] = entity;
-                (*system.entityToPos)[entity] = newIndex;
-                (*system.size)++;
+                system->localEntityList[newIndex] = entity;
+                system->entityToPos[entity] = newIndex;
+                system->size++;
             }
         }
     };
@@ -348,32 +355,35 @@ private:
     //Queue of available entity id's
     std::queue<Entity> availableEntitys{};
 
+
+    std::array<Signature, MAX_ENTITYS> entitySignatures {};
+    std::array<uint32_t, MAX_ENTITYS> entityToSigPos {};
+    std::array<Entity, MAX_ENTITYS> sigPosToEntity {};
+
 private:
     ///Modules/Systems
-    //Sig pos == sys position
+    //(probably) Packed array of sigs. Mirrors subscribe data indexes
     std::array<Signature, MAX_SYSTEMS> systemSigs{};
-
     //Packed array of SubscribeData pointers
-    std::array<SubscribeData, MAX_SYSTEMS> systems{};
+    std::array<SubscribeData*, MAX_SYSTEMS> systems{};
+
 
     //The systemID will map to an index
     std::array<uint32_t, MAX_SYSTEMS> sysToPos{};
-
     //The index will map to a systemID
     std::array<SystemID , MAX_SYSTEMS> posToSys{};
-    uint32_t systemSize {0};
 
-    std::unordered_map<Entity, Signature> entitySignatures{};
+    uint32_t systemSize {0};
 
 private:
     ///Components
     uint32_t nextComponentID {0};
 
     //Component typename maps to a component signature
-    std::array<Component, MAX_COMPONENTS> componentTypes{};
+    std::unordered_map<Component, ComponentID> componentTypes{};
 
     //key = sysid, value = class that holds a list of one component types
-    std::array<std::shared_ptr<ComponentBase>, MAX_COMPONENTS> componentArrays{};
+    std::unordered_map<Component, std::shared_ptr<ComponentBase>> componentArrays{};
 
 private:
 

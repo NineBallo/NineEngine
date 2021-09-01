@@ -7,6 +7,7 @@
 #include <iostream>
 #include <VkBootstrap.h>
 #include <cmath>
+#include <utility>
 #include <Initializers.h>
 #include "ECS.h"
 #include "imgui.h"
@@ -14,7 +15,7 @@
 #include "backends/imgui_impl_vulkan.h"
 
 //Circular include issues..
-NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
+NEDisplay::NEDisplay(const displayCreateInfo& createInfo) : mECS{ECS::Get()} {
     createWindow(createInfo.extent, createInfo.title, createInfo.resizable);
     mTitle = createInfo.title;
 
@@ -34,23 +35,14 @@ NEDisplay::NEDisplay(const displayCreateInfo& createInfo) {
 
     mGUI = std::make_unique<NEGUI>(this);
 
-    SubscribeData subscribeData {
-        .localEntityList = &mLocalEntityList,
-        .size = &mEntityListSize,
-        .entityToPos = &mEntityToPos,
-        .display = 0,
-        };
-
-    ECS::Get().registerComponent<RenderObject>();
-    ECS::Get().registerComponent<Position>();
-
-    ECS::Get().registerSystem<Vulkan>(subscribeData);
+    SData.display = 0;
+    mECS.registerSystem(&SData);
 
     Signature systemSig {};
     systemSig.set(ECS::Get().getComponentType<RenderObject>());
     systemSig.set(ECS::Get().getComponentType<Position>());
 
-    ECS::Get().setSystemSignature<Vulkan>(systemSig);
+    mECS.setSystemSignature(SData.systemRef, systemSig);
 }
 
 NEDisplay::~NEDisplay() {
@@ -310,9 +302,9 @@ void NEDisplay::drawFrame() {
 
    auto* objectSSBO = (GPUObjectData*)objectData;
 
-   for (int i = 0; i < mEntityListSize; i++)
+   for (int i = 0; i < SData.size; i++)
    {
-       Entity currentEntityID = mLocalEntityList[i];
+       Entity currentEntityID = SData.localEntityList[i];
        auto& position = ECS::Get().getComponent<Position>(currentEntityID);
 
        glm::mat4 model {1.0f};
@@ -326,19 +318,19 @@ void NEDisplay::drawFrame() {
    }
    vmaUnmapMemory(mDevice->allocator(), frame.mObjectBuffer.mAllocation);
 
-   Material* mLastMaterial = nullptr;
-   Texture* mLastTexture = nullptr;
+   Material* lastMaterial = nullptr;
+   TextureID lastTexture;
 
-   for(Entity i = 0; i < mEntityListSize; i++) {
-       Entity currentEntityID = mLocalEntityList[i];
+   for(Entity i = 0; i < SData.size; i++) {
+       Entity currentEntityID = SData.localEntityList[i];
        auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
        MeshGroup& meshGroup = *currentEntity.meshGroup;
 
        auto pipelineInfo = mDevice->getPipeline(currentEntity.material->renderMode, currentEntity.material->features);
-       if(currentEntity.material != mLastMaterial) {
+       if(currentEntity.material != lastMaterial) {
 
            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
-           mLastMaterial = currentEntity.material;
+           lastMaterial = currentEntity.material;
 
            VkDescriptorSet globalDescriptorSet = frame.mGlobalDescriptor;
            VkDescriptorSet objectDescriptorSet = frame.mObjectDescriptor;
@@ -370,18 +362,18 @@ void NEDisplay::drawFrame() {
            pushData.entityID = currentEntityID;
 
            //Get texture for mesh
-           uint32_t texIdx = meshGroup.mMatToIdx[mesh.mMaterial];
-           std::string tex = meshGroup.mTextures[texIdx];
-
+           TextureID texid = mesh.mMaterial.texture;
 
            if(mDevice->bindless()) {
-               pushData.textureIndex = mTextureToBinding[tex];
+               pushData.textureIndex = mTextureToBinding[texid];
            }
-           else if(mLastTexture != &mTextures[tex]) {
-               mLastTexture = &mTextures[tex];
+           else if(lastTexture != texid) {
+               lastTexture = texid;
+
+               Texture &texture = mDevice->getTexture(texid);
                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                        pipelineInfo.second, 2, 1,
-                                       &mTextures[tex].mTextureSet, 0, nullptr);
+                                       &texture.mTextureSet, 0, nullptr);
            }
 
 
@@ -658,19 +650,26 @@ void NEDisplay::populateFrameData() {
     }
 }
 
-void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
+TextureID NEDisplay::loadTexture(std::string filePath, std::string name) {
+    //Load texture into gpu memory
+    TextureID texid = mDevice->loadTexture(std::move(filePath));
+    Texture &texture = mDevice->getTexture(texid);
+    texture.name = std::move(name);
+
+    //Update descriptor sets
     VkWriteDescriptorSet writes[MAX_FRAMES];
-    if(tex.mSampler == VK_NULL_HANDLE)
-        tex.mSampler = mDevice->createSampler(tex.mMipLevels);
     for(uint32_t i = 0; i < MAX_FRAMES; i++) {
         VkDescriptorImageInfo descriptorImageInfo;
-        descriptorImageInfo.sampler = tex.mSampler;
+        descriptorImageInfo.sampler = texture.mSampler;
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        descriptorImageInfo.imageView = tex.mImageView;
+        descriptorImageInfo.imageView = texture.mImageView;
         writes[i] = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, mFrames[i].mTextureDescriptor, &descriptorImageInfo, 0);
-        writes[i].dstArrayElement = dstIdx;
+        writes[i].dstArrayElement = mTextureCount++;
     }
     vkUpdateDescriptorSets(mDevice->device(), MAX_FRAMES, writes, 0, nullptr);
+
+    //Give the user their referenceID;
+    return texid;
 }
 
 void NEDisplay::setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExtent2D extent) {

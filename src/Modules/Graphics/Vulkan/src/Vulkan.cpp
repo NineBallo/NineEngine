@@ -19,12 +19,13 @@
 #include "unistd.h"
 #include "backends/imgui_impl_vulkan.h"
 
-Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
+Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) : mECS{ECS::Get()} {
 
-    ECS::Get().registerComponent<RenderObject>();
-    ECS::Get().registerComponent<Position>();
+    mECS.registerComponent<RenderObject>();
+    mECS.registerComponent<Position>();
     init();
 }
+
 Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
 
     Texture texture {};

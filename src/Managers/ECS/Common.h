@@ -6,6 +6,8 @@
 #define NINEENGINE_ECSCOMMON_H
 #include "glm/glm.hpp"
 
+using TextureID = uint32_t;
+
 struct Position {
     glm::vec3 coordinates {0, 0 , 0};
     glm::vec3 rotations {0, 0, 0};

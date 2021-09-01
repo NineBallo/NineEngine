@@ -47,15 +47,12 @@ public:
     void finishInit();
     void createSurface(VkInstance);
 
-
     //Swapchain/Framebuffer Recreation
     void resizeFrameBuffer(VkExtent2D FBSize, uint32_t flags);
 
     //If imgui is enabled/requested...
     void initImGUI();
     void createDescriptors();
-
-
 
 public:
 
@@ -65,7 +62,7 @@ public:
     void endFrame();
 
     //Upload tex to gpu TODO move this to device, this is not a per display resource
-    void addTexture(Texture& tex, uint32_t dstIdx);
+    TextureID loadTexture(std::string filepath, std::string name = nullptr);
 
     //Window methods
     bool shouldExit();
@@ -144,9 +141,13 @@ private:
     //For Draw
     Entity mCameraEntity = 0;
 
-    std::array<Entity, MAX_ENTITYS> mLocalEntityList;
-    uint32_t mEntityListSize = 0;
-    std::array<Entity, MAX_ENTITYS> mEntityToPos;
+    //Textures...
+    std::array<uint32_t, MAX_TEXTURES> mTextureToBinding;
+    std::array<TextureID, MAX_TEXTURES> mBindingsToTexture;
+    uint32_t mTextureCount;
+
+    SubscribeData SData;
+    ECS &mECS;
 
 //Variables needed for cleanup and destruction
     VkInstance mInstance {VK_NULL_HANDLE};

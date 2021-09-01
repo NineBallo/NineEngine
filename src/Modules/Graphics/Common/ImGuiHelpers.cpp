@@ -11,17 +11,12 @@
 NEGUI::NEGUI(NEDisplay* display) : mECS {ECS::Get()}, mEngine{Engine::Get()} {
     mDisplay = display;
 
-    SubscribeData sd {
-        .localEntityList = &mLocalEntityList,
-        .size = &mEntityListSize,
-        .entityToPos = &mEntityToPos,
-    };
 
-    mECS.registerSystem<NEGUI>(sd);
+    mECS.registerSystem(&SData);
 
     //We want every entity
     Signature emptySig;
-    mECS.setSystemSignature<NEGUI>(emptySig);
+    mECS.setSystemSignature(SData.systemRef, emptySig);
 
     mPositionSignature.set(mECS.getComponentType<Position>(), true);
     mCameraSignature.set(mECS.getComponentType<Camera>(), true);
@@ -136,8 +131,8 @@ void NEGUI::drawMenuBar() {
 void NEGUI::drawEntityListPanel() {
     if(mEntityListPanelEnabled) {
         if(ImGui::Begin("Entity List")) {
-            for(Entity i = 0; i < mEntityListSize; i++) {
-                Entity entity = mLocalEntityList[0][i];
+            for(Entity i = 0; i < SData.size; i++) {
+                Entity entity = SData.localEntityList[i];
 
                 if(ImGui::TreeNode(std::to_string(entity).c_str())) {
                     Signature entitySig = mECS.getEntitySignature(entity);

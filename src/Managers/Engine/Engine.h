@@ -8,7 +8,9 @@
 #include <optional>
 #include <string>
 #include "ECS.h"
-#include "../../Modules/Graphics/Graphics.h"
+
+
+using settingVal = uint32_t;
 
 class Engine {
 public:
@@ -18,7 +20,6 @@ public:
         static Engine engine;
         return engine;
     }
-
 
 
 public:
@@ -40,19 +41,34 @@ public:
 
     std::string getRendererType();
 
-    uint32_t getSetting(std::string key);
-    void setSetting(std::string key, uint32_t value);
+    uint32_t getSetting(uint32_t key);
+    void setSetting(uint32_t key, uint32_t value);
 
 
     enum Renderers {
         VK,
     };
 
+#define settingCount 5
+    enum Settings {
+        Renderer,
+        DisplayCount,
+        FrameCount,
+        MSAA,
+        Editor,
+    };
+
 private:
+
     Engine();
     //This holds every setting for the engine in a key-value pair, ideally it is persistent.
-    std::unordered_map<std::string, uint32_t> mSettings;
-  //  std::unique_ptr<Graphics> VKRenderer;
+    ///TODO make persistant
+    std::array<settingVal, 5> mSettingToPos;
+    std::array<uint32_t, 5> mPosToSetting;
+
+    std::array<settingVal, 5> mSettings;
+
+
     ECS& mECS {ECS::Get()};
 };
 

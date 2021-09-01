@@ -2,9 +2,16 @@
 // Created by nineball on 7/16/21.
 //
 
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
+
 #include <VkBootstrap.h>
+
+
 #include <iostream>
 #include <fstream>
 #include <utility>
@@ -15,14 +22,15 @@
 #include "Mesh.h"
 #include "../shaders/Shaders.h"
 
-NEDevice::NEDevice() {
+NEDevice::NEDevice() : mEngine{Engine::Get()} {
 
 }
 
 NEDevice::~NEDevice() {
-    for(auto it = mRenderPassList.begin(); it != mRenderPassList.end();) {
-        vkDestroyRenderPass(mDevice, mRenderPassList[(it++)->first], nullptr);
+    for(uint32_t i = 0; i < mRenderPassCount; i++) {
+        vkDestroyRenderPass(mDevice, mRenderPassList[i], nullptr);
     }
+
     mDeletionQueue.flush();
 }
 
@@ -196,15 +204,132 @@ void NEDevice::init_upload_context() {
     });
 }
 
+TextureID NEDevice::getTextureID(std::string name) {
+    std::cout << "No\n";
+    return 0;
+}
+
+Texture &NEDevice::getTexture(TextureID id) {
+    uint32_t pos = mTexIDToPos[id];
+    return mTextures[pos];
+}
+
+bool NEDevice::loadTextureFromFile(const char *file, Texture &outTex) {
+
+    int texWidth = 0, texHeight = 0, texChannels = 0;
+
+    ///Load Texture from file into cpu memory
+    stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+    outTex.mMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+
+    if(!pixels) {
+        std::cout << "Failed to load texture file" << file << std::endl;
+        return false;
+    }
+
+    ///Load texture into cpu buffer
+    void* pixel_ptr = pixels;
+    VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+    //the format R8G8B8A8 matches exactly with the pixels loaded from stb_image lib
+    VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
+
+    //allocate temporary buffer for holding texture data to upload
+    AllocatedBuffer stagingBuffer = createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+    //copy data to buffer
+    void* data;
+    vmaMapMemory(mAllocator, stagingBuffer.mAllocation, &data);
+
+    memcpy(data, pixel_ptr, static_cast<size_t>(imageSize));
+
+    vmaUnmapMemory(mAllocator, stagingBuffer.mAllocation);
+
+    ///Delete copy now that we already have it in the cpu buffer
+    stbi_image_free(pixels);
+
+
+    VkExtent2D imageExtent;
+    imageExtent.width = static_cast<uint32_t>(texWidth);
+    imageExtent.height = static_cast<uint32_t>(texHeight);
+
+    VkImageCreateInfo dimg_info = init::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                                        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, imageExtent, outTex.mMipLevels);
+
+
+    VmaAllocationCreateInfo dimg_allocinfo = {};
+    dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    //allocate and create the image
+    vmaCreateImage(mAllocator, &dimg_info, &dimg_allocinfo, &outTex.mImage.mImage, &outTex.mImage.mAllocation, nullptr);
+
+    //Get texture to the gpu in an optimal format
+    transitionImageLayout(outTex.mImage.mImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, outTex.mMipLevels);
+    copyBufferToImage(stagingBuffer.mBuffer, outTex.mImage.mImage, imageExtent);
+
+    //Generate MipMaps
+    generateMipmaps(outTex.mImage.mImage, VK_FORMAT_R8G8B8A8_SRGB, imageExtent, outTex.mMipLevels);
+
+    //Cleanup&Return
+    vmaDestroyBuffer(mAllocator, stagingBuffer.mBuffer, stagingBuffer.mAllocation);
+    return true;
+}
+
+TextureID NEDevice::loadTexture(std::string pathToImage) {
+
+    Texture texture;
+    loadTextureFromFile(pathToImage.c_str(), texture);
+
+    VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
+                                                                  texture.mMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    vkCreateImageView(mDevice, &imageInfo, nullptr, &texture.mImageView);
+
+    if(texture.mSampler == VK_NULL_HANDLE)
+        texture.mSampler = createSampler(texture.mMipLevels);
+}
+
+void NEDevice::deleteTexture(TextureID id) {
+    //Get id's, positions, and references
+    uint32_t lastPos = --mTexCount;
+    uint32_t deletedPos = mTexIDToPos[id];
+    Texture &deletedTex = mTextures[deletedPos];
+
+    //Deallocate old texture
+    vkDestroyImageView(mDevice, deletedTex.mImageView, nullptr);
+    vmaDestroyImage(mAllocator, deletedTex.mImage.mImage, deletedTex.mImage.mAllocation);
+
+    vkDestroySampler(mDevice, deletedTex.mSampler, nullptr);
+
+    if(!mBindless) {
+        vkFreeDescriptorSets(mDevice, mDescriptorPool, 1, &deletedTex.mTextureSet);
+    }
+
+    //Repack array
+    mTextures[deletedPos] = mTextures[lastPos];
+    //Update map so that...
+    //The old texID points to the new position;
+    mTexIDToPos[mPosToTexID[lastPos]] = deletedPos;
+    //The new pos points to the old TexID
+    mPosToTexID[deletedPos] = id;
+}
+
+
 VkRenderPass NEDevice::getRenderPass(uint32_t flags, VkFormat format) {
     ///TODO proper msaa support built into the gui/ Engine.mSettings
 
-    if(mRenderPassList.contains(flags)) {
-        return mRenderPassList[flags];
+    if(mRenderModeToPos.contains(flags)) {
+        uint32_t pos = mRenderModeToPos[flags];
+        return mRenderPassList[pos];
     }
     else if(format != VK_FORMAT_UNDEFINED) {
-        mRenderPassList[flags] = createRenderpass(format, flags | NE_FLAG_MSAA8x_BIT);
-        return mRenderPassList[flags];
+        uint32_t newPos = mRenderPassCount;
+
+        mRenderModeToPos[flags] = newPos;
+        mRenderPassList[newPos] = createRenderpass(format, flags | NE_FLAG_MSAA8x_BIT);
+        ++mRenderPassCount;
+        return mRenderPassList[newPos];
     }
     else{
         std::cout << "RenderPass not created, and not format was provided to crate one.\n";
@@ -217,9 +342,12 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermod
     //    features |= NE_FLAG_BINDING_BIT;
     }
 
-    if(mRenderPassList.contains(rendermode)) {
-       if(mPipelineList[rendermode].contains(features)) {
-           return mPipelineList[rendermode][features];
+    if(mRenderModeToPos.contains(rendermode)) {
+        uint32_t renderPassIDX = mRenderModeToPos[rendermode];
+        uint32_t featuresIDX = mPipelineFeaturesToPos[renderPassIDX][features];
+
+       if(mPipelines[renderPassIDX][featuresIDX].first != VK_NULL_HANDLE) {
+           return mPipelines[renderPassIDX][featuresIDX];
        }
        else {
            //Load shader
@@ -229,10 +357,11 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermod
            fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
 
            //create and return pipeline
-           mPipelineList[rendermode][features] = createPipeline(mRenderPassList[rendermode],
+           mPipelines[rendermode][features] = createPipeline(mRenderPassList[rendermode],
                                                                 vertex, fragment,
                                                                 features | NE_FLAG_MSAA8x_BIT);
-           return mPipelineList[rendermode][features];
+           ++mPipelineCount[renderPassIDX];
+           return mPipelines[rendermode][features];
        }
     } else {
         std::cout << "No renderpass to fulfill pipeline with requested rendermode";
