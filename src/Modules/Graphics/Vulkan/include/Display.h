@@ -61,7 +61,7 @@ public:
     VkCommandBuffer startFrame();
     void endFrame();
 
-    //Upload tex to gpu TODO move this to device, this is not a per display resource
+    //Upload tex to gpu
     TextureID loadTexture(std::string filepath, std::string name = nullptr);
 
     //Window methods

@@ -204,6 +204,74 @@ void NEDevice::init_upload_context() {
     });
 }
 
+MeshGroupID NEDevice::createMesh(const std::string& filepath, const std::string& meshName) {
+    MeshGroup meshGroup;
+    meshGroup.load_objects_from_file(filepath);
+
+    if(meshName != "") {
+        meshGroup.name = meshName
+    }
+    else {
+        meshGroup.name = mMeshCount
+    }
+
+    for(auto& mesh : meshGroup.mMeshes) {
+        uploadMesh(mesh);
+    }
+
+    mMeshGroups[mMeshCount] = meshGroup;
+    mMeshIDToPos[mMeshCount] = mMeshCount;
+    mPosToMeshID[mMeshCount] = mMeshCount;
+    mMeshCount++;
+
+    return
+}
+
+void NEDevice::uploadMesh(Mesh &mesh) {
+
+    size_t indexBufferSize = mesh.mIndices.size() * sizeof(uint32_t);
+    size_t vertexBufferSize = mesh.mVertices.size() * sizeof(Vertex);
+
+    mesh.mVertexBuffer = createBuffer(vertexBufferSize,
+                                      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                      VMA_MEMORY_USAGE_GPU_ONLY);
+
+    mesh.mIndexBuffer = createBuffer(indexBufferSize,
+                                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                     VMA_MEMORY_USAGE_GPU_ONLY);
+
+
+
+    uploadToBuffer(mesh.mVertices, mesh.mVertexBuffer, vertexBufferSize);
+    uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
+}
+
+void NEDevice::deleteMesh(MeshGroupID meshID) {
+
+
+    MeshGroup& meshGroup = mMeshGroups[meshName];
+
+//Deallocate resorces
+    for(auto& mesh : meshGroup.mMeshes) {
+        vmaDestroyBuffer(mDevice->allocator(), mesh.mVertexBuffer.mBuffer, mesh.mVertexBuffer.mAllocation);
+        vmaDestroyBuffer(mDevice->allocator(), mesh.mIndexBuffer.mBuffer, mesh.mIndexBuffer.mAllocation);
+    }
+
+    uint32_t deletedPos = mMeshIDToPos[meshID];
+    uint32_t lastPos = --mMeshCount;
+    MeshGroupID lastID = mPosToMeshID[lastPos];
+
+//Repack Array to maintain speed
+    mMeshGroups[deletedPos] = mMeshGroups[lastPos];
+    //Update MeshID for pos
+    mPosToMeshID[deletedPos] = lastID;
+    //Update Pos for MeshID
+    mMeshIDToPos[lastID] = deletedPos;
+
+    return true;
+}
+
+
 TextureID NEDevice::getTextureID(std::string name) {
     std::cout << "No\n";
     return 0;

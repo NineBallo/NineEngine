@@ -60,7 +60,6 @@ public:
     MeshGroupID createMesh(const std::string& filepath, const std::string& meshName = nullptr);
     void deleteMesh(MeshGroupID id);
 
-    ///What is oatmeal?
     ///TODO move texture and mesh code over; Then it should be good to go assuming no bugs in the ecs.
 
 
@@ -100,7 +99,7 @@ private:
     //RenderPass creation
     VkRenderPass createRenderpass(VkFormat format, uint32_t flags);
 
-    //Pipeline creation TODO move pipeline creation to the same format as the renderpass creation
+
     bool loadShaderModule(std::vector<uint32_t> spirv, VkShaderModule &outShaderModule);
 
     //Device limits
@@ -192,13 +191,6 @@ private: ///resource management
     //Number of textures currently allocated
     uint32_t mTexCount;
 
-
-
-//A material is a struct of data pertaining to that material. Rendermode, static-color, etc...
-//   std::array<uint32_t, MAX_MATERIALS> mMatIDToPos;
-//   std::array<MaterialID, MAX_MATERIALS> mPosToMatID;
-//   std::array<Material, MAX_MATERIALS> mMaterials;
-//   uint32_t mMatCount;
 
 //List of all allocated RenderPasses, keyed by the RenderPass flags.
     std::unordered_map<uint32_t, uint32_t> mRenderModeToPos;
