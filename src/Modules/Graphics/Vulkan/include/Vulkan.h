@@ -41,13 +41,14 @@ public:
     Material* createMaterial(uint32_t features);
     void deleteMaterial(uint32_t features);
 
-    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, std::string* Textures = {}, std::string* textureIndex = {});
+    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, TextureID* Textures = {}, std::string* textureIndex = {});
 
     void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
 
-    Texture* loadTexture(const std::string& filepath, const std::string& name);
-    auto deleteTexture(const std::string& name);
+    Texture* getTexture(TextureID);
+    TextureID loadTexture(const std::string& filepath, const std::string& name = "");
+    void deleteTexture(TextureID texID);
 
     GLFWwindow* getWindow(Display display);
 
@@ -86,10 +87,12 @@ private:
     std::unordered_map<uint32_t, Material> mMaterials;
     std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
-    std::unordered_map<std::string, Texture> mTextures;
-    std::unordered_map<std::string, uint32_t> mTextureToBinding;
-    std::unordered_map<uint32_t, std::string> mBindingToTexture;
+
+    std::array<Texture, MAX_TEXTURES> mTextures;
+    std::array<uint32_t, MAX_TEXTURES> mTextureToPos;
+    std::array<TextureID, MAX_TEXTURES> mPosToTexture;
     uint32_t mTextureCount {0};
+    std::queue<TextureID> mOldTextureIDs{};
 
 private:
     ECS *mECS;

@@ -20,6 +20,8 @@
 #define NE_SHADER_COLOR_BIT 1 << 2   //0010
 #define NE_FLAG_BINDING_BIT 1 << 3  //0100
 
+
+
 struct AllocatedBuffer {
     VkBuffer mBuffer;
     VmaAllocation mAllocation;

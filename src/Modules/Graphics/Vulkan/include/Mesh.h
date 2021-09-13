@@ -13,6 +13,8 @@
 #include "Types.h"
 #include "assimp/scene.h"
 
+using TextureID = uint32_t;
+
 struct VertexInputDescription {
 
     std::vector<VkVertexInputBindingDescription> bindings;
@@ -62,7 +64,7 @@ struct MeshGroup {
     std::vector<Mesh> mMeshes;
     std::vector<bool> enabled;
 
-    std::vector<std::string> mTextures;
+    std::vector<TextureID> mTextures;
     std::unordered_map<std::string, uint32_t> mMatToIdx;
 
     bool load_objects_from_file(std::string filename);
