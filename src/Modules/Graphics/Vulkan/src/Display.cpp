@@ -525,7 +525,7 @@ void NEDisplay::populateFrameData() {
 void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
     VkWriteDescriptorSet writes[MAX_FRAMES];
     if(tex.mSampler == VK_NULL_HANDLE)
-        tex.mSampler = mDevice->createSampler(tex.mMipLevels);
+        tex.mSampler = mDevice->getSampler(tex.mMipLevels);
     for(uint32_t i = 0; i < MAX_FRAMES; i++) {
         VkDescriptorImageInfo descriptorImageInfo;
         descriptorImageInfo.sampler = tex.mSampler;

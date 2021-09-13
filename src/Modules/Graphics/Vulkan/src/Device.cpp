@@ -50,6 +50,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
  ///Test if all desired extensions are supported, if not then fallback to "legacy" mode...
  if(selectorReturn) {
     physicalDevice = selectorReturn.value();
+    mBindless = true;
  }
  else {
      std::cout << "Needed vulkan features unsupported, falling back to legacy backend\n";
@@ -60,6 +61,7 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
              .set_required_features(deviceFeatures)
              .select()
              .value();
+     mBindless = false;
  }
 
     mGPU = physicalDevice.physical_device;
@@ -74,17 +76,6 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
     mGPUFeaturesVK12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 
     vkGetPhysicalDeviceFeatures2(mGPU, &mGPUFeatures);
-
-
-    if(mGPUFeaturesVK12.descriptorBindingPartiallyBound  &&
-       mGPUFeaturesVK12.runtimeDescriptorArray           &&
-       mGPUFeaturesVK12.shaderSampledImageArrayNonUniformIndexing) {
-        mBindless = true;
-    }
-    else {
-        std::cout << "Needed vulkan features unsupported, falling back to legacy backend\n";
-        mBindless = false;
-    }
 
     mSampleCount = getMaxSampleCount();
     mMaxAnisotropy = getMaxAnisotropy();
@@ -236,6 +227,17 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermod
     } else {
         std::cout << "No renderpass to fulfill pipeline with requested rendermode";
         return{};
+    }
+}
+
+VkSampler NEDevice::getSampler(uint32_t miplevels) {
+    if(mSamplers.contains(miplevels)) {
+        return mSamplers[miplevels];
+    }
+    else {
+        VkSampler sampler = createSampler(miplevels);
+        mSamplers[miplevels] = sampler;
+        return sampler;
     }
 }
 

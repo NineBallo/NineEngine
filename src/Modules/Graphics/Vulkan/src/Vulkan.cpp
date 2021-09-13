@@ -66,7 +66,7 @@ Texture* Vulkan::loadTexture(const std::string &filepath, const std::string &nam
         descriptorImageInfo.imageView = texture.mImageView;
 
         VkDescriptorImageInfo samplerInfo{};
-        samplerInfo.sampler = mSampler;
+        samplerInfo.sampler = mDevice->getSampler(texture.mMipLevels);
 
         VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
         VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
@@ -229,7 +229,6 @@ void Vulkan::createMesh(const std::string &filepath, const std::string &meshName
     mDeletionQueue.push_function([=, this]() {
         deleteMesh(meshName);
     });
-
 }
 
 bool Vulkan::deleteMesh(const std::string& meshName) {

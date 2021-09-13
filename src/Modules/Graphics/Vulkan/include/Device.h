@@ -43,6 +43,9 @@ public:
     //Same thing but pipeline
     std::pair<VkPipeline, VkPipelineLayout> getPipeline(uint32_t rendermode, uint32_t features);
 
+    //Same thing but sampler
+    VkSampler getSampler(uint32_t miplevels);
+
     //Buffers
     template<typename T>
     void uploadToBuffer(std::vector<T>& data, AllocatedBuffer& buffer, size_t size);
@@ -137,6 +140,8 @@ private:
     std::unordered_map<uint32_t, VkRenderPass> mRenderPassList;
         //key is the renderpass flags, second key is the features, result is a pair with pipeline and its layout
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::pair<VkPipeline, VkPipelineLayout>>> mPipelineList;
+
+    std::unordered_map<uint32_t, VkSampler> mSamplers;
 
     ///Memory allocator
     VmaAllocator mAllocator {nullptr};

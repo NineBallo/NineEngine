@@ -223,31 +223,33 @@ void NEGUI::drawTimings() {
         float roundedFrametime = 0;
         uint16_t sampleFrames = 10;
 
-        if(mFrameTimes.size() > 300) {
-            for(uint32_t i = 0; i < mFrameTimes.size(); i++) {
+        for(uint32_t i = 0; i < mFrameTimes.size(); i++) {
+
+            if(mFrameTimes.size() >= 300) {
                 //Shift every element down one.
                 mFrameTimes[i] = mFrameTimes[i+1];
-
-                //Get max value
-                if(mFrameTimes[i] > max) {
-                    max = mFrameTimes[i];
-                }
-                //Get min value
-                if(mFrameTimes[i] < min && mFrameTimes[i] > 0.00001f) {
-                    min = mFrameTimes[i];
-                }
-
             }
-            mFrameTimes[mFrameTimes.size() - 1] = seconds;
 
-            for(uint8_t i = 0; i < sampleFrames; ++i) {
+            //Get max value
+            if(mFrameTimes[i] > max) {
+                max = mFrameTimes[i];
+            }
+            //Get min value
+            if(mFrameTimes[i] < min && mFrameTimes[i] > 0.00001f) {
+                min = mFrameTimes[i];
+            }
+        }
+
+        if(mFrameTimes.size() < 300) {
+            mFrameTimes.push_back(seconds);
+        } else {
+            mFrameTimes[mFrameTimes.size() - 1] = seconds;
+        }
+
+        if(mFrameTimes.size() > sampleFrames) {
+            for (uint8_t i = 0; i < sampleFrames; ++i) {
                 roundedFrametime += mFrameTimes[mFrameTimes.size() - i];
             }
-
-        }
-        else {
-            mFrameTimes.push_back(seconds);
-
         }
 
         roundedFrametime /= sampleFrames;

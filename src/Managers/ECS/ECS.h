@@ -138,13 +138,20 @@ public:
 
     ///Entity handler
     Entity createEntity(Display display) {
-
-        //Grab next available entity
-        Entity newEntity = availableEntitys.front();
+        Entity newEntity;
         u_int32_t index = displaySize[display];
 
-        //Reserve entity
-        availableEntitys.pop();
+        if(!oldEntitys.empty()) {
+            //Grab next available entity
+            newEntity = oldEntitys.front();
+
+
+            //Reserve entity
+            oldEntitys.pop();
+        }
+        else {
+            newEntity = index;
+        }
 
         //Get display, then add newEntity to end of packed array
         displays[display][index] = newEntity;
@@ -154,8 +161,6 @@ public:
 
         //Update new size of packed array
         displaySize[display]++;
-
-
 
         return newEntity;
     };
@@ -183,7 +188,7 @@ public:
         displaySize[display]--;
 
         //Add it back to the list of available entity's
-        availableEntitys.push(entity);
+        oldEntitys.push(entity);
 
         ///Step 2: deallocate all components
 
@@ -354,7 +359,7 @@ private:
     std::array<uint32_t, MAX_DISPLAYS> displaySize{};
 
     //Queue of available entity id's
-    std::queue<Entity> availableEntitys{};
+    std::queue<Entity> oldEntitys{};
 
 private:
 
@@ -374,10 +379,6 @@ private:
 private:
 
     ECS() {
-            for (int entity = 0; entity < MAX_ENTITYS; ++entity)
-            {
-                availableEntitys.push(entity);
-            }
             std::cout << "MAX_ENTITYS: " << MAX_ENTITYS << std::endl;
     };
 };

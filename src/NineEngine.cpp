@@ -65,7 +65,7 @@ int main(){
     renderer.loadTexture("./models/textures/vase_hanging.tga", "vase_hanging");
     renderer.loadTexture("./models/textures/vase_round.tga", "vase_round");
 
-    renderer.loadTexture("./models/textures/banana.jpg", "extra");
+    renderer.loadTexture("./models/textures/vase_round.tga", "extra");
 
     Entity mainEntity = ecs.createEntity(0);
     Position position;
