@@ -53,7 +53,8 @@ vkb::PhysicalDevice NEDevice::init_PhysicalDevice(VkSurfaceKHR surface, vkb::Ins
  }
  else {
      std::cout << "Needed vulkan features unsupported, falling back to legacy backend\n";
-     physicalDevice = selector
+     vkb::PhysicalDeviceSelector legacySelector{ vkb_inst };
+     physicalDevice = legacySelector
              .set_minimum_version(1, 1)
              .set_surface(surface)
              .set_required_features(deviceFeatures)
