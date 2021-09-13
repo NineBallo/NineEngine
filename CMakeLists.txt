@@ -7,8 +7,6 @@ set(CMAKE_BUILD_TYPE Debug)
 add_link_options("-fuse-ld=lld")
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
-find_package(glfw3 REQUIRED FATAL_ERROR) # error
-find_package(glm REQUIRED FATAL_ERROR) # error
 
 message(STATUS "Using ${CMAKE_GENERATOR}")
 message(STATUS "Using ${CMAKE_CXX_COMPILER_ID}")
@@ -23,8 +21,37 @@ if(CCACHE)
 endif(CCACHE)
 
 
-#VK_BOOTSTRAP
 include(FetchContent)
+set(GLFW_STANDALONE ON)
+set(GLFW_BUILD_DOCS OFF)
+set(GLFW_INSTALL OFF)
+
+FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG        3.3.4 #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+FetchContent_GetProperties(glfw)
+
+if(NOT glfw_POPULATED)
+    FetchContent_Populate(glfw)
+    add_subdirectory(${glfw_SOURCE_DIR} ${glfw_BINARY_DIR})
+endif()
+
+set(GLM_TEST_ENABLE OFF)
+FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG        0.9.9.8 #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
+)
+FetchContent_GetProperties(glm)
+
+if(NOT glm_POPULATED)
+    FetchContent_Populate(glm)
+    add_subdirectory(${glm_SOURCE_DIR} ${glm_BINARY_DIR})
+endif()
 
 FetchContent_Declare(
         vk_bootstrap
@@ -134,11 +161,12 @@ set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_
 
 add_executable(NineEngine ${imgui_FILES} src/NineEngine.cpp src/NineEngine.h src/Managers/Engine/Engine.h src/Managers/Engine/Engine.cpp src/Modules/IO/Keyboard.cpp src/Modules/IO/Keyboard.h src/Modules/IO/Mouse.cpp src/Modules/IO/Mouse.h src/Managers/ECS/ECS.h src/Modules/Graphics/Vulkan/src/Vulkan.cpp src/Modules/Graphics/Vulkan/include/Display.h src/Modules/Graphics/Vulkan/src/Display.cpp src/Modules/Graphics/Vulkan/include/Types.h src/Modules/Graphics/Vulkan/include/Initializers.h  src/Modules/Graphics/Vulkan/src/Initializers.cpp src/Modules/Graphics/Vulkan/include/Pipeline.h  src/Modules/Graphics/Vulkan/src/Pipeline.cpp src/Modules/Graphics/Vulkan/include/Mesh.h src/Modules/Graphics/Vulkan/src/Mesh.cpp src/Modules/Graphics/Vulkan/include/Device.h src/Modules/Graphics/Vulkan/src/Device.cpp src/Modules/Graphics/Vulkan/include/Common.h src/Managers/ECS/Common.h src/Modules/Graphics/Vulkan/include/Textures.h src/Modules/Graphics/Vulkan/src/Textures.cpp src/Modules/Graphics/Vulkan/shaders/Fragment.h src/Modules/Graphics/Vulkan/shaders/Vertex.h src/Modules/Graphics/Vulkan/shaders/Shaders.cpp src/Modules/Graphics/Vulkan/shaders/Shaders.h src/Modules/Graphics/Common/ImGuiHelpers.h src/Modules/Graphics/Common/ImGuiHelpers.cpp)
 
-link_directories(${shaderc_BINARY_DIR})
-target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw vulkan shaderc assimp)
+link_directories(${shaderc_BINARY_DIR} ${glfw_BINARY_DIR} ${glm_BINARY_DIR})
+target_link_libraries(NineEngine vk-bootstrap::vk-bootstrap glfw glm vulkan shaderc assimp)
 
 target_include_directories(NineEngine PUBLIC
-        ${vma_SOURCE_DIR}/src ${imgui_SOURCE_DIR} ${stb_SOURCE_DIR} ${assimp_SOURCE_DIR}/include)
+        ${vma_SOURCE_DIR}/src ${imgui_SOURCE_DIR} ${stb_SOURCE_DIR} ${assimp_SOURCE_DIR}/include ${glfw_SOURCE_DIR}/include
+        ${glm_SOURCE_DIR})
 
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES
