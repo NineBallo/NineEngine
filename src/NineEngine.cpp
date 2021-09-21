@@ -38,7 +38,7 @@ int main(){
 
     Vulkan renderer(ecs, player);
 
-    renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
+ //   renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
     renderer.createMesh("./models/sponza.obj", "model");
     TextureID lion = renderer.loadTexture("./models/textures/lion.tga", "lion");
     TextureID background = renderer.loadTexture("./models/textures/background.tga", "background");
@@ -79,17 +79,17 @@ int main(){
     //                            "curtain_green", "curtain_blue", "curtain", "chain", "thorn", "fabric_blue", "vase", "vase_hanging",
     //                            "vase_round", "extra"};
 
-    TextureID textures[25] = {lion, background, vase_plant, arch, bricks_a, ceiling_a, floor_a, column_a, column_b, column_c,
+    std::vector<TextureID> textures = {lion, background, vase_plant, arch, bricks_a, ceiling_a, floor_a, column_a, column_b, column_c,
                               details, fabric, flagpole, roof, fabric_green, curtain_green, curtain_blue, curtain, chain,
                               thorn, fabric_blue, vase, vase_hanging, vase_round, tex26};
 
-    std::string index[25] = {"Material__25", "Material__298", "Material__57", "arch", "bricks", "ceiling", "floor", "column_a",
+    std::vector<std::string> index = {"Material__25", "Material__298", "Material__57", "arch", "bricks", "ceiling", "floor", "column_a",
                              "column_b", "column_c", "details", "fabric_a", "flagpole", "roof", "fabric_e",
                              "fabric_f", "fabric_g", "fabric_c", "chain", "leaf", "fabric_d", "vase", "vase_hanging",
                              "vase_round", "Material__47"
     };
 
-    renderer.makeRenderable(mainEntity, NE_SHADER_TEXTURE_BIT, "model", textures, index);
+    renderer.makeRenderable(mainEntity, "model", textures, index);
 
 
     Keyboard keyboard(renderer.getWindow(0));

@@ -56,11 +56,6 @@ void Vulkan::addTextureToDisplay(TextureID texID) {
 Vulkan::~Vulkan(){
     vkDeviceWaitIdle(mDevice->device());
 
-    //for(uint32_t texIDX = 0; texIDX > mTextureCount; texIDX++) {
-    //    TextureID texID = mPosToTexture[texIDX];
-    //    deleteTexture(texID);
-    //}
-
     mRootDisplay.reset();
     mDeletionQueue.flush();
     mDevice.reset();
@@ -124,34 +119,34 @@ void Vulkan::init_vulkan() {
     mDevice->init_Allocator(vkb_inst.instance);
 }
 
-Material* Vulkan::createMaterial(uint32_t features) {
+//void Vulkan::createMaterial(uint32_t features) {
+//
+//    if(!mDevice->bindless()) {
+//        features += NE_FLAG_BINDING_BIT;
+//    }
+//
+//    Material material{};
+//    material.features = features;
+//    material.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
+//
+//    mMaterials[features] = material;
+//
+//    mDeletionQueue.push_function([=, this]() {
+//        deleteMaterial(features);
+//    });
+//
+//    return &mMaterials[features];
+//}
 
-    if(!mDevice->bindless()) {
-        features += NE_FLAG_BINDING_BIT;
-    }
-
-    Material material{};
-    material.features = features;
-    material.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
-
-    mMaterials[features] = material;
-
-    mDeletionQueue.push_function([=, this]() {
-        deleteMaterial(features);
-    });
-
-    return &mMaterials[features];
-}
-
-void Vulkan::deleteMaterial(uint32_t features) {
-    Material& material = mMaterials[features];
-    auto pipelineInfo = mDevice->getPipeline(material.renderMode, material.features);
-
-    vkDestroyPipeline(mDevice->device(), pipelineInfo.first, nullptr);
-    vkDestroyPipelineLayout(mDevice->device(), pipelineInfo.second, nullptr);
-
-    mMaterials.erase(features);
-}
+//void Vulkan::deleteMaterial(uint32_t features) {
+//    Material& material = mMaterials[features];
+//    auto pipelineInfo = mDevice->getPipeline(material.renderMode, material.features);
+//
+//    vkDestroyPipeline(mDevice->device(), pipelineInfo.first, nullptr);
+//    vkDestroyPipelineLayout(mDevice->device(), pipelineInfo.second, nullptr);
+//
+//    mMaterials.erase(features);
+//}
 
 void Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
     MeshGroup meshGroup;
@@ -201,24 +196,29 @@ void Vulkan::uploadMesh(Mesh &mesh) {
     mDevice->uploadToBuffer(mesh.mIndices, mesh.mIndexBuffer, indexBufferSize);
 }
 
-void Vulkan::makeRenderable(Entity entity, uint32_t material, const std::string &mesh, TextureID* Textures, std::string* textureIndex) {
-    //Set hidden bits/flags
-    if(!mDevice->bindless()) {
-        material += NE_FLAG_BINDING_BIT;
-    }
+void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<TextureID> Textures, std::vector<std::string> textureIndex) {
+   // Flags features = 0;
+   //
+   // //Set hidden bits/flags
+   // if(!mDevice->bindless()) {
+   //     features += NE_FLAG_BINDING_BIT;
+   // }
 
     RenderObject renderObject{};
-    renderObject.material = &mMaterials[material];
+
+    renderObject.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
+
     renderObject.meshGroup = &mMeshGroups[mesh];
     MeshGroup& meshGroup = mMeshGroups[mesh];
 
-    if((material & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+
+    if(!Textures.empty() && !textureIndex.empty()) {
+        renderObject.features += NE_SHADER_TEXTURE_BIT;
         //For each material, get the respective texture
         for (int i = 0; i < meshGroup.mMatToIdx.size(); i++) {
 
             uint32_t texIdx = meshGroup.mMatToIdx[textureIndex[i]];
             meshGroup.mTextures[texIdx] = Textures[i];
-
         }
     }
 
@@ -277,7 +277,7 @@ void Vulkan::draw() {
     }
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
 
-    Material* mLastMaterial = nullptr;
+    Flags mLastFlags = 0;
     TextureID mLastTexture = MAX_TEXTURES + 1;
 
     for(Entity i = 0; i < mEntityListSize; i++) {
@@ -285,11 +285,11 @@ void Vulkan::draw() {
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
         MeshGroup& meshGroup = *currentEntity.meshGroup;
 
-        auto pipelineInfo = mDevice->getPipeline(currentEntity.material->renderMode, currentEntity.material->features);
-        if(currentEntity.material != mLastMaterial) {
+        auto pipelineInfo = mDevice->getPipeline(currentEntity.renderMode, currentEntity.features);
+        if(currentEntity.features != mLastFlags) {
 
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
-            mLastMaterial = currentEntity.material;
+            mLastFlags = currentEntity.features;
 
             VkDescriptorSet globalDescriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
             VkDescriptorSet objectDescriptorSet = mRootDisplay->currentFrame().mObjectDescriptor;

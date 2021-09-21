@@ -19,6 +19,7 @@
 #define NE_SHADER_COLOR_BIT 1 << 2   //0010
 #define NE_FLAG_BINDING_BIT 1 << 3  //0100
 
+using Flags = uint32_t;
 using TextureID = uint32_t;
 
 struct AllocatedBuffer {
@@ -81,13 +82,6 @@ struct GPUObjectData {
 
 struct GPUMaterialData {
     glm::mat4 modelMatrix;
-};
-
-struct Material {
-    VkDescriptorSet mTextureSet {VK_NULL_HANDLE};
-    VkSampler mSampler;
-    uint32_t renderMode;
-    uint32_t features;
 };
 
 struct Camera {

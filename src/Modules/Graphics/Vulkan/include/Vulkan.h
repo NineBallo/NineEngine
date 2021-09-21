@@ -34,10 +34,7 @@ public:
 
     bool shouldExit();
 
-    Material* createMaterial(uint32_t features);
-    void deleteMaterial(uint32_t features);
-
-    void makeRenderable(Entity entity, uint32_t material, const std::string& mesh, TextureID* Textures = {}, std::string* textureIndex = {});
+    void makeRenderable(Entity entity, const std::string &mesh, std::vector<TextureID> Textures = {}, std::vector<std::string> textureIndex = {});
 
     void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
@@ -79,7 +76,6 @@ private:
     VkSampler mSampler;
 
 private:
-    std::unordered_map<uint32_t, Material> mMaterials;
     std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
 private:

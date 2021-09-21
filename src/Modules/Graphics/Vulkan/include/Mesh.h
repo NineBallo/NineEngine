@@ -69,8 +69,13 @@ struct MeshGroup {
 };
 
 struct RenderObject {
+    Flags renderMode;
+    Flags features;
+
     MeshGroup* meshGroup;
-    Material* material;
+
+    //0 is ui, 1+ is drawn from the back forward
+    uint8_t layer;
 
     glm::mat4 transformMatrix;
 };
