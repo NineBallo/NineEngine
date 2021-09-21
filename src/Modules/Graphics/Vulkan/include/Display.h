@@ -4,7 +4,7 @@
 
 #ifndef NINEENGINE_DISPLAY_H
 #define NINEENGINE_DISPLAY_H
-#include "chrono"
+#include <chrono>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <string>
@@ -13,6 +13,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+
+#include "Common.h"
 
 #include "../../Common/ImGuiHelpers.h"
 class NEGUI;
@@ -55,8 +57,6 @@ public:
     void initImGUI();
     void createDescriptors();
 
-
-
 public:
 
 //Runtime external methods
@@ -65,7 +65,14 @@ public:
     void endFrame();
 
     //Upload tex to gpu TODO move this to device, this is not a per display resource
-    void addTexture(Texture& tex, uint32_t dstIdx);
+    void addTexture(TextureID texID);
+    void addTextureBinding(TextureID texID, uint32_t binding);
+
+    ///TODO Temporary till draw loop is internal to display
+    uint32_t getTextureBinding(TextureID tex);
+
+    TextureID loadTexture(const std::string& filepath, const std::string& name = "");
+    void deleteTexture(TextureID texID);
 
     //Window methods
     bool shouldExit();
@@ -103,15 +110,22 @@ public:
     VkRenderPass swapchainPass();
     std::shared_ptr<NEDevice> device();
     VkDescriptorPool guiDescriptorPool();
+    Display getDisplay();
 
 private:
+    //Bindings
+    std::array<TextureID, MAX_TEXTURES> mTexBindings;
+    std::array<TextureID, MAX_TEXTURES> mTexToBindings;
+    std::array<uint32_t, MAX_TEXTURES> mBindingsToTex;
+    uint32_t mBindingCount;
+    std::queue<TextureID> mOldTextures;
+
     //Window variables
     VkExtent2D mExtent;
     GLFWwindow* mWindow = nullptr;
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
     std::string mTitle;
     bool mFullScreen {false};
-
 
     //Swapchain variables
     VkSwapchainKHR mSwapchain {VK_NULL_HANDLE};

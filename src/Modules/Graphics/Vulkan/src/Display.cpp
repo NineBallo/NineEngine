@@ -522,8 +522,27 @@ void NEDisplay::populateFrameData() {
     }
 }
 
-void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
+void NEDisplay::addTexture(TextureID texID) {
+    uint32_t nextBinding;
+
+    if(!mOldTextures.empty()) {
+        nextBinding = mOldTextures.front();
+    }
+    else {
+        nextBinding = mBindingCount;
+    }
+
+    mBindingCount++;
+    addTextureBinding(texID, nextBinding);
+
+    mBindingsToTex[nextBinding] = texID;
+    mTexToBindings[texID] = nextBinding;
+}
+
+void NEDisplay::addTextureBinding(TextureID texID, uint32_t binding) {
     VkWriteDescriptorSet writes[MAX_FRAMES];
+    Texture tex = mDevice->getTexture(texID);
+
     if(tex.mSampler == VK_NULL_HANDLE)
         tex.mSampler = mDevice->getSampler(tex.mMipLevels);
     for(uint32_t i = 0; i < MAX_FRAMES; i++) {
@@ -532,9 +551,35 @@ void NEDisplay::addTexture(Texture& tex, uint32_t dstIdx) {
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         descriptorImageInfo.imageView = tex.mImageView;
         writes[i] = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, mFrames[i].mTextureDescriptor, &descriptorImageInfo, 0);
-        writes[i].dstArrayElement = dstIdx;
+        writes[i].dstArrayElement = binding;
     }
     vkUpdateDescriptorSets(mDevice->device(), MAX_FRAMES, writes, 0, nullptr);
+}
+
+uint32_t NEDisplay::getTextureBinding(TextureID tex) {
+    return mTexToBindings[tex];
+}
+
+
+void NEDisplay::deleteTexture(TextureID texID) {
+
+    uint32_t lastBinding = --mBindingCount;
+    TextureID lastTexID = mBindingsToTex[lastBinding];
+    uint32_t oldBinding = mTexToBindings[texID];
+
+    if(texID != lastTexID) {
+
+        //Move last binding into old/deleted bindings slot (CPU)
+        mTexBindings[oldBinding] = mTexBindings[lastBinding];
+        //Move last binding into old/deleted bindings slot (GPU)
+        addTextureBinding(lastTexID, oldBinding);
+
+        //Update Maps
+        mTexToBindings[lastTexID] = oldBinding;
+        mBindingsToTex[oldBinding] = lastTexID;
+
+        mOldTextures.push(texID);
+    }
 }
 
 void NEDisplay::setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExtent2D extent) {

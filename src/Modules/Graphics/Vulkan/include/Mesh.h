@@ -13,8 +13,6 @@
 #include "Types.h"
 #include "assimp/scene.h"
 
-using TextureID = uint32_t;
-
 struct VertexInputDescription {
 
     std::vector<VkVertexInputBindingDescription> bindings;

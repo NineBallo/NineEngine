@@ -24,10 +24,6 @@
 #include "Textures.h"
 #include "../shaders/Shaders.h"
 
-
-//using texture = uint32_t;
-
-
 class Vulkan : Module {
 public:
     Vulkan(ECS &ecs, Entity cameraEntity);
@@ -46,9 +42,8 @@ public:
     void createMesh(const std::string& filepath, const std::string& meshName);
     bool deleteMesh(const std::string& meshName);
 
-    Texture* getTexture(TextureID);
     TextureID loadTexture(const std::string& filepath, const std::string& name = "");
-    void deleteTexture(TextureID texID);
+    void addTextureToDisplay(TextureID texID);
 
     GLFWwindow* getWindow(Display display);
 
@@ -87,13 +82,6 @@ private:
     std::unordered_map<uint32_t, Material> mMaterials;
     std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
-
-    std::array<Texture, MAX_TEXTURES> mTextures;
-    std::array<uint32_t, MAX_TEXTURES> mTextureToPos;
-    std::array<TextureID, MAX_TEXTURES> mPosToTexture;
-    uint32_t mTextureCount {0};
-    std::queue<TextureID> mOldTextureIDs{};
-
 private:
     ECS *mECS;
 
@@ -104,8 +92,6 @@ private:
     bool mShouldExit = false;
 
     Entity mCameraEntity = 0;
-
-
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

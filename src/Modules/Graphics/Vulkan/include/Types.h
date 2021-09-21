@@ -15,12 +15,11 @@
 
 #define MAX_TEXTURES 768
 
-
 #define NE_SHADER_TEXTURE_BIT 1 << 1 //0001
 #define NE_SHADER_COLOR_BIT 1 << 2   //0010
 #define NE_FLAG_BINDING_BIT 1 << 3  //0100
 
-
+using TextureID = uint32_t;
 
 struct AllocatedBuffer {
     VkBuffer mBuffer;

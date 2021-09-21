@@ -42,98 +42,24 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
     init();
 }
+
 TextureID Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
-
-    Texture texture {};
-    init::loadTextureFromFile(mDevice, filepath.c_str(), texture);
-
-    VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
-                                                                  texture.mMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCreateImageView(mDevice->device(), &imageInfo, nullptr, &texture.mImageView);
-
-    TextureID nextTexID;
-    uint32_t index = mTextureCount++;
-
-    if(!mOldTextureIDs.empty()) {
-        nextTexID = mOldTextureIDs.front();
-        mOldTextureIDs.pop();
-    }
-    else {
-        nextTexID = index;
-    }
-
-
-    if(mDevice->bindless()) {
-        mRootDisplay->addTexture(texture, nextTexID);
-        mTextureToPos[nextTexID] = index;
-        mPosToTexture[index] = nextTexID;
-    }
-    else {
-        texture.mTextureSet = mDevice->createDescriptorSet(mDevice->singleTextureSetLayout());
-
-        VkDescriptorImageInfo descriptorImageInfo;
-        descriptorImageInfo.sampler = nullptr;
-        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        descriptorImageInfo.imageView = texture.mImageView;
-
-        VkDescriptorImageInfo samplerInfo{};
-        samplerInfo.sampler = mDevice->getSampler(texture.mMipLevels);
-
-        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
-        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
-        VkWriteDescriptorSet setWrites[] = {textureSamplerWrite, textureWrite};
-
-        vkUpdateDescriptorSets(mDevice->device(), 2, setWrites, 0, nullptr);
-    }
-
-
-    mTextures[index] = texture;
-
-    return nextTexID;
+    TextureID tex = mDevice->loadTexture(filepath, name);
+    mRootDisplay->addTexture(tex);
+    return tex;
 }
 
-void Vulkan::deleteTexture(TextureID texID) {
-    //If it was implicitly deleted it potentially no longer be in the auto deletion queue
+void Vulkan::addTextureToDisplay(TextureID texID) {
 
-    Texture &tex = mTextures[texID];
-
-
-    vkDestroyImageView(mDevice->device(), tex.mImageView, nullptr);
-    vkDestroySampler(mDevice->device(), tex.mSampler, nullptr);
-    vmaDestroyImage(mDevice->allocator(), tex.mImage.mImage, tex.mImage.mAllocation);
-
-
-    if(mDevice->bindless()) {
-        uint32_t oldPos = mTextureToPos[texID];
-        if(mTextureCount >= 1) {
-            TextureID lastTexture = mPosToTexture[mTextureCount - 1];
-            if(lastTexture != texID) {
-                //New free space at binding x
-                Texture& newTexture = mTextures[lastTexture];
-                //Upload last item to binding x
-                mRootDisplay->addTexture(newTexture, oldPos);
-                //Remove reference to old binding
-                mTextureToPos[lastTexture] = oldPos;
-                mPosToTexture[oldPos] = lastTexture;
-                //Profit, idk how to clean up a unused descriptor so yea....
-            }
-        }
-    }
-    else {
-        vkFreeDescriptorSets(mDevice->device(), mDevice->descriptorPool(), 1, &tex.mTextureSet);
-    }
-
-    //Make count smaller to account for the deleted texture
-    mTextureCount--;
 }
 
 Vulkan::~Vulkan(){
     vkDeviceWaitIdle(mDevice->device());
 
-    for(uint32_t texIDX = 0; texIDX > mTextureCount; texIDX++) {
-        TextureID texID = mPosToTexture[texIDX];
-        deleteTexture(texID);
-    }
+    //for(uint32_t texIDX = 0; texIDX > mTextureCount; texIDX++) {
+    //    TextureID texID = mPosToTexture[texIDX];
+    //    deleteTexture(texID);
+    //}
 
     mRootDisplay.reset();
     mDeletionQueue.flush();
@@ -352,7 +278,7 @@ void Vulkan::draw() {
     vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
 
     Material* mLastMaterial = nullptr;
-    Texture* mLastTexture = nullptr;
+    TextureID mLastTexture = MAX_TEXTURES + 1;
 
     for(Entity i = 0; i < mEntityListSize; i++) {
         Entity currentEntityID = mLocalEntityList[0][i];
@@ -400,13 +326,14 @@ void Vulkan::draw() {
 
 
             if(mDevice->bindless()) {
-                pushData.textureIndex = mTextureToPos[texID];
+                pushData.textureIndex = mRootDisplay->getTextureBinding(texID);
             }
-            else if(mLastTexture != &mTextures[texID]) {
-                mLastTexture = &mTextures[texID];
+            else if(mLastTexture != texID) {
+                mLastTexture = texID;
+                VkDescriptorSet textureSet = mDevice->getTexture(texID).mTextureSet;
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         pipelineInfo.second, 2, 1,
-                                        &mTextures[texID].mTextureSet, 0, nullptr);
+                                        &textureSet, 0, nullptr);
             }
 
 

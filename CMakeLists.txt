@@ -2,15 +2,18 @@ cmake_minimum_required(VERSION 3.19)
 project(NineEngine)
 
 set(CMAKE_CXX_STANDARD 20)
+
 set(CMAKE_CXX_COMPILER /usr/bin/clang++)
-set(CMAKE_BUILD_TYPE Debug)
 add_link_options("-fuse-ld=lld")
+
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
 
 message(STATUS "Using ${CMAKE_GENERATOR}")
 message(STATUS "Using ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Using ${CMAKE_LINKER}")
+
 #Might help compile times idk
 find_program(CCACHE "ccache")
 if(CCACHE)
@@ -178,6 +181,8 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
 if(NOT (EXISTS ${CMAKE_BINARY_DIR}/shaders))
     message(STATUS "Shader dir not found, generating...")
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders/Vert)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders/Frag)
 endif()
 
 if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models))
@@ -190,8 +195,6 @@ if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models/textures))
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/models/textures)
 endif()
 
-
-
 add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/* ${CMAKE_BINARY_DIR}/models)
@@ -199,6 +202,14 @@ add_custom_command(TARGET NineEngine PRE_BUILD
 add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/textures/* ${CMAKE_BINARY_DIR}/models/textures)
+
+add_custom_command(TARGET NineEngine PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Vert/* ${CMAKE_BINARY_DIR}/shaders/Vert)
+
+add_custom_command(TARGET NineEngine PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Frag/* ${CMAKE_BINARY_DIR}/shaders/Frag)
 
 #SHADER STUFF
 message(STATUS "Building shaders")
@@ -209,7 +220,6 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
         "${CMAKE_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/*.vert"
         "${CMAKE_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/*.comp"
         )
-
 
 ## iterate each shader
 foreach(GLSL ${GLSL_SOURCE_FILES})

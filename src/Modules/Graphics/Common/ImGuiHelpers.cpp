@@ -232,7 +232,9 @@ void NEGUI::drawTimings() {
 
             //Get max value
             if(mFrameTimes[i] > max) {
-                max = mFrameTimes[i];
+                if(i != 0 && mFrameTimes.size() >= 300) {
+                    max = mFrameTimes[i];
+                }
             }
             //Get min value
             if(mFrameTimes[i] < min && mFrameTimes[i] > 0.00001f) {

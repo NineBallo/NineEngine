@@ -12,6 +12,7 @@
 #include "Pipeline.h"
 #include "Device.h"
 #include "Initializers.h"
+#include "Textures.h"
 #include "Mesh.h"
 #include "../shaders/Shaders.h"
 
@@ -831,6 +832,97 @@ void NEDevice::generateMipmaps(VkImage image, VkFormat imageFormat, VkExtent2D t
                              1, &barrier);
 
     });
+}
+
+Texture NEDevice::getTexture(TextureID texID) {
+    return mTextures[mTextureToPos[texID]];
+}
+
+TextureID NEDevice::loadTexture(const std::string &filepath, const std::string &name) {
+
+    Texture texture {};
+    init::loadTextureFromFile(this, filepath.c_str(), texture);
+
+    VkImageViewCreateInfo imageInfo = init::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.mImage.mImage,
+                                                                  texture.mMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+    vkCreateImageView(mDevice, &imageInfo, nullptr, &texture.mImageView);
+
+    TextureID nextTexID;
+    uint32_t index = mTextureCount++;
+
+    if(!mOldTextureIDs.empty()) {
+        nextTexID = mOldTextureIDs.front();
+        mOldTextureIDs.pop();
+    }
+    else {
+        nextTexID = index;
+    }
+
+    if(mBindless) {
+        mTextureToPos[nextTexID] = index;
+        mPosToTexture[index] = nextTexID;
+    }
+    else {
+        texture.mTextureSet = createDescriptorSet(mSingleTextureSetLayout);
+
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = nullptr;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptorImageInfo.imageView = texture.mImageView;
+
+        VkDescriptorImageInfo samplerInfo{};
+        samplerInfo.sampler = getSampler(texture.mMipLevels);
+
+        VkWriteDescriptorSet textureSamplerWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLER, texture.mTextureSet, &samplerInfo, 0);
+        VkWriteDescriptorSet textureWrite = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.mTextureSet, &descriptorImageInfo, 1);
+        VkWriteDescriptorSet setWrites[] = {textureSamplerWrite, textureWrite};
+
+        vkUpdateDescriptorSets(mDevice, 2, setWrites, 0, nullptr);
+    }
+
+
+    mTextures[index] = texture;
+
+    return nextTexID;
+}
+
+TextureID NEDevice::deallocateTexture(TextureID texID) {
+    //If it was implicitly deleted it potentially no longer be in the auto deletion queue
+
+    Texture &tex = mTextures[texID];
+
+    vkDestroyImageView(mDevice, tex.mImageView, nullptr);
+    vkDestroySampler(mDevice, tex.mSampler, nullptr);
+    vmaDestroyImage(mAllocator, tex.mImage.mImage, tex.mImage.mAllocation);
+
+    uint32_t oldPos;
+
+    if (mBindless) {
+        oldPos = mTextureToPos[texID];
+        if (mTextureCount >= 1) {
+            TextureID lastTexture = mPosToTexture[mTextureCount - 1];
+            if (lastTexture != texID) {
+                //New free space at binding x
+                Texture newTexture = mTextures[lastTexture];
+
+                //Repack array
+                mTextures[oldPos] = newTexture;
+
+                //Update reference to old binding
+                mTextureToPos[lastTexture] = oldPos;
+                mPosToTexture[oldPos] = lastTexture;
+
+                //Profit, idk how to clean up a unused descriptor so yea....
+            }
+        }
+    } else {
+        vkFreeDescriptorSets(mDevice, mDescriptorPool, 1, &tex.mTextureSet);
+    }
+
+    //Make count smaller to account for the deleted texture
+    mTextureCount--;
+
+    return mPosToTexture[oldPos];
 }
 
 ///Getters

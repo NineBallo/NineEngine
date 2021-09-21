@@ -6,11 +6,12 @@
 #define NINEENGINE_DEVICE_H
 #include "Types.h"
 #include "Common.h"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <VkBootstrap.h>
 #include <vk_mem_alloc.h>
-#include "Common.h"
+#include <queue>
 
 #define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0
 #define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1
@@ -68,6 +69,12 @@ public:
     void copyBufferToImage(VkBuffer buffer, VkImage image, VkExtent2D extent);
     void generateMipmaps(VkImage image, VkFormat imageFormat, VkExtent2D texSize, uint32_t mipLevels);
 
+public:
+//Resource handling
+    Texture getTexture(TextureID);
+    TextureID loadTexture(const std::string& filepath, const std::string& name = "");
+    TextureID deallocateTexture(TextureID texID);
+
 private:
 //Internal abstraction
     //Descriptor set layout methods
@@ -106,6 +113,13 @@ public:
 
     bool bindless();
     VkSampleCountFlagBits sampleCount();
+
+private:
+    std::array<Texture, MAX_TEXTURES> mTextures;
+    std::array<uint32_t, MAX_TEXTURES> mTextureToPos;
+    std::array<TextureID, MAX_TEXTURES> mPosToTexture;
+    uint32_t mTextureCount {0};
+    std::queue<TextureID> mOldTextureIDs{};
 
 private:
     //Actual Device this will not be exposed

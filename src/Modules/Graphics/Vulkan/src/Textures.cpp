@@ -11,7 +11,7 @@
 #include <stb_image.h>
 #include <iostream>
 
-bool init::loadTextureFromFile(std::shared_ptr<NEDevice> device, const char *file, Texture &outTex) {
+bool init::loadTextureFromFile(NEDevice* device, const char *file, Texture &outTex) {
 
     int texWidth = 0, texHeight = 0, texChannels = 0;
 

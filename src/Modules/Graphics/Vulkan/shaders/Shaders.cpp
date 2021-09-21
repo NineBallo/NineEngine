@@ -8,9 +8,36 @@
 #include "Fragment.h"
 #include "Types.h"
 
+#include <fstream>
+#include <sstream>
+
+std::string readFile(std::string path) {
+    std::ifstream file(path);
+
+    //, std::ios::ate | std::ios::binary
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+
+    //Create a buffer the size of the file
+    size_t fileSize = (size_t) file.tellg();
+    std::string buffer;
+    buffer.reserve(fileSize);
+
+    //Go to beginning of file them write to buffer
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    file.close();
+
+    buffer = ss.str();
+
+    return buffer;
+}
+
 std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
-    std::string vertex = vertexBase;
-    std::string fragment = fragmentBase;
+    std::string vertex;
+    std::string fragment;
 
     bool bindless = true;
     bool textured = false;
@@ -24,18 +51,18 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
     ///Assembly time
     if(textured) {
-        vertex += vertexTexture;
+        vertex = readFile("./shaders/Vert/Texture.vert");
+
         if(bindless) {
-            fragment += fragmentTexture;
+            fragment = readFile("./shaders/Frag/Texture.frag");
         }
         else {
-            fragment += fragmentTextureBinding;
+            fragment = readFile("./shaders/Frag/TextureBinding.frag");
         }
-
     }
     else {
-        vertex += vertexColor;
-        fragment += fragmentColor;
+        vertex = readFile("./shaders/Vert/Color.vert");
+        fragment = readFile("./shaders/Frag/Color.frag");
     }
 
     //Vertex, Fragment
