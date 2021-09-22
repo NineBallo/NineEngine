@@ -204,8 +204,8 @@ VkRenderPass NEDevice::getRenderPass(uint32_t flags, VkFormat format) {
 }
 
 std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermode, uint32_t features) {
-    if(mBindless) {
-    //    features |= NE_FLAG_BINDING_BIT;
+    if(!mBindless) {
+        features |= NE_FLAG_BINDING_BIT;
     }
 
     if(mRenderPassList.contains(rendermode)) {
@@ -858,11 +858,11 @@ TextureID NEDevice::loadTexture(const std::string &filepath, const std::string &
         nextTexID = index;
     }
 
-    if(mBindless) {
-        mTextureToPos[nextTexID] = index;
-        mPosToTexture[index] = nextTexID;
-    }
-    else {
+    mTextureToPos[nextTexID] = index;
+    mPosToTexture[index] = nextTexID;
+
+    if(!mBindless) {
+
         texture.mTextureSet = createDescriptorSet(mSingleTextureSetLayout);
 
         VkDescriptorImageInfo descriptorImageInfo;

@@ -533,7 +533,10 @@ void NEDisplay::addTexture(TextureID texID) {
     }
 
     mBindingCount++;
-    addTextureBinding(texID, nextBinding);
+
+    if(mDevice->bindless()) {
+      addTextureBinding(texID, nextBinding);
+    }
 
     mBindingsToTex[nextBinding] = texID;
     mTexToBindings[texID] = nextBinding;
@@ -571,8 +574,12 @@ void NEDisplay::deleteTexture(TextureID texID) {
 
         //Move last binding into old/deleted bindings slot (CPU)
         mTexBindings[oldBinding] = mTexBindings[lastBinding];
-        //Move last binding into old/deleted bindings slot (GPU)
-        addTextureBinding(lastTexID, oldBinding);
+
+        if(mDevice->bindless()) {
+            //Move last binding into old/deleted bindings slot (GPU)
+            addTextureBinding(lastTexID, oldBinding);
+        }
+
 
         //Update Maps
         mTexToBindings[lastTexID] = oldBinding;

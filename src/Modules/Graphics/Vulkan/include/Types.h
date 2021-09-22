@@ -40,7 +40,7 @@ struct Texture {
     uint32_t mMipLevels;
 
     //Optional for legacy
-    VkDescriptorSet mTextureSet;
+    VkDescriptorSet mTextureSet = {};
 };
 
 struct UploadContext {

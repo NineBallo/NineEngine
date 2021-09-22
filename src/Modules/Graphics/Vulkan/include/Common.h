@@ -4,6 +4,8 @@
 
 #ifndef NINEENGINE_COMMON_H
 #define NINEENGINE_COMMON_H
+#include <deque>
+#include <functional>
 
 struct DeletionQueue
 {
