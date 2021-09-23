@@ -4,12 +4,11 @@
 
 #include "Shaders.h"
 
-#include "Vertex.h"
-#include "Fragment.h"
 #include "Types.h"
 
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 std::string readFile(std::string path) {
     std::ifstream file(path);

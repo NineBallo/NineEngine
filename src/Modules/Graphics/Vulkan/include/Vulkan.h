@@ -65,11 +65,8 @@ private:
     ///Primary/output device
     std::shared_ptr<NEDevice> mDevice;
 
-    ///Primary/Root window && swapchain
-    std::optional<NEDisplay> mRootDisplay;
-
-    ///Additional displays that may be opened from the Primary/Root window
-    std::array<std::optional<Display>, 10> mAdditionalDisplays;
+    ///Displays may be opened from the Primary/Root window, root is at idx 0
+    std::array<std::optional<NEDisplay>, 10> mDisplays;
 
 private:
     //Only used for legacy descriptor backend

@@ -11,7 +11,6 @@
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
-#include "chrono"
 #include "Initializers.h"
 #include "Pipeline.h"
 #include "memory"
@@ -45,7 +44,7 @@ Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
 
 TextureID Vulkan::loadTexture(const std::string &filepath, const std::string &name) {
     TextureID tex = mDevice->loadTexture(filepath, name);
-    mRootDisplay->addTexture(tex);
+    mDisplays[0]->addTexture(tex);
     return tex;
 }
 
@@ -56,7 +55,7 @@ void Vulkan::addTextureToDisplay(TextureID texID) {
 Vulkan::~Vulkan(){
     vkDeviceWaitIdle(mDevice->device());
 
-    mRootDisplay.reset();
+    mDisplays[0].reset();
     mDeletionQueue.flush();
     mDevice.reset();
 
@@ -69,14 +68,14 @@ void Vulkan::init() {
     init_vulkan();
 
     ///Create Swapchain, Finalize root display
-    mRootDisplay->startInit(mDevice);
+    mDisplays[0]->startInit(mDevice);
 
     //VK_PRESENT_MODE_FIFO_KHR
     ///Create a default renderpass/framebuffers (kinda self explanatory but whatever)
     mDevice->init_descriptors();
     mDevice->init_upload_context();
 
-    mRootDisplay->finishInit();
+    mDisplays[0]->finishInit();
 
 
     if(!mDevice->bindless()) {
@@ -111,42 +110,13 @@ void Vulkan::init_vulkan() {
     createInfo.title = std::move(mTitle);
     createInfo.extent = { 800, 600 };
     createInfo.resizable = true;
-    mRootDisplay.emplace(createInfo);
+    mDisplays[0].emplace(createInfo);
     mDevice = std::make_shared<NEDevice>();
 
-    vkb::PhysicalDevice vkb_GPU = mDevice->init_PhysicalDevice(mRootDisplay->surface(), vkb_inst);
+    vkb::PhysicalDevice vkb_GPU = mDevice->init_PhysicalDevice(mDisplays[0]->surface(), vkb_inst);
     mDevice->init_LogicalDevice(vkb_GPU);
     mDevice->init_Allocator(vkb_inst.instance);
 }
-
-//void Vulkan::createMaterial(uint32_t features) {
-//
-//    if(!mDevice->bindless()) {
-//        features += NE_FLAG_BINDING_BIT;
-//    }
-//
-//    Material material{};
-//    material.features = features;
-//    material.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
-//
-//    mMaterials[features] = material;
-//
-//    mDeletionQueue.push_function([=, this]() {
-//        deleteMaterial(features);
-//    });
-//
-//    return &mMaterials[features];
-//}
-
-//void Vulkan::deleteMaterial(uint32_t features) {
-//    Material& material = mMaterials[features];
-//    auto pipelineInfo = mDevice->getPipeline(material.renderMode, material.features);
-//
-//    vkDestroyPipeline(mDevice->device(), pipelineInfo.first, nullptr);
-//    vkDestroyPipelineLayout(mDevice->device(), pipelineInfo.second, nullptr);
-//
-//    mMaterials.erase(features);
-//}
 
 void Vulkan::createMesh(const std::string &filepath, const std::string &meshName) {
     MeshGroup meshGroup;
@@ -226,7 +196,7 @@ void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<
 }
 
 void Vulkan::draw() {
-    VkCommandBuffer cmd = mRootDisplay->startFrame();
+    VkCommandBuffer cmd = mDisplays[0]->startFrame();
 
     //Camera setup
     auto& camera = ECS::Get().getComponent<Camera>(mCameraEntity);
@@ -250,14 +220,14 @@ void Vulkan::draw() {
     cameraData.viewproj = projection * view;
 
     void* data;
-    vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation, &data);
+    vmaMapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mCameraBuffer.mAllocation, &data);
     memcpy(data, &cameraData, sizeof(GPUCameraData));
-    vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mCameraBuffer.mAllocation);
+    vmaUnmapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mCameraBuffer.mAllocation);
 
 
     ///Calculate all positions and send to gpu
     void* objectData;
-    vmaMapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation, &objectData);
+    vmaMapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mObjectBuffer.mAllocation, &objectData);
 
     auto* objectSSBO = (GPUObjectData*)objectData;
 
@@ -275,7 +245,7 @@ void Vulkan::draw() {
 
         objectSSBO[currentEntityID].modelMatrix = model;
     }
-    vmaUnmapMemory(mDevice->allocator(), mRootDisplay->currentFrame().mObjectBuffer.mAllocation);
+    vmaUnmapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mObjectBuffer.mAllocation);
 
     Flags mLastFlags = 0;
     TextureID mLastTexture = MAX_TEXTURES + 1;
@@ -291,15 +261,15 @@ void Vulkan::draw() {
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
             mLastFlags = currentEntity.features;
 
-            VkDescriptorSet globalDescriptorSet = mRootDisplay->currentFrame().mGlobalDescriptor;
-            VkDescriptorSet objectDescriptorSet = mRootDisplay->currentFrame().mObjectDescriptor;
-            VkDescriptorSet textureDescriptorSet = mRootDisplay->currentFrame().mTextureDescriptor;
+            VkDescriptorSet globalDescriptorSet = mDisplays[0]->currentFrame().mGlobalDescriptor;
+            VkDescriptorSet objectDescriptorSet = mDisplays[0]->currentFrame().mObjectDescriptor;
+            VkDescriptorSet textureDescriptorSet = mDisplays[0]->currentFrame().mTextureDescriptor;
 
             //object data descriptor
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
                                     1, 1, &objectDescriptorSet, 0, nullptr);
 
-            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mRootDisplay->frameIndex();
+            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mDisplays[0]->frameIndex();
             uniform_offset = 0;
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
                                     0, 1, &globalDescriptorSet, 1, &uniform_offset);
@@ -326,7 +296,7 @@ void Vulkan::draw() {
 
 
             if(mDevice->bindless()) {
-                pushData.textureIndex = mRootDisplay->getTextureBinding(texID);
+                pushData.textureIndex = mDisplays[0]->getTextureBinding(texID);
             }
             else if(mLastTexture != texID) {
                 mLastTexture = texID;
@@ -345,7 +315,7 @@ void Vulkan::draw() {
         }
     }
 
-    mRootDisplay->endFrame();
+    mDisplays[0]->endFrame();
 }
 
 void Vulkan::drawEntity(VkCommandBuffer cmd, Entity entity){
@@ -353,7 +323,7 @@ void Vulkan::drawEntity(VkCommandBuffer cmd, Entity entity){
 
 GLFWwindow* Vulkan::getWindow(Display display) {
     if(display == 0) {
-        return mRootDisplay->window();
+        return mDisplays[0]->window();
     }
     else {
         throw std::runtime_error("Not Implemented\n");
@@ -361,8 +331,8 @@ GLFWwindow* Vulkan::getWindow(Display display) {
 }
 
 void Vulkan::tick() {
-    if (mRootDisplay->shouldExit()) {
-        mRootDisplay.reset();
+    if (mDisplays[0]->shouldExit()) {
+        mDisplays[0].reset();
         mShouldExit = true;
     } else {
         draw();

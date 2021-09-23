@@ -8,11 +8,6 @@
 #include <vector>
 #include "shaderc/shaderc.hpp"
 
-//Pushes are kinda needed for current implementation TODO evaluate if this is needed
-#define NE_FLAG_PUSHCONSTANTS_BIT 1 << 4 //1000
-
-
-
 //vertex, fragment
 std::pair<std::string, std::string> assembleShaders(uint32_t flags);
 

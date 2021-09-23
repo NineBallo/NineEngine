@@ -85,7 +85,7 @@ private:
     //RenderPass creation
     VkRenderPass createRenderpass(VkFormat format, uint32_t flags);
 
-    //Pipeline creation TODO move pipeline creation to the same format as the renderpass creation
+    //Pipeline creation
     bool loadShaderModule(std::vector<uint32_t> spirv, VkShaderModule &outShaderModule);
 
     //Device limits

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_COMPILER /usr/bin/clang++)
 add_link_options("-fuse-ld=lld")
 
-set(CMAKE_BUILD_TYPE Debug)
+
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
 
@@ -14,7 +14,7 @@ message(STATUS "Using ${CMAKE_GENERATOR}")
 message(STATUS "Using ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Using ${CMAKE_LINKER}")
 
-#Might help compile times idk
+#Might help compile times idkset(CMAKE_BUILD_TYPE Debug)
 find_program(CCACHE "ccache")
 if(CCACHE)
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE})
@@ -244,4 +244,4 @@ add_custom_target(
 
 add_dependencies(NineEngine Shaders)
 
-target_include_directories(NineEngine PRIVATE src/Modules/Graphics/Vulkan/include src/Modules/Graphics/Vulkan/include/src/ThirdParty src/Handler/include src/Managers/ECS/ src/Managers/Engine)
+target_include_directories(NineEngine PRIVATE src/Modules/Graphics/Vulkan/include src/Handler/include src/Managers/ECS/ src/Managers/Engine)

@@ -64,7 +64,7 @@ public:
     VkCommandBuffer startFrame();
     void endFrame();
 
-    //Upload tex to gpu TODO move this to device, this is not a per display resource
+    //This adds a allocated textures binding to the display
     void addTexture(TextureID texID);
     void addTextureBinding(TextureID texID, uint32_t binding);
 

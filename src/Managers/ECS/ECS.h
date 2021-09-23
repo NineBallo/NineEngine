@@ -96,10 +96,6 @@ public:
 
         //Update map for moved entity to account for the moved component
         entityToIndex[lastEntity] = index;
-
-        //TODO check if this impacts performance as I dont think its necessary
-        indexToEntity[entityToIndex[entityID]] = 0;
-        entityToIndex[entityID] = 0;
     }
 
     void entityDestroyed(Entity entityID) override {
