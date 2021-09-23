@@ -26,7 +26,7 @@
 
 class Vulkan : Module {
 public:
-    Vulkan(ECS &ecs, Entity cameraEntity);
+    Vulkan(Entity cameraEntity);
     ~Vulkan();
 
     void init();
@@ -47,9 +47,6 @@ public:
     ImTextureID textureId;
     bool firstRun = true;
 private:
-
-    void draw();
-    void drawEntity(VkCommandBuffer cmd, Entity entity);
     void init_vulkan();
 
     bool debug = true;
@@ -75,16 +72,9 @@ private:
 private:
     std::unordered_map<std::string, MeshGroup> mMeshGroups;
 
+    ECS& mECS;
 private:
-    ECS *mECS;
-
-    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList;
-    uint32_t mEntityListSize = 0;
-    std::array<std::pair<Display, Entity>, MAX_ENTITYS> mEntityToPos;
-
     bool mShouldExit = false;
-
-    Entity mCameraEntity = 0;
 
     ///Engine deletion queue
     DeletionQueue mDeletionQueue;

@@ -140,6 +140,17 @@ void NEDisplay::drawframe() {
     cameraData.view = view;
     cameraData.viewproj = projection * view;
 
+    DirectionalLight light;
+    light.Color = {1, 1, 1};
+
+
+    //glm::vec3(light.Color, light.Color.x, light.Color.y, light.Color.z);
+    //float(light.AmbientIntensity, light.AmbientIntensity);
+    //glm::vec3 Direction = light.Direction;
+    //glm::normalize(Direction);
+    //glm::vec3(light.Direction, Direction.x, Direction.y, Direction.z);
+    //float(light.DiffuseIntensity, light.DiffuseIntensity);
+
     void* data;
     vmaMapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation, &data);
     memcpy(data, &cameraData, sizeof(GPUCameraData));
@@ -455,6 +466,18 @@ void NEDisplay::endFrame() {
     ImGui::SliderFloat("R", &mSceneData.ambientColor.x, -1.0f, 1.0f);
     ImGui::SliderFloat("G", &mSceneData.ambientColor.y, -1.0f, 1.0f);
     ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
+
+    ImGui::Text("Sunlight Color");
+    ImGui::SliderFloat("R###1", &mSceneData.sunlightColor.x, -1.0f, 1.0f);
+    ImGui::SliderFloat("G###2", &mSceneData.sunlightColor.y, -1.0f, 1.0f);
+    ImGui::SliderFloat("B###3", &mSceneData.sunlightColor.z, -1.0f, 1.0f);
+    ImGui::SliderFloat("Strength", &mSceneData.sunlightColor.w, 0.f, 100.0f);
+
+    ImGui::Text("Sunlight Direction");
+    ImGui::SliderFloat("X", &mSceneData.sunlightDirection.x, -50.0f, 50.0f);
+    ImGui::SliderFloat("Y", &mSceneData.sunlightDirection.y, -50.0f, 50.0f);
+    ImGui::SliderFloat("Z", &mSceneData.sunlightDirection.z, -50.0f, 50.0f);
+
     ImGui::End();
 
 

@@ -36,7 +36,7 @@ int main(){
     ecs.registerComponent<Camera>();
     ecs.addComponent(player, camera);
 
-    Vulkan renderer(ecs, player);
+    Vulkan renderer(player);
 
  //   renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
     renderer.createMesh("./models/sponza.obj", "model");
@@ -64,6 +64,32 @@ int main(){
     TextureID vase = renderer.loadTexture("./models/textures/vase_dif.tga", "vase");
     TextureID vase_hanging = renderer.loadTexture("./models/textures/vase_hanging.tga", "vase_hanging");
     TextureID vase_round = renderer.loadTexture("./models/textures/vase_round.tga", "vase_round");
+
+  // TextureID Normlion = renderer.loadTexture("./models/textures/lion_ddn.tga", "lion");
+  // TextureID Normbackground = renderer.loadTexture("./models/textures/background_ddn.tga", "background");
+  // TextureID Normvase_plant = renderer.loadTexture("./models/textures/vase_plant_ddn.tga", "vase_plant");
+  // TextureID Normarch = renderer.loadTexture("./models/textures/sponza_arch_ddn.tga", "arch");
+  // TextureID Normbricks_a = renderer.loadTexture("./models/textures/spnza_bricks_a_diff.tga", "bricks");
+  // TextureID Normceiling_a = renderer.loadTexture("./models/textures/sponza_ceiling_a_diff.tga", "ceiling");
+  // TextureID Normchain = renderer.loadTexture("./models/textures/chain_texture.tga", "chain");
+  // TextureID Normcolumn_a = renderer.loadTexture("./models/textures/sponza_column_a_diff.tga", "column_a");
+  // TextureID Normcolumn_b = renderer.loadTexture("./models/textures/sponza_column_b_diff.tga", "column_b");
+  // TextureID Normcolumn_c = renderer.loadTexture("./models/textures/sponza_column_c_diff.tga", "column_c");
+  // TextureID Normdetails = renderer.loadTexture("./models/textures/sponza_details_diff.tga", "details");
+  // TextureID Normfabric = renderer.loadTexture("./models/textures/sponza_fabric_diff.tga", "fabric");
+  // TextureID Normcurtain = renderer.loadTexture("./models/textures/sponza_curtain_diff.tga", "curtain");
+  // TextureID Normfabric_blue = renderer.loadTexture("./models/textures/sponza_fabric_blue_diff.tga", "fabric_blue");
+  // TextureID Normfabric_green = renderer.loadTexture("./models/textures/sponza_fabric_green_diff.tga", "fabric_green");
+  // TextureID Normcurtain_green = renderer.loadTexture("./models/textures/sponza_curtain_green_diff.tga", "curtain_green");
+  // TextureID Normcurtain_blue = renderer.loadTexture("./models/textures/sponza_curtain_blue_diff.tga", "curtain_blue");
+  // TextureID Normflagpole = renderer.loadTexture("./models/textures/sponza_flagpole_diff.tga", "flagpole");
+  // TextureID Normfloor_a = renderer.loadTexture("./models/textures/sponza_floor_a_diff.tga", "floor_a");
+  // TextureID Normthorn = renderer.loadTexture("./models/textures/sponza_thorn_diff.tga", "thorn");
+  // TextureID Normroof = renderer.loadTexture("./models/textures/sponza_roof_diff.tga", "roof");
+  // TextureID Normvase = renderer.loadTexture("./models/textures/vase_dif.tga", "vase");
+  // TextureID Normvase_hanging = renderer.loadTexture("./models/textures/vase_hanging.tga", "vase_hanging");
+  // TextureID Normvase_round = renderer.loadTexture("./models/textures/vase_round.tga", "vase_round");
+
 
     TextureID tex26 = renderer.loadTexture("./models/textures/vase_round.tga", "extra");
 

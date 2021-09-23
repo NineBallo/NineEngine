@@ -18,26 +18,10 @@
 #include "unistd.h"
 #include "backends/imgui_impl_vulkan.h"
 
-Vulkan::Vulkan(ECS &ecs, Entity cameraEntity) {
-    mCameraEntity = cameraEntity;
-    mECS = &ECS::Get();
-
-    SubscribeData subscribeData {
-            .localEntityList = &mLocalEntityList,
-            .size = &mEntityListSize,
-            .entityToPos = &mEntityToPos,
-    };
+Vulkan::Vulkan(Entity cameraEntity) : mECS{ECS::Get()} {
 
     ECS::Get().registerComponent<RenderObject>();
     ECS::Get().registerComponent<Position>();
-
-    ECS::Get().registerSystem<Vulkan>(subscribeData);
-
-    Signature systemSig {};
-    systemSig.set(ECS::Get().getComponentType<RenderObject>());
-    systemSig.set(ECS::Get().getComponentType<Position>());
-
-    ECS::Get().setSystemSignature<Vulkan>(systemSig);
 
     init();
 }
@@ -185,7 +169,7 @@ void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<
         }
     }
 
-    mECS->addComponent<RenderObject>(entity, renderObject);
+    mECS.addComponent<RenderObject>(entity, renderObject);
 }
 
 GLFWwindow* Vulkan::getWindow(Display display) {
@@ -207,3 +191,5 @@ void Vulkan::tick() {
 }
 
 bool Vulkan::shouldExit() {return mShouldExit;}
+    void draw();
+    void drawEntity(VkCommandBuffer cmd, Entity entity);

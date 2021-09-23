@@ -6,6 +6,8 @@ layout (location = 3) in vec2 vTexCoord;
 
 
 layout (location = 0) out vec2 texCoord;
+layout (location = 1) out vec3 normal;
+layout (location = 2) out vec3 fragPos;
 
 //Camera data
 layout(set = 0, binding = 0) uniform CameraBuffer{
@@ -35,8 +37,17 @@ layout(push_constant) uniform VertexData
 
 
 void main() {
+
+
+
+
     mat4 modelMatrix = objectBuffer.objects[vertexData.entityID].model;
     mat4 transformMatrix = (cameraData.viewproj * modelMatrix);
+
+    //normal = transformMatrix * vec4(vNormal, 1.0);
+    fragPos = vec3(modelMatrix * vec4(vPosition, 1.0f));
+    normal = vNormal;
+
     gl_Position = transformMatrix * vec4(vPosition, 1.0);
     texCoord = vTexCoord;
 }
