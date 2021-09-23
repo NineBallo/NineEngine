@@ -167,13 +167,6 @@ void Vulkan::uploadMesh(Mesh &mesh) {
 }
 
 void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<TextureID> Textures, std::vector<std::string> textureIndex) {
-   // Flags features = 0;
-   //
-   // //Set hidden bits/flags
-   // if(!mDevice->bindless()) {
-   //     features += NE_FLAG_BINDING_BIT;
-   // }
-
     RenderObject renderObject{};
 
     renderObject.renderMode = NE_RENDERMODE_TOTEXTURE_BIT;
@@ -195,132 +188,6 @@ void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<
     mECS->addComponent<RenderObject>(entity, renderObject);
 }
 
-void Vulkan::draw() {
-    VkCommandBuffer cmd = mDisplays[0]->startFrame();
-
-    //Camera setup
-    auto& camera = ECS::Get().getComponent<Camera>(mCameraEntity);
-    //x = pitch, y = yaw, z = roll
-    glm::vec3 angles = camera.Angle;
-
-    glm::vec3 direction;
-    direction.x = cos(glm::radians(angles.y)) * cos(glm::radians(angles.x));
-    direction.y = sin(glm::radians(angles.x));
-    direction.z = sin(glm::radians(angles.y)) * cos(glm::radians(angles.x));
-    direction = glm::normalize(direction);
-
-    glm::mat4 view = glm::lookAt(camera.Pos, camera.Pos + direction, glm::vec3(0, 1.f, 0));
-    glm::mat4 projection = glm::perspective(glm::radians(camera.degrees), camera.aspect,
-                                            camera.znear, camera.zfar);
-    projection[1][1] *= -1;
-
-    GPUCameraData cameraData {};
-    cameraData.proj = projection;
-    cameraData.view = view;
-    cameraData.viewproj = projection * view;
-
-    void* data;
-    vmaMapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mCameraBuffer.mAllocation, &data);
-    memcpy(data, &cameraData, sizeof(GPUCameraData));
-    vmaUnmapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mCameraBuffer.mAllocation);
-
-
-    ///Calculate all positions and send to gpu
-    void* objectData;
-    vmaMapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mObjectBuffer.mAllocation, &objectData);
-
-    auto* objectSSBO = (GPUObjectData*)objectData;
-
-    for (int i = 0; i < mEntityListSize; i++)
-    {
-        Entity currentEntityID = mLocalEntityList[0][i];
-        auto& position = ECS::Get().getComponent<Position>(currentEntityID);
-
-        glm::mat4 model {1.0f};
-        model = glm::translate(model, glm::vec3{position.coordinates});
-        model = glm::rotate(model, position.rotations.x * (3.14f/180), {1.f, 0.f , 0.f});
-        model = glm::rotate(model, position.rotations.y * (3.14f/180), {0.f, 1.f , 0.f});
-        model = glm::rotate(model, position.rotations.z * (3.14f/180), {0.f, 0.f , 1.f});
-        model = glm::scale(model, position.scalar);
-
-        objectSSBO[currentEntityID].modelMatrix = model;
-    }
-    vmaUnmapMemory(mDevice->allocator(), mDisplays[0]->currentFrame().mObjectBuffer.mAllocation);
-
-    Flags mLastFlags = 0;
-    TextureID mLastTexture = MAX_TEXTURES + 1;
-
-    for(Entity i = 0; i < mEntityListSize; i++) {
-        Entity currentEntityID = mLocalEntityList[0][i];
-        auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
-        MeshGroup& meshGroup = *currentEntity.meshGroup;
-
-        auto pipelineInfo = mDevice->getPipeline(currentEntity.renderMode, currentEntity.features);
-        if(currentEntity.features != mLastFlags) {
-
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);
-            mLastFlags = currentEntity.features;
-
-            VkDescriptorSet globalDescriptorSet = mDisplays[0]->currentFrame().mGlobalDescriptor;
-            VkDescriptorSet objectDescriptorSet = mDisplays[0]->currentFrame().mObjectDescriptor;
-            VkDescriptorSet textureDescriptorSet = mDisplays[0]->currentFrame().mTextureDescriptor;
-
-            //object data descriptor
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
-                                    1, 1, &objectDescriptorSet, 0, nullptr);
-
-            uint32_t uniform_offset = mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mDisplays[0]->frameIndex();
-            uniform_offset = 0;
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
-                                    0, 1, &globalDescriptorSet, 1, &uniform_offset);
-
-            if(mDevice->bindless()) {
-                //texture descriptor
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipelineInfo.second, 2, 1,
-                                        &textureDescriptorSet, 0, nullptr);
-            }
-        }
-
-        for(auto & mesh : meshGroup.mMeshes) {
-            VkDeviceSize offset = 0;
-            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.mVertexBuffer.mBuffer, &offset);
-            vkCmdBindIndexBuffer(cmd, mesh.mIndexBuffer.mBuffer, 0 , VK_INDEX_TYPE_UINT32);
-
-            PushData pushData{};
-            pushData.entityID = currentEntityID;
-
-            //Get texture for mesh
-            uint32_t texIdx = meshGroup.mMatToIdx[mesh.mMaterial];
-            TextureID texID = meshGroup.mTextures[texIdx];
-
-
-            if(mDevice->bindless()) {
-                pushData.textureIndex = mDisplays[0]->getTextureBinding(texID);
-            }
-            else if(mLastTexture != texID) {
-                mLastTexture = texID;
-                VkDescriptorSet textureSet = mDevice->getTexture(texID).mTextureSet;
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipelineInfo.second, 2, 1,
-                                        &textureSet, 0, nullptr);
-            }
-
-
-            vkCmdPushConstants(cmd, pipelineInfo.second,
-                               VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,0, sizeof(PushData), &pushData);
-
-
-            vkCmdDrawIndexed(cmd, mesh.mIndices.size(), 1, 0, 0, 0);
-        }
-    }
-
-    mDisplays[0]->endFrame();
-}
-
-void Vulkan::drawEntity(VkCommandBuffer cmd, Entity entity){
-}
-
 GLFWwindow* Vulkan::getWindow(Display display) {
     if(display == 0) {
         return mDisplays[0]->window();
@@ -335,7 +202,7 @@ void Vulkan::tick() {
         mDisplays[0].reset();
         mShouldExit = true;
     } else {
-        draw();
+        mDisplays[0]->drawframe();
     }
 }
 

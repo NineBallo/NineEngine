@@ -49,6 +49,9 @@ public:
     void finishInit();
     void createSurface(VkInstance);
 
+    //RenderLoop stuff
+    void tick();
+    void drawframe();
 
     //Swapchain/Framebuffer Recreation
     void resizeFrameBuffer(VkExtent2D FBSize, uint32_t flags);
@@ -58,7 +61,6 @@ public:
     void createDescriptors();
 
 public:
-
 //Runtime external methods
     //Render Methods
     VkCommandBuffer startFrame();
@@ -143,6 +145,13 @@ private:
     uint32_t mCurrentFrame {0};
     uint32_t mFrameCount {0};
     uint32_t mSwapchainImageCount {0};
+
+    //ECS stuff
+    ECS *mECS;
+
+    std::array<std::array<Entity, MAX_ENTITYS>, MAX_DISPLAYS> mLocalEntityList;
+    uint32_t mEntityListSize = 0;
+    std::array<std::pair<Display, Entity>, MAX_ENTITYS> mEntityToPos;
 
     //Stuff
     VkSampler mSimpleSampler {VK_NULL_HANDLE};
