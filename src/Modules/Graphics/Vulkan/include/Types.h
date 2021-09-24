@@ -15,9 +15,19 @@
 
 #define MAX_TEXTURES 768
 
-#define NE_SHADER_TEXTURE_BIT 1 << 1 //0001
-#define NE_SHADER_COLOR_BIT 1 << 2   //0010
-#define NE_FLAG_BINDING_BIT 1 << 3  //0100
+#define NE_FLAG_TEXTURE_BIT 1 << 1 //     1
+#define NE_FLAG_COLOR_BIT 1 << 2   //    10
+#define NE_FLAG_BINDING_BIT 1 << 3 //   100
+
+///TODO move to engine settings
+#define NE_FLAG_MSAA8x_BIT 1 << 4 //   1000
+#define NE_FLAG_MSAA4x_BIT 1 << 5 //  10000
+#define NE_FLAG_MSAA2x_BIT 1 << 6 // 100000
+
+#define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0 //   1
+#define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1 //  10
+#define NE_RENDERMODE_TOSHADOWMAP_BIT 1 << 2 // 100
+
 
 using Flags = uint32_t;
 using TextureID = uint32_t;

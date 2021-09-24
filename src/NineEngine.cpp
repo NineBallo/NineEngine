@@ -38,7 +38,7 @@ int main(){
 
     Vulkan renderer(player);
 
- //   renderer.createMaterial(NE_SHADER_TEXTURE_BIT);
+ //   renderer.createMaterial(NE_FLAG_TEXTURE_BIT);
     renderer.createMesh("./models/sponza.obj", "model");
     TextureID lion = renderer.loadTexture("./models/textures/lion.tga", "lion");
     TextureID background = renderer.loadTexture("./models/textures/background.tga", "background");

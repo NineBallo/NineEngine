@@ -35,9 +35,9 @@ uint32_t Engine::createEntity(std::string modelPath) {
     if (mSettings[Renderer] == VK)
     {
         Entity newEntity = mECS.createEntity(0);
-     //   VKRenderer->createMaterial(NE_SHADER_COLOR_BIT);
+     //   VKRenderer->createMaterial(NE_FLAG_COLOR_BIT);
         VKRenderer->createMesh(modelPath, modelPath);
-       // VKRenderer->makeRenderable(newEntity, NE_SHADER_COLOR_BIT, modelPath);
+       // VKRenderer->makeRenderable(newEntity, NE_FLAG_COLOR_BIT, modelPath);
         return newEntity;
     }
     else {
@@ -50,10 +50,10 @@ uint32_t Engine::createEntity(const std::string& modelPath, std::string textureP
     if (mSettings[Renderer] == VK)
     {
         Entity newEntity = mECS.createEntity(0);
-     //   VKRenderer->createMaterial(NE_SHADER_TEXTURE_BIT);
+     //   VKRenderer->createMaterial(NE_FLAG_TEXTURE_BIT);
         VKRenderer->createMesh(modelPath, modelPath);
         VKRenderer->loadTexture(texturePath, texturePath);
-     //   VKRenderer->makeRenderable(newEntity, NE_SHADER_COLOR_BIT, modelPath);
+     //   VKRenderer->makeRenderable(newEntity, NE_FLAG_COLOR_BIT, modelPath);
         return newEntity;
     }
     else {

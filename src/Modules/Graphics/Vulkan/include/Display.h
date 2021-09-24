@@ -66,7 +66,7 @@ public:
 public:
 //Runtime external methods
     //Render Methods
-    VkCommandBuffer startFrame();
+    VkCommandBuffer startFrame(Flags renderType);
     void endFrame();
 
     //This adds a allocated textures binding to the display
@@ -98,6 +98,10 @@ private:
     //Rendering Abstraction
     void setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExtent2D extent);
     void setPipelineDynamics(VkCommandBuffer cmd, VkExtent2D extent);
+    void calculateModelPositions();
+    void setupCameraPosition(Camera cameraData);
+    void drawEntities(VkCommandBuffer cmd);
+    void startRender();
 
     //TODO might wanna move create cmd buf to device and evaluate createImage's current position.
     void createImage(VkExtent2D extent, uint32_t mipLevels, AllocatedImage &image, VkImageView &imageView, VkImageAspectFlagBits aspect, VkFormat format, VkImageUsageFlagBits usage, VkSampleCountFlagBits sampleCount);

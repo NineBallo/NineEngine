@@ -160,7 +160,7 @@ void Vulkan::makeRenderable(Entity entity, const std::string &mesh, std::vector<
 
 
     if(!Textures.empty() && !textureIndex.empty()) {
-        renderObject.features += NE_SHADER_TEXTURE_BIT;
+        renderObject.features += NE_FLAG_TEXTURE_BIT;
         //For each material, get the respective texture
         for (int i = 0; i < meshGroup.mMatToIdx.size(); i++) {
 

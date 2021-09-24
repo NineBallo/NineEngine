@@ -18,14 +18,6 @@
 class Engine;
 
 
-
-#define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0
-#define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1
-
-#define NE_FLAG_MSAA8x_BIT 1 << 2
-#define NE_FLAG_MSAA4x_BIT 1 << 3
-#define NE_FLAG_MSAA2x_BIT 1 << 4
-
 class NEDevice {
 public:
     //Constructors && Destructors

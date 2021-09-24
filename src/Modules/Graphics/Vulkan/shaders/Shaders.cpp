@@ -41,7 +41,7 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
     bool bindless = true;
     bool textured = false;
 
-    if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+    if((flags & NE_FLAG_TEXTURE_BIT) == NE_FLAG_TEXTURE_BIT) {
         textured = true;
     }
     if((flags & NE_FLAG_BINDING_BIT) == NE_FLAG_BINDING_BIT) {

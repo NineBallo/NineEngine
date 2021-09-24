@@ -86,6 +86,7 @@ void NEDisplay::finishInit() {
 
     createFramebuffers(mExtent, mFormat, NE_RENDERMODE_TOSWAPCHAIN_BIT, true);
     createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOTEXTURE_BIT, true);
+    createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT, true);
 }
 
 void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
@@ -117,13 +118,57 @@ void NEDisplay::tick() {
     }
 }
 
-void NEDisplay::drawframe() {
-    VkCommandBuffer cmd = startFrame();
 
+///Runtime external methods
+void NEDisplay::startRender() {
+
+
+}
+
+VkCommandBuffer NEDisplay::startFrame(Flags renderType) {
+    FrameData &frame = mFrames[mCurrentFrame];
+
+    //Wait for frame to be ready/(returned to "back")
+    vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
+    vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
+
+    //Get current swapchain index && result
+    VkResult result = vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
+
+    vkResetCommandBuffer(frame.mCommandBuffer, 0);
+
+    mGUI->checkFrameBuffers(mDevice->device());
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();
+        return startFrame(renderType);
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("failed to acquire swap chain image!");
+    }
+
+
+    //Wipe and prep command buffer to be handed to the renderer
+
+    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
+
+    VkExtent2D texExtent = mGUI->getRenderWindowSize();
+    //Bind the first renderpass that we will draw the entity's/objects with.
+    setupBindRenderpass(frame.mCommandBuffer, renderType, texExtent);
+    setPipelineDynamics(frame.mCommandBuffer, texExtent);
+
+    char* sceneData;
+    vmaMapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation, (void**)&sceneData);
+    sceneData += mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mCurrentFrame;
+    memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
+    vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
+
+    //Farewell command buffer o/; May your errors gentle.
+    return frame.mCommandBuffer;
+}
+
+void NEDisplay::setupCameraPosition(Camera camera) {
     FrameData& frame = mFrames[mCurrentFrame];
 
-    //Camera setup TODO make the camera proper so that it can change...
-    auto& camera = ECS::Get().getComponent<Camera>(0);
     //x = pitch, y = yaw, z = roll
     glm::vec3 angles = camera.Angle;
 
@@ -143,21 +188,14 @@ void NEDisplay::drawframe() {
     cameraData.view = view;
     cameraData.viewproj = projection * view;
 
-    DirectionalLight light;
-    light.Color = {1, 1, 1};
-
-
-    //glm::vec3(light.Color, light.Color.x, light.Color.y, light.Color.z);
-    //float(light.AmbientIntensity, light.AmbientIntensity);
-    //glm::vec3 Direction = light.Direction;
-    //glm::normalize(Direction);
-    //glm::vec3(light.Direction, Direction.x, Direction.y, Direction.z);
-    //float(light.DiffuseIntensity, light.DiffuseIntensity);
-
     void* data;
     vmaMapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation, &data);
     memcpy(data, &cameraData, sizeof(GPUCameraData));
     vmaUnmapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation);
+}
+
+void NEDisplay::drawframe() {
+    FrameData& frame = mFrames[mCurrentFrame];
 
 
     ///Calculate all positions and send to gpu
@@ -181,6 +219,36 @@ void NEDisplay::drawframe() {
         objectSSBO[currentEntityID].modelMatrix = model;
     }
     vmaUnmapMemory(mDevice->allocator(), frame.mObjectBuffer.mAllocation);
+
+
+    //Start shadowmap
+    VkCommandBuffer cmd = startFrame(NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT);
+
+    Camera lightPOV;
+    lightPOV.Pos = mSceneData.sunlightDirection;
+    lightPOV.aspect = (mExtent.width / mExtent.height);
+    lightPOV.zfar = 900.f;
+    lightPOV.znear = 0.01f;
+    lightPOV.Angle.x = -90;
+
+    setupCameraPosition(lightPOV);
+
+    drawEntities(cmd);
+
+    //Finish shadowmap
+    vkCmdEndRenderPass(cmd);
+
+    //Start main render
+    setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
+
+    setupCameraPosition(ECS::Get().getComponent<Camera>(0));
+    drawEntities(cmd);
+
+    endFrame();
+}
+
+void NEDisplay::drawEntities(VkCommandBuffer cmd) {
+    FrameData& frame = mFrames[mCurrentFrame];
 
     Flags mLastFlags = 0;
     TextureID mLastTexture = MAX_TEXTURES + 1;
@@ -250,12 +318,83 @@ void NEDisplay::drawframe() {
             vkCmdDrawIndexed(cmd, mesh.mIndices.size(), 1, 0, 0, 0);
         }
     }
-
-    endFrame();
 }
 
+void NEDisplay::endFrame() {
+    FrameData &frame = mFrames[mCurrentFrame];
+    vkCmdEndRenderPass(frame.mCommandBuffer);
+
+    setupBindRenderpass(frame.mCommandBuffer, NE_RENDERMODE_TOSWAPCHAIN_BIT, mExtent);
+
+    mGUI->drawGui(mSwapchainImageIndex);
+
+    ImGui::Begin("Environment");
+    ImGui::Text("Environment Color");
+    ImGui::SliderFloat("R", &mSceneData.ambientColor.x, 0.f, 0.3f);
+    ImGui::SliderFloat("G", &mSceneData.ambientColor.y, 0.f, 0.3f);
+    ImGui::SliderFloat("B", &mSceneData.ambientColor.z, 0.f, 0.3f);
+
+    ImGui::Text("Sunlight Color");
+    ImGui::SliderFloat("R###1", &mSceneData.sunlightColor.x, 0.f, 1.0f);
+    ImGui::SliderFloat("G###2", &mSceneData.sunlightColor.y, 0.f, 1.0f);
+    ImGui::SliderFloat("B###3", &mSceneData.sunlightColor.z, 0.f, 1.0f);
+    ImGui::SliderFloat("Strength", &mSceneData.sunlightDirection.w, 0.f, 5.0f);
+
+    ImGui::Text("Sunlight Direction");
+    ImGui::SliderFloat("X", &mSceneData.sunlightDirection.x, -100.0f, 100.0f);
+    ImGui::SliderFloat("Y", &mSceneData.sunlightDirection.y, -100.0f, 100.0f);
+    ImGui::SliderFloat("Z", &mSceneData.sunlightDirection.z, -100.0f, 100.0f);
+
+    ImGui::End();
 
 
+    ImGui::Render();
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), frame.mCommandBuffer);
+    vkCmdEndRenderPass(frame.mCommandBuffer);
+    vkEndCommandBuffer(frame.mCommandBuffer);
+
+    VkSubmitInfo submit = init::submitInfo(&frame.mCommandBuffer, 1);
+
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    submit.pWaitDstStageMask = &waitStage;
+
+    submit.waitSemaphoreCount = 1;
+    submit.pWaitSemaphores = &frame.mPresentSemaphore;
+
+    submit.signalSemaphoreCount = 1;
+    submit.pSignalSemaphores = &frame.mRenderSemaphore;
+
+
+    //Submit command buffer and execute it.
+    vkQueueSubmit(mDevice->graphicsQueue(), 1, &submit, frame.mRenderFence);
+
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.pNext = nullptr;
+
+    presentInfo.pSwapchains = &mSwapchain;
+    presentInfo.swapchainCount = 1;
+
+    presentInfo.pWaitSemaphores = &frame.mRenderSemaphore;
+    presentInfo.waitSemaphoreCount = 1;
+
+    presentInfo.pImageIndices = &mSwapchainImageIndex;
+
+
+    VkResult result = vkQueuePresentKHR(mDevice->graphicsQueue(), &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        recreateSwapchain();
+    } else if (result != VK_SUCCESS) {
+        throw std::runtime_error("failed to present swap chain image!");
+    }
+
+    //Rage, rage against the dying of the light.
+    //Should flip-flop between 0 and MAX_FRAMES - 1
+    mCurrentFrame = (mCurrentFrame + 1) % (MAX_FRAMES);
+    mFrameCount++;
+}
 
 ///Swapchain/Framebuffer (re)creation
 void NEDisplay::createSwapchain(VkPresentModeKHR presentMode) {
@@ -346,7 +485,7 @@ void NEDisplay::createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t 
 
         if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &fbInfo.frameBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");
-        };
+        }
     }
 }
 
@@ -411,125 +550,6 @@ void NEDisplay::createSyncStructures(FrameData &frame) {
         vkDestroySemaphore(mDevice->device(), frame.mPresentSemaphore, nullptr);
         vkDestroySemaphore(mDevice->device(), frame.mRenderSemaphore, nullptr);
     });
-}
-
-
-///Runtime external methods
-VkCommandBuffer NEDisplay::startFrame() {
-    FrameData &frame = mFrames[mCurrentFrame];
-
-    //Wait for frame to be ready/(returned to "back")
-    vkWaitForFences(mDevice->device(), 1, &frame.mRenderFence, true, 1000000000);
-    vkResetFences(mDevice->device(), 1, &frame.mRenderFence);
-
-    //Get current swapchain index && result
-    VkResult result = vkAcquireNextImageKHR(mDevice->device(), mSwapchain, 1000000000, frame.mPresentSemaphore, nullptr, &mSwapchainImageIndex);
-
-    vkResetCommandBuffer(frame.mCommandBuffer, 0);
-
-    mGUI->checkFrameBuffers(mDevice->device());
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapchain();
-        return startFrame();
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("failed to acquire swap chain image!");
-    }
-
-
-    //Wipe and prep command buffer to be handed to the renderer
-
-    VkCommandBufferBeginInfo cmdBeginInfo = init::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-    vkBeginCommandBuffer(frame.mCommandBuffer, &cmdBeginInfo);
-
-    VkExtent2D texExtent = mGUI->getRenderWindowSize();
-    //Bind the first renderpass that we will draw the entity's/objects with.
-    setupBindRenderpass(frame.mCommandBuffer, NE_RENDERMODE_TOTEXTURE_BIT, texExtent);
-    setPipelineDynamics(frame.mCommandBuffer, texExtent);
-
-    char* sceneData;
-    vmaMapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation, (void**)&sceneData);
-    sceneData += mDevice->padUniformBufferSize(sizeof(GPUSceneData)) * mCurrentFrame;
-    memcpy(sceneData, &mSceneData, sizeof(GPUSceneData));
-    vmaUnmapMemory(mDevice->allocator(), mSceneParameterBuffer.mAllocation);
-
-    //Farewell command buffer o/; May your errors gentle.
-    return frame.mCommandBuffer;
-}
-
-void NEDisplay::endFrame() {
-    FrameData &frame = mFrames[mCurrentFrame];
-    mGUI->drawGui(mSwapchainImageIndex);
-
-    vkCmdEndRenderPass(frame.mCommandBuffer);
-
-    setupBindRenderpass(frame.mCommandBuffer, NE_RENDERMODE_TOSWAPCHAIN_BIT, mExtent);
-
-    ImGui::Begin("Environment");
-    ImGui::Text("Environment Color");
-    ImGui::SliderFloat("R", &mSceneData.ambientColor.x, 0.f, 0.3f);
-    ImGui::SliderFloat("G", &mSceneData.ambientColor.y, 0.f, 0.3f);
-    ImGui::SliderFloat("B", &mSceneData.ambientColor.z, 0.f, 0.3f);
-
-    ImGui::Text("Sunlight Color");
-    ImGui::SliderFloat("R###1", &mSceneData.sunlightColor.x, 0.f, 1.0f);
-    ImGui::SliderFloat("G###2", &mSceneData.sunlightColor.y, 0.f, 1.0f);
-    ImGui::SliderFloat("B###3", &mSceneData.sunlightColor.z, 0.f, 1.0f);
-    ImGui::SliderFloat("Strength", &mSceneData.sunlightDirection.w, 0.f, 5.0f);
-
-    ImGui::Text("Sunlight Direction");
-    ImGui::SliderFloat("X", &mSceneData.sunlightDirection.x, -100.0f, 100.0f);
-    ImGui::SliderFloat("Y", &mSceneData.sunlightDirection.y, -100.0f, 100.0f);
-    ImGui::SliderFloat("Z", &mSceneData.sunlightDirection.z, -100.0f, 100.0f);
-
-    ImGui::End();
-
-
-    ImGui::Render();
-
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), frame.mCommandBuffer);
-    vkCmdEndRenderPass(frame.mCommandBuffer);
-    vkEndCommandBuffer(frame.mCommandBuffer);
-
-    VkSubmitInfo submit = init::submitInfo(&frame.mCommandBuffer, 1);
-
-    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    submit.pWaitDstStageMask = &waitStage;
-
-    submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores = &frame.mPresentSemaphore;
-
-    submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &frame.mRenderSemaphore;
-
-
-    //Submit command buffer and execute it.
-    vkQueueSubmit(mDevice->graphicsQueue(), 1, &submit, frame.mRenderFence);
-
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.pNext = nullptr;
-
-    presentInfo.pSwapchains = &mSwapchain;
-    presentInfo.swapchainCount = 1;
-
-    presentInfo.pWaitSemaphores = &frame.mRenderSemaphore;
-    presentInfo.waitSemaphoreCount = 1;
-
-    presentInfo.pImageIndices = &mSwapchainImageIndex;
-
-
-    VkResult result = vkQueuePresentKHR(mDevice->graphicsQueue(), &presentInfo);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        recreateSwapchain();
-    } else if (result != VK_SUCCESS) {
-        throw std::runtime_error("failed to present swap chain image!");
-    }
-
-    //Rage, rage against the dying of the light.
-    //Should flip-flop between 0 and MAX_FRAMES - 1
-    mCurrentFrame = (mCurrentFrame + 1) % (MAX_FRAMES);
-    mFrameCount++;
 }
 
 

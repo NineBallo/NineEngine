@@ -256,6 +256,9 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     if((flags & NE_RENDERMODE_TOSWAPCHAIN_BIT) == NE_RENDERMODE_TOSWAPCHAIN_BIT) {
         ToSC = true;
     }
+    else if ((flags & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT) {
+        ToTex = true;
+    }
     else if ((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
         ToTex = true;
     }
@@ -411,7 +414,7 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
     uint8_t layoutSize = 2;
 
-    if((flags & NE_SHADER_TEXTURE_BIT) == NE_SHADER_TEXTURE_BIT) {
+    if((flags & NE_FLAG_TEXTURE_BIT) == NE_FLAG_TEXTURE_BIT) {
             if(mBindless){
                 layouts[layoutSize] = mTextureSetLayout;
             }
