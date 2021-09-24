@@ -4,19 +4,22 @@
 
 #ifndef NINEENGINE_DISPLAY_H
 #define NINEENGINE_DISPLAY_H
-#include <chrono>
+
+
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <chrono>
 #include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
 
 #include "Common.h"
-
 #include "../../Common/ImGuiHelpers.h"
+class NEDevice;
 class NEGUI;
 
 #include "Types.h"

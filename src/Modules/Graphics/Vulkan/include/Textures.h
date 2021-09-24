@@ -6,6 +6,8 @@
 #define NINEENGINE_TEXTURES_H
 
 #include "Device.h"
+class NEDevice;
+
 #include "Types.h"
 #include <memory>
 

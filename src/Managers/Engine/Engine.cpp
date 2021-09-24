@@ -8,15 +8,15 @@
 
 
 Engine::Engine() : mECS {ECS::Get()} {
-    mSettings["Renderer"] = VK;
-    mSettings["Display Count"] = 0;
-    mSettings["MSAA"] = VK_SAMPLE_COUNT_1_BIT;
-    mSettings["Editor"] = true;
+    mSettings[Renderer] = VK;
+    mSettings[DisplayCount] = 0;
+    mSettings[MSAA] = VK_SAMPLE_COUNT_1_BIT;
+    mSettings[Editor] = true;
 }
 
 
 std::shared_ptr<Vulkan> Engine::getVKRenderer() {
-    if (mSettings["Renderer"] == VK)
+    if (mSettings[Renderer] == VK)
     {
         return VKRenderer;
     }
@@ -32,7 +32,7 @@ uint32_t Engine::createEntity() {
 }
 
 uint32_t Engine::createEntity(std::string modelPath) {
-    if (mSettings["Renderer"] == VK)
+    if (mSettings[Renderer] == VK)
     {
         Entity newEntity = mECS.createEntity(0);
      //   VKRenderer->createMaterial(NE_SHADER_COLOR_BIT);
@@ -47,7 +47,7 @@ uint32_t Engine::createEntity(std::string modelPath) {
 }
 
 uint32_t Engine::createEntity(const std::string& modelPath, std::string texturePath) {
-    if (mSettings["Renderer"] == VK)
+    if (mSettings[Renderer] == VK)
     {
         Entity newEntity = mECS.createEntity(0);
      //   VKRenderer->createMaterial(NE_SHADER_TEXTURE_BIT);
@@ -62,11 +62,11 @@ uint32_t Engine::createEntity(const std::string& modelPath, std::string textureP
     }
 }
 
-uint32_t Engine::getSetting(std::string key) {
+uint32_t Engine::getSetting(uint32_t key) {
     return mSettings[key];
 }
 
-void Engine::setSetting(std::string key, uint32_t value) {
+void Engine::setSetting(uint32_t key, uint32_t value) {
     mSettings[key] = value;
 }
 

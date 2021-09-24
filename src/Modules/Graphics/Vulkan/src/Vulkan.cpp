@@ -94,7 +94,7 @@ void Vulkan::init_vulkan() {
     createInfo.title = std::move(mTitle);
     createInfo.extent = { 800, 600 };
     createInfo.resizable = true;
-    mDisplays[0].emplace(createInfo);
+    mDisplays[0] = std::make_shared<NEDisplay>(createInfo);
     mDevice = std::make_shared<NEDevice>();
 
     vkb::PhysicalDevice vkb_GPU = mDevice->init_PhysicalDevice(mDisplays[0]->surface(), vkb_inst);

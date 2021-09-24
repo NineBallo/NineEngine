@@ -16,7 +16,7 @@
 #include "Mesh.h"
 #include "../shaders/Shaders.h"
 
-NEDevice::NEDevice() {
+NEDevice::NEDevice() : mEngine{Engine::Get()} {
 
 }
 
@@ -189,6 +189,8 @@ void NEDevice::init_upload_context() {
 
 VkRenderPass NEDevice::getRenderPass(uint32_t flags, VkFormat format) {
     ///TODO proper msaa support built into the gui/ Engine.mSettings
+
+    //mEngine.getSetting()
 
     if(mRenderPassList.contains(flags)) {
         return mRenderPassList[flags];

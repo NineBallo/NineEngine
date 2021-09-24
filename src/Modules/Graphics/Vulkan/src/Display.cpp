@@ -3,11 +3,14 @@
 //
 
 #include "../../Common/ImGuiHelpers.h"
-#include "Display.h"
+
 #include <iostream>
 #include <VkBootstrap.h>
 #include <cmath>
 #include <Initializers.h>
+
+
+#include "Display.h"
 #include "ECS.h"
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
@@ -463,20 +466,20 @@ void NEDisplay::endFrame() {
 
     ImGui::Begin("Environment");
     ImGui::Text("Environment Color");
-    ImGui::SliderFloat("R", &mSceneData.ambientColor.x, -1.0f, 1.0f);
-    ImGui::SliderFloat("G", &mSceneData.ambientColor.y, -1.0f, 1.0f);
-    ImGui::SliderFloat("B", &mSceneData.ambientColor.z, -1.0f, 1.0f);
+    ImGui::SliderFloat("R", &mSceneData.ambientColor.x, 0.f, 0.3f);
+    ImGui::SliderFloat("G", &mSceneData.ambientColor.y, 0.f, 0.3f);
+    ImGui::SliderFloat("B", &mSceneData.ambientColor.z, 0.f, 0.3f);
 
     ImGui::Text("Sunlight Color");
-    ImGui::SliderFloat("R###1", &mSceneData.sunlightColor.x, -1.0f, 1.0f);
-    ImGui::SliderFloat("G###2", &mSceneData.sunlightColor.y, -1.0f, 1.0f);
-    ImGui::SliderFloat("B###3", &mSceneData.sunlightColor.z, -1.0f, 1.0f);
-    ImGui::SliderFloat("Strength", &mSceneData.sunlightColor.w, 0.f, 100.0f);
+    ImGui::SliderFloat("R###1", &mSceneData.sunlightColor.x, 0.f, 1.0f);
+    ImGui::SliderFloat("G###2", &mSceneData.sunlightColor.y, 0.f, 1.0f);
+    ImGui::SliderFloat("B###3", &mSceneData.sunlightColor.z, 0.f, 1.0f);
+    ImGui::SliderFloat("Strength", &mSceneData.sunlightDirection.w, 0.f, 5.0f);
 
     ImGui::Text("Sunlight Direction");
-    ImGui::SliderFloat("X", &mSceneData.sunlightDirection.x, -50.0f, 50.0f);
-    ImGui::SliderFloat("Y", &mSceneData.sunlightDirection.y, -50.0f, 50.0f);
-    ImGui::SliderFloat("Z", &mSceneData.sunlightDirection.z, -50.0f, 50.0f);
+    ImGui::SliderFloat("X", &mSceneData.sunlightDirection.x, -100.0f, 100.0f);
+    ImGui::SliderFloat("Y", &mSceneData.sunlightDirection.y, -100.0f, 100.0f);
+    ImGui::SliderFloat("Z", &mSceneData.sunlightDirection.z, -100.0f, 100.0f);
 
     ImGui::End();
 

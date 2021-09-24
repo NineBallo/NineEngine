@@ -125,7 +125,7 @@ void NEGUI::drawMenuBar() {
         if(ImGui::BeginMenu("Options")) {
             if(ImGui::MenuItem("FullScreen")) {
                 mDisplay->toggleFullscreen();
-                mEngine.setSetting("FullScreen", true);
+                mEngine.setSetting(mEngine.FullScreen, true);
             }
             ImGui::EndMenu();
         }
@@ -232,7 +232,7 @@ void NEGUI::drawTimings() {
 
             //Get max value
             if(mFrameTimes[i] > max) {
-                if(i != 0 && mFrameTimes.size() >= 300) {
+                if(i != 0 && mFrameTimes.size() >= 300 && mFrameTimes[i] < 10) {
                     max = mFrameTimes[i];
                 }
             }

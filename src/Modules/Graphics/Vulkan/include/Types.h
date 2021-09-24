@@ -70,9 +70,9 @@ struct GPUSceneData {
     //Need to use all vec4's for alignment purposes so not all values are used
     glm::vec4 fogColor; // w is for exponent
     glm::vec4 fogDistances; //x for min, y for max, zw unused.
-    glm::vec4 ambientColor;
-    glm::vec4 sunlightDirection; //w for sun power
-    glm::vec4 sunlightColor;
+    glm::vec4 ambientColor{0.018f, 0.018f, 0.011f, 1.f};
+    glm::vec4 sunlightDirection{0.f, 100.f, 0.f, 1.f}; //w for sun power
+    glm::vec4 sunlightColor{0.286f, 0.262f, 0.250f, 1.f};
 };
 
 struct GPUTransformData {

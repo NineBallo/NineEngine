@@ -12,14 +12,14 @@
 #include <optional>
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
+#include <chrono>
 
-#include "Device.h"
 #include "Display.h"
-#include "Types.h"
+class NEDisplay;
+
 #include "Mesh.h"
 
-#include "chrono"
-//Im sure this breaks a few design patterns lol
+
 #include "ECS.h"
 #include "Textures.h"
 #include "../shaders/Shaders.h"
@@ -62,8 +62,9 @@ private:
     ///Primary/output device
     std::shared_ptr<NEDevice> mDevice;
 
+
     ///Displays may be opened from the Primary/Root window, root is at idx 0
-    std::array<std::optional<NEDisplay>, 10> mDisplays;
+    std::array<std::shared_ptr<NEDisplay>, 10> mDisplays;
 
 private:
     //Only used for legacy descriptor backend

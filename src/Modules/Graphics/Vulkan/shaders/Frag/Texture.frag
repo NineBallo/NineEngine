@@ -1,8 +1,9 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
+layout (location = 0) out vec4 outColor;
 
 layout (location = 0) in vec2 uv;
-layout (location = 0) out vec4 outColor;
+layout (location = 1) in vec3 diffuse;
 
 layout(set = 2, binding = 0) uniform sampler2D combinedSampler[];
 
@@ -22,5 +23,6 @@ layout(push_constant) uniform FragData
 
 void main()
 {
-    outColor = texture(combinedSampler[fragData.texIdx], uv) + sceneData.ambientColor;
+
+    outColor = vec4(texture(combinedSampler[fragData.texIdx], uv).xyz * (sceneData.ambientColor.xyz + diffuse), 1.f);
 }

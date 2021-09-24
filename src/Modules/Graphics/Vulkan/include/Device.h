@@ -4,14 +4,20 @@
 
 #ifndef NINEENGINE_DEVICE_H
 #define NINEENGINE_DEVICE_H
-#include "Types.h"
-#include "Common.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <VkBootstrap.h>
 #include <vk_mem_alloc.h>
 #include <queue>
+
+#include "Types.h"
+#include "Common.h"
+
+#include "Engine.h"
+class Engine;
+
+
 
 #define NE_RENDERMODE_TOSWAPCHAIN_BIT 1 << 0
 #define NE_RENDERMODE_TOTEXTURE_BIT   1 << 1
@@ -141,6 +147,9 @@ private:
 
     VkQueue mPresentQueue{VK_NULL_HANDLE};
     uint32_t mPresentQueueFamily {0};
+
+
+    Engine& mEngine;
 
 
     //Descriptors layouts that will be used later.
