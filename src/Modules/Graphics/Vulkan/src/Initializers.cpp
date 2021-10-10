@@ -193,3 +193,22 @@ VkDescriptorImageInfo init::descriptorImageInfo(VkSampler sampler, VkImageView i
 
     return imageBufferInfo;
 }
+
+
+VkAttachmentDescription init::attachmentDescription(VkFormat format, VkSampleCountFlagBits samples,
+                                                    VkImageLayout initialLayout, VkImageLayout finalLayout,
+                                                    VkAttachmentStoreOp storeOp, VkAttachmentStoreOp stenStoreOp,
+                                                    VkAttachmentLoadOp loadOp, VkAttachmentLoadOp stenLoadOp, VkFlags flags) {
+    VkAttachmentDescription attachment = {};
+    attachment.flags = flags;
+    attachment.format = format;
+    attachment.samples = samples;
+    attachment.loadOp = loadOp;
+    attachment.storeOp = storeOp;
+    attachment.stencilLoadOp = stenLoadOp;
+    attachment.stencilStoreOp = stenStoreOp;
+    attachment.initialLayout = initialLayout;
+    attachment.finalLayout = finalLayout;
+
+    return attachment;
+}

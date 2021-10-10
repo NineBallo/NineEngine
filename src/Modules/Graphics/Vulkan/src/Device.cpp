@@ -219,7 +219,9 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermod
            std::pair<std::string, std::string> shaders = assembleShaders(features);
            std::vector<uint32_t> vertex, fragment;
            vertex = compileShader("vertex", shaderc_glsl_vertex_shader, shaders.first, true);
-           fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
+           if(!((rendermode & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT)) {
+               fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
+           }
 
            //create and return pipeline
            mPipelineList[rendermode][features] = createPipeline(mRenderPassList[rendermode],
@@ -284,76 +286,67 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
         MSAA = false;
     }
 
+
     //Depth
     VkAttachmentDescription depth_attachment = {};
-    depth_attachment.flags = 0;
-    depth_attachment.format = VK_FORMAT_D32_SFLOAT;
-    depth_attachment.samples = MSAAStrength;
-    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_attachment = init::attachmentDescription(VK_FORMAT_D32_SFLOAT, MSAAStrength,
+                                                   VK_IMAGE_LAYOUT_UNDEFINED,
+                                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                                    VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                    VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
     VkAttachmentReference depth_attachment_ref = {};
     depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+
+
+
     //Color
-    VkAttachmentDescription color_attachment = {};
-
-    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    color_attachment.samples = MSAAStrength;
-    color_attachment.format = format;
-
+    VkImageLayout color_layout;
+    VkImageLayout resolve_layout;
     if(MSAA) {
-        color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    }
-    else {
+        color_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         if(ToSC) {
-            color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            resolve_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         }
-        else if (ToTex) {
-            color_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        else if(ToTex) {
+            resolve_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
     }
+    else if(ToSC) {
+        color_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    }
+    else if (ToTex) {
+        color_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
+    VkAttachmentDescription color_attachment = {};
+    color_attachment = init::attachmentDescription(format, MSAAStrength,
+                                                   VK_IMAGE_LAYOUT_UNDEFINED,
+                                                   color_layout,
+                                                   VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                   VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
 
     VkAttachmentReference color_attachment_ref = {};
-
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+
+
 
     //Only needed for MSAA
     VkAttachmentDescription colorAttachmentResolve{};
     VkAttachmentReference colorAttachmentResolveRef{};
-
     if(MSAA) {
-        colorAttachmentResolve.format = format;
-        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-        if(ToSC) {
-            colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        }
-        else if(ToTex) {
-            colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        }
+        colorAttachmentResolve = init::attachmentDescription(format, VK_SAMPLE_COUNT_1_BIT,
+                                                             VK_IMAGE_LAYOUT_UNDEFINED,
+                                                             resolve_layout, VK_ATTACHMENT_STORE_OP_STORE,
+                                                             VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                             VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                                                             VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
         colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
-
 
 //Subpasses
     VkSubpassDescription subpass = {};
@@ -395,7 +388,6 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
 
-
     VkRenderPassCreateInfo render_pass_info = {};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
@@ -415,17 +407,26 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
 }
 
 std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass renderpass, std::vector<uint32_t> vertexShaderSpirv, std::vector<uint32_t> fragmentShaderSpirv, uint32_t flags) {
+    bool ToTex    =  (flags & NE_FLAG_TEXTURE_BIT) == NE_FLAG_TEXTURE_BIT;
+    bool ToSc     =  (flags & NE_FLAG_COLOR_BIT)   == NE_FLAG_COLOR_BIT;
+    bool ToShadow =  (flags & NE_FLAG_SHADOW_BIT)  == NE_FLAG_SHADOW_BIT;
+
     VkShaderModule vertexShader;
+    VkShaderModule fragmentShader {VK_NULL_HANDLE};
+
+    //Load vertex
     if (!loadShaderModule(std::move(vertexShaderSpirv), vertexShader))
     {
         std::cout << "Error when building the requested vertex shader" << std::endl;
     }
 
-    VkShaderModule fragmentShader;
-    if (!loadShaderModule(std::move(fragmentShaderSpirv), fragmentShader))
-    {
-        std::cout << "Error when building the fragment shader" << std::endl;
+    //Load Fragment
+    if(!ToShadow) { //If shadow we just need depth, no color.
+        if (!loadShaderModule(std::move(fragmentShaderSpirv), fragmentShader))
+        {
+            std::cout << "Error when building the fragment shader" << std::endl;
 
+        }
     }
 
     //Pipeline creation
@@ -442,14 +443,13 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
     uint8_t layoutSize = 2;
 
-    if((flags & NE_FLAG_TEXTURE_BIT) == NE_FLAG_TEXTURE_BIT) {
+    if(!ToSc) {
             if(mBindless){
                 layouts[layoutSize] = mTextureSetLayout;
             }
             else{
                 layouts[layoutSize] = mSingleTextureSetLayout;
             }
-
             layoutSize++;
         }
 
@@ -463,7 +463,9 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
 
     PipelineBuilder builder;
     builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-    builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+    if(!ToShadow) {
+        builder.mShaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+    }
 
     builder.mVertexInputInfo = vkinit::vertex_input_state_create_info();
 
@@ -508,7 +510,10 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     temp = {pipeline, layout};
 
     vkDestroyShaderModule(mDevice, vertexShader, nullptr);
-    vkDestroyShaderModule(mDevice, fragmentShader, nullptr);
+    if(fragmentShader) {
+        vkDestroyShaderModule(mDevice, fragmentShader, nullptr);
+    }
+
 
     return temp;
 }

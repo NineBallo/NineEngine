@@ -86,7 +86,7 @@ void NEDisplay::finishInit() {
 
     createFramebuffers(mExtent, mFormat, NE_RENDERMODE_TOSWAPCHAIN_BIT, true);
     createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOTEXTURE_BIT, true);
-   // createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT, true);
+    createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT, true);
 }
 
 void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
@@ -222,7 +222,7 @@ void NEDisplay::drawframe() {
 
 
     //Start shadowmap
-    VkCommandBuffer cmd = startFrame(NE_RENDERMODE_TOTEXTURE_BIT);
+    VkCommandBuffer cmd = startFrame(NE_RENDERMODE_TOSHADOWMAP_BIT);
 
     Camera lightPOV;
     lightPOV.Pos = mSceneData.sunlightDirection;
@@ -233,21 +233,21 @@ void NEDisplay::drawframe() {
 
     setupCameraPosition(lightPOV);
 //
-    //drawEntities(cmd);
+    drawEntities(cmd, NE_RENDERMODE_TOSHADOWMAP_BIT, NE_FLAG_SHADOW_BIT);
 //
     ////Finish shadowmap
-    //vkCmdEndRenderPass(cmd);
+    vkCmdEndRenderPass(cmd);
 
     //Start main render
-   // setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
+    setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
 
-   // setupCameraPosition(ECS::Get().getComponent<Camera>(0));
-    drawEntities(cmd);
+    //setupCameraPosition(ECS::Get().getComponent<Camera>(0));
+    drawEntities(cmd, NE_RENDERMODE_TOTEXTURE_BIT, NE_FLAG_TEXTURE_BIT);
 
     endFrame();
 }
 
-void NEDisplay::drawEntities(VkCommandBuffer cmd) {
+void NEDisplay::drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags features) {
     FrameData& frame = mFrames[mCurrentFrame];
 
     Flags mLastFlags = 0;
@@ -258,7 +258,7 @@ void NEDisplay::drawEntities(VkCommandBuffer cmd) {
         auto& currentEntity = ECS::Get().getComponent<RenderObject>(currentEntityID);
         MeshGroup& meshGroup = *currentEntity.meshGroup;
 
-        auto pipelineInfo = mDevice->getPipeline(currentEntity.renderMode, currentEntity.features);
+        auto pipelineInfo = mDevice->getPipeline(rendermode, features);
         if(currentEntity.features != mLastFlags) {
 
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.first);

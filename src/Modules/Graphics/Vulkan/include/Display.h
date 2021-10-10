@@ -100,7 +100,7 @@ private:
     void setPipelineDynamics(VkCommandBuffer cmd, VkExtent2D extent);
     void calculateModelPositions();
     void setupCameraPosition(Camera cameraData);
-    void drawEntities(VkCommandBuffer cmd);
+    void drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags features);
     void startRender();
 
     //TODO might wanna move create cmd buf to device and evaluate createImage's current position.

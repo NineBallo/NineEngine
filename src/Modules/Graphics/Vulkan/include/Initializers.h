@@ -30,6 +30,11 @@ namespace init {
     VkWriteDescriptorSet writeDescriptorImage(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorImageInfo* imageInfo, uint32_t binding);
 
     VkDescriptorImageInfo descriptorImageInfo(VkSampler sampler, VkImageView imageView);
+
+    VkAttachmentDescription attachmentDescription(VkFormat format, VkSampleCountFlagBits samples,
+                                                  VkImageLayout initialLayout, VkImageLayout finalLayout,
+                                                  VkAttachmentStoreOp storeOp, VkAttachmentStoreOp stenStoreOp,
+                                                  VkAttachmentLoadOp loadOp, VkAttachmentLoadOp stenLoadOp, VkFlags flags = 0);
 }
 
 
