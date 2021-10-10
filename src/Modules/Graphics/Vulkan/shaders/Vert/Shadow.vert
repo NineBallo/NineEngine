@@ -28,6 +28,10 @@ layout(push_constant) uniform VertexData
 
 } vertexData;
 
+out gl_PerVertex
+{
+    vec4 gl_Position;
+};
 
 void main() {
 
@@ -35,5 +39,4 @@ void main() {
     mat4 transformMatrix = (cameraData.viewproj * modelMatrix);
 
     gl_Position = transformMatrix * vec4(vPosition, 1.0);
-    texCoord = vTexCoord;
 }

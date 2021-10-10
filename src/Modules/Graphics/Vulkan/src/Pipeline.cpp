@@ -23,7 +23,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
 
     colorBlending.logicOpEnable = VK_FALSE;
     colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    colorBlending.attachmentCount = 1;
+    colorBlending.attachmentCount = mShaderStages.size() > 1 ? 1 : 0;
     colorBlending.pAttachments = &mColorBlendAttachment;
 
     //Pipeline makin time

@@ -40,12 +40,16 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
 
     bool bindless = true;
     bool textured = false;
+    bool shadow = false;
 
     if((flags & NE_FLAG_TEXTURE_BIT) == NE_FLAG_TEXTURE_BIT) {
         textured = true;
     }
     if((flags & NE_FLAG_BINDING_BIT) == NE_FLAG_BINDING_BIT) {
         bindless = false;
+    }
+    if((flags & NE_FLAG_SHADOW_BIT) == NE_FLAG_SHADOW_BIT) {
+        shadow = true;
     }
 
     ///Assembly time
@@ -59,6 +63,9 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
             fragment = readFile("./shaders/Frag/TextureBinding.frag");
         }
     }
+    else if (shadow) {
+        vertex = readFile("./shaders/Vert/Shadow.vert");
+    }
     else {
         vertex = readFile("./shaders/Vert/Color.vert");
         fragment = readFile("./shaders/Frag/Color.frag");
@@ -68,7 +75,10 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
     std::pair<std::string, std::string> assembledShaders;
 
     assembledShaders.first = preProcessShader(vertex,  "Vertex", shaderc_glsl_vertex_shader);
-    assembledShaders.second = preProcessShader(fragment, "Fragment", shaderc_glsl_fragment_shader);
+
+    if(!shadow) {
+        assembledShaders.second = preProcessShader(fragment, "Fragment", shaderc_glsl_fragment_shader);
+    }
 
 
     return assembledShaders;

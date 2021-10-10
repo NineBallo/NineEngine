@@ -825,9 +825,17 @@ void NEDisplay::setupBindRenderpass(VkCommandBuffer cmd, uint32_t flags, VkExten
     rpInfo.framebuffer = FBDetails.frameBuffers[mSwapchainImageIndex];
 
     //Set the value to clear to in renderpass
-    rpInfo.clearValueCount = 3;
-    VkClearValue clearValues[] = { colorClear, depthClear, colorClear};
-    rpInfo.pClearValues = clearValues;
+    if((flags & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT) {
+        rpInfo.clearValueCount = 1;
+        VkClearValue clearValues[] = {depthClear};
+        rpInfo.pClearValues = clearValues;
+    }
+    else {
+        rpInfo.clearValueCount = 3;
+        VkClearValue clearValues[] = { colorClear, depthClear, colorClear};
+        rpInfo.pClearValues = clearValues;
+    }
+
 
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
