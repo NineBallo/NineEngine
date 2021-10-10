@@ -86,7 +86,7 @@ void NEDisplay::finishInit() {
 
     createFramebuffers(mExtent, mFormat, NE_RENDERMODE_TOSWAPCHAIN_BIT, true);
     createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOTEXTURE_BIT, true);
-    createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT, true);
+   // createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT, true);
 }
 
 void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
@@ -222,7 +222,7 @@ void NEDisplay::drawframe() {
 
 
     //Start shadowmap
-    VkCommandBuffer cmd = startFrame(NE_RENDERMODE_TOSHADOWMAP_BIT | NE_RENDERMODE_TOTEXTURE_BIT);
+    VkCommandBuffer cmd = startFrame(NE_RENDERMODE_TOTEXTURE_BIT);
 
     Camera lightPOV;
     lightPOV.Pos = mSceneData.sunlightDirection;
@@ -232,16 +232,16 @@ void NEDisplay::drawframe() {
     lightPOV.Angle.x = -90;
 
     setupCameraPosition(lightPOV);
-
-    drawEntities(cmd);
-
-    //Finish shadowmap
-    vkCmdEndRenderPass(cmd);
+//
+    //drawEntities(cmd);
+//
+    ////Finish shadowmap
+    //vkCmdEndRenderPass(cmd);
 
     //Start main render
-    setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
+   // setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
 
-    setupCameraPosition(ECS::Get().getComponent<Camera>(0));
+   // setupCameraPosition(ECS::Get().getComponent<Camera>(0));
     drawEntities(cmd);
 
     endFrame();
@@ -453,35 +453,52 @@ void NEDisplay::createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t 
         fbInfo.colorImageViews.resize(mSwapchainImageCount);
 
 
-        if((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
+        if(MSAA) {
             fbInfo.resolveImageViews.resize(mSwapchainImageCount);
             fbInfo.resolveImages.resize(mSwapchainImageCount);
         }
     }
 
+    bool ToTex = (flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT;
+    bool ToShadow = (flags & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT;
+    bool ToSC = (flags & NE_RENDERMODE_TOSWAPCHAIN_BIT) == NE_RENDERMODE_TOSWAPCHAIN_BIT;
+    VkImageView attachments[3];
+    uint8_t attachmentCount {};
 
     //Create a corresponding framebuffer for each image
     for (int i = 0; i < mSwapchainImageCount; i++) {
+
         createImage(FBSize, 1, fbInfo.depthImages[i], fbInfo.depthImageViews[i], VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
-        createImage(FBSize, 1, fbInfo.colorImages[i], fbInfo.colorImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT, format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
 
-        if((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
-            createImage(FBSize, 1, fbInfo.resolveImages[i], fbInfo.resolveImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT,
-                        format, static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
-                        VK_SAMPLE_COUNT_1_BIT);
+        if(!ToShadow) {
+            createImage(FBSize, 1, fbInfo.colorImages[i], fbInfo.colorImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT, format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
 
-            mGUI->addRenderSpace(fbInfo.resolveImageViews[i], mSimpleSampler);
-        }
+            attachments[0] = fbInfo.colorImageViews[i];
+            attachments[1] = fbInfo.depthImageViews[i];
+            attachmentCount = 2;
 
-        VkImageView attachments[3];
-        attachments[0] = fbInfo.colorImageViews[i];
-        attachments[1] = fbInfo.depthImageViews[i];
-        if(MSAA) {
+            if(ToTex) {
+                createImage(FBSize, 1, fbInfo.resolveImages[i], fbInfo.resolveImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT,
+                            format, static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
+                            VK_SAMPLE_COUNT_1_BIT);
+
+            }
+
             attachments[2] = fbInfo.resolveImageViews[i];
+            attachmentCount++;
+
+
+            if(ToTex) {
+                mGUI->addRenderSpace(fbInfo.resolveImageViews[i], mSimpleSampler);
+            }
+        } else {
+            attachments[0] = fbInfo.depthImageViews[i];
+            attachmentCount = 1;
         }
+
 
         fb_info.pAttachments = attachments;
-        fb_info.attachmentCount = MSAA ? 3 : 2;
+        fb_info.attachmentCount = attachmentCount;
 
         if(vkCreateFramebuffer(mDevice->device(), &fb_info, nullptr, &fbInfo.frameBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer\n");

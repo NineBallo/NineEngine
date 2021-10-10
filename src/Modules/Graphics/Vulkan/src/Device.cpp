@@ -247,7 +247,7 @@ VkSampler NEDevice::getSampler(uint32_t miplevels) {
 VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     bool ToSC = false;
     bool ToTex = false;
-
+    bool ToShadow = false;
     bool MSAA;
 
     VkSampleCountFlagBits MSAAStrength;
@@ -257,7 +257,7 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
         ToSC = true;
     }
     else if ((flags & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT) {
-        ToTex = true;
+        ToShadow = true;
     }
     else if ((flags & NE_RENDERMODE_TOTEXTURE_BIT) == NE_RENDERMODE_TOTEXTURE_BIT) {
         ToTex = true;
@@ -297,7 +297,6 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference depth_attachment_ref = {};
-    depth_attachment_ref.attachment = 1;
     depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     //Color
@@ -328,7 +327,7 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
 
 
     VkAttachmentReference color_attachment_ref = {};
-    color_attachment_ref.attachment = 0;
+
     color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     //Only needed for MSAA
@@ -352,26 +351,55 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
             colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
 
-        colorAttachmentResolveRef.attachment = 2;
         colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
 
+
 //Subpasses
     VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_attachment_ref;
-    subpass.pResolveAttachments = &colorAttachmentResolveRef;
-    //hook the depth attachment into the subpass
-    subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
     //Tape em all together
-    VkAttachmentDescription attachments[3] = { color_attachment, depth_attachment, colorAttachmentResolve};
+    VkAttachmentDescription attachments[3] = {};
+    uint8_t attachmentCount {};
+
+    if(!ToShadow) {
+        color_attachment_ref.attachment = 0;
+        depth_attachment_ref.attachment = 1;
+
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &color_attachment_ref;
+        subpass.colorAttachmentCount = 1;
+
+        attachments[0] = color_attachment;
+        attachments[1] = depth_attachment;
+
+        attachmentCount = 2;
+
+        if(MSAA) {
+            colorAttachmentResolveRef.attachment = 2;
+
+            subpass.pResolveAttachments = &colorAttachmentResolveRef;
+
+            attachments[2] = colorAttachmentResolve;
+            attachmentCount++;
+        }
+
+    } else {
+        depth_attachment_ref.attachment = 0;
+        subpass.colorAttachmentCount = 0;
+
+        attachments[0]  = depth_attachment;
+        attachmentCount = 1;
+    }
+
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+
 
     VkRenderPassCreateInfo render_pass_info = {};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
-    render_pass_info.attachmentCount = MSAA ? 3 : 2;
+    render_pass_info.attachmentCount = attachmentCount;
     render_pass_info.pAttachments = attachments;
 
     render_pass_info.subpassCount = 1;
