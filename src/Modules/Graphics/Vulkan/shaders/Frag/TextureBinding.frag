@@ -26,5 +26,5 @@ layout(push_constant) uniform FragData
 
 void main()
 {
-    outColor = vec4(texture(sampler2D(tex, samp), uv).xyz * (diffuse + sceneData.ambientColor.xyz), 1.f);
+   outColor = vec4(texture(sampler2D(tex, samp), uv).xyz * (diffuse + sceneData.ambientColor.xyz), 1.f);
 }

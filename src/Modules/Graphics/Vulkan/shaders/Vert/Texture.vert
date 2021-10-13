@@ -48,6 +48,8 @@ void main() {
     mat4 modelMatrix = objectBuffer.objects[vertexData.entityID].model;
     mat4 transformMatrix = (cameraData.viewproj * modelMatrix);
 
+
+
     mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
     vec3 normalWorldSpace = normalize(normalMatrix * vNormal);
 

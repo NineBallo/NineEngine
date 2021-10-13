@@ -5,7 +5,11 @@ layout (location = 0) out vec4 outColor;
 layout (location = 0) in vec2 uv;
 layout (location = 1) in vec3 diffuse;
 
-layout(set = 2, binding = 0) uniform sampler2D combinedSampler[];
+
+layout(set = 2, binding = 0) uniform sampler2D shadowmap;
+
+layout(set = 3, binding = 0) uniform sampler2D combinedSampler[];
+
 
 layout(set = 0, binding = 1) uniform  SceneData{
     vec4 fogColor; // w is for exponent

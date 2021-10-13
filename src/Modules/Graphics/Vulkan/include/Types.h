@@ -15,10 +15,10 @@
 
 #define MAX_TEXTURES 768
 
-#define NE_FLAG_TEXTURE_BIT 1 << 1 //     1
-#define NE_FLAG_COLOR_BIT   1 << 2 //    10
-#define NE_FLAG_SHADOW_BIT  1 << 3 //   100
-#define NE_FLAG_BINDING_BIT 1 << 4 //  1000
+#define NE_FLAG_TEXTURE_BIT 1 << 0 //     1
+#define NE_FLAG_COLOR_BIT   1 << 1 //    10
+#define NE_FLAG_SHADOW_BIT  1 << 2 //   100
+#define NE_FLAG_BINDING_BIT 1 << 3 //  1000
 
 ///TODO move to engine settings
 #define NE_FLAG_MSAA8x_BIT 1 << 4 //   1000
@@ -126,6 +126,8 @@ struct FrameData {
     VkDescriptorSet mGlobalDescriptor;
 
     VkDescriptorSet mTextureDescriptor;
+
+    VkDescriptorSet mDirectionalShadowDescriptor;
 };
 
 struct FrameBufferInfo {

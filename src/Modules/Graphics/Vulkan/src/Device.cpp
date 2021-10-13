@@ -146,6 +146,10 @@ void NEDevice::init_descriptors() {
     VkDescriptorSetLayoutBinding objectBind = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0);
     mObjectSetLayout = createDescriptorSetLayout(0, &objectBind, 1);
 
+    //TODO if shadows
+    VkDescriptorSetLayoutBinding shadowmapBinding;
+    shadowmapBinding = createDescriptorSetBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+    mShadowSetLayout = createDescriptorSetLayout(0, &shadowmapBinding, 1);
 
     ///TODO make the descriptor count variable
     if(mBindless) {
@@ -219,14 +223,14 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::getPipeline(uint32_t rendermod
            std::pair<std::string, std::string> shaders = assembleShaders(features);
            std::vector<uint32_t> vertex, fragment;
            vertex = compileShader("vertex", shaderc_glsl_vertex_shader, shaders.first, true);
-           if(!((rendermode & NE_RENDERMODE_TOSHADOWMAP_BIT) == NE_RENDERMODE_TOSHADOWMAP_BIT)) {
+           if((rendermode & NE_RENDERMODE_TOSHADOWMAP_BIT) != NE_RENDERMODE_TOSHADOWMAP_BIT) {
                fragment = compileShader("fragment", shaderc_glsl_fragment_shader, shaders.second, true);
            }
 
            //create and return pipeline
            mPipelineList[rendermode][features] = createPipeline(mRenderPassList[rendermode],
                                                                 vertex, fragment,
-                                                                features | NE_FLAG_MSAA8x_BIT);
+                                                                features);
            return mPipelineList[rendermode][features];
        }
     } else {
@@ -289,9 +293,9 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
 
     //Depth
     VkAttachmentDescription depth_attachment = {};
-    depth_attachment = init::attachmentDescription(VK_FORMAT_D32_SFLOAT, MSAAStrength,
+    depth_attachment = init::attachmentDescription(VK_FORMAT_D32_SFLOAT, ToShadow ? VK_SAMPLE_COUNT_1_BIT : MSAAStrength,
                                                    VK_IMAGE_LAYOUT_UNDEFINED,
-                                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                                                     VK_ATTACHMENT_STORE_OP_STORE, VK_ATTACHMENT_STORE_OP_DONT_CARE,
                                                     VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
@@ -388,6 +392,32 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
 
+    std::vector<VkSubpassDependency> dependencies;
+    if(ToShadow) {
+        dependencies.reserve(2);
+
+        VkSubpassDependency transitionFrom;
+        transitionFrom.srcSubpass = VK_SUBPASS_EXTERNAL;
+        transitionFrom.dstSubpass = 0;
+        transitionFrom.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        transitionFrom.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        transitionFrom.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        transitionFrom.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        transitionFrom.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        dependencies.push_back(transitionFrom);
+
+        VkSubpassDependency transitionTo;
+        transitionTo.srcSubpass = 0;
+        transitionTo.dstSubpass = VK_SUBPASS_EXTERNAL;
+        transitionTo.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        transitionTo.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        transitionTo.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        transitionTo.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        transitionTo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        dependencies.push_back(transitionTo);
+    }
+
+
     VkRenderPassCreateInfo render_pass_info = {};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
@@ -396,6 +426,8 @@ VkRenderPass NEDevice::createRenderpass(VkFormat format, uint32_t flags) {
 
     render_pass_info.subpassCount = 1;
     render_pass_info.pSubpasses = &subpass;
+    render_pass_info.pDependencies = dependencies.data();
+    render_pass_info.dependencyCount = dependencies.size();
 
     VkRenderPass renderPass;
 
@@ -439,22 +471,23 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     pipelineLayoutInfo.pPushConstantRanges = &push_constants;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-
-    VkDescriptorSetLayout layouts[3] = {mGlobalSetLayout, mObjectSetLayout};
-    uint8_t layoutSize = 2;
-
-    if(!ToSc) {
+    std::vector<VkDescriptorSetLayout> layouts = {mGlobalSetLayout, mObjectSetLayout};
+    //if(!ToSc) {
+    layouts.push_back(mShadowSetLayout);
             if(mBindless){
-                layouts[layoutSize] = mTextureSetLayout;
+
+                layouts.push_back(mTextureSetLayout);
             }
             else{
-                layouts[layoutSize] = mSingleTextureSetLayout;
+                layouts.push_back(mSingleTextureSetLayout);
             }
-            layoutSize++;
-        }
+    //    }
 
-    pipelineLayoutInfo.setLayoutCount = layoutSize;
-    pipelineLayoutInfo.pSetLayouts = layouts;
+
+
+
+    pipelineLayoutInfo.setLayoutCount = layouts.size();
+    pipelineLayoutInfo.pSetLayouts = layouts.data();
 
     VkPipelineLayout layout;
     if (vkCreatePipelineLayout(mDevice, &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS) {
@@ -491,7 +524,20 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
 
     //Wireframe, points, or filled I think...
     builder.mRasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-    builder.mMultisampling = vkinit::multisampling_state_create_info(mSampleCount, false);
+
+    VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
+
+    if((flags & NE_FLAG_MSAA8x_BIT) == NE_FLAG_MSAA8x_BIT) {
+        sampleCount = VK_SAMPLE_COUNT_8_BIT;
+    }
+    else if((flags & NE_FLAG_MSAA4x_BIT) == NE_FLAG_MSAA4x_BIT) {
+        sampleCount = VK_SAMPLE_COUNT_4_BIT;
+    }
+    else if((flags & NE_FLAG_MSAA2x_BIT) == NE_FLAG_MSAA2x_BIT) {
+        sampleCount = VK_SAMPLE_COUNT_2_BIT;
+    }
+
+    builder.mMultisampling = vkinit::multisampling_state_create_info(sampleCount, false);
 
     builder.mColorBlendAttachment = vkinit::color_blend_attachment_state();
 
@@ -976,5 +1022,6 @@ VkDescriptorSetLayout NEDevice::globalSetLayout() {return mGlobalSetLayout;}
 VkDescriptorSetLayout NEDevice::objectSetLayout() {return mObjectSetLayout;}
 VkDescriptorSetLayout NEDevice::singleTextureSetLayout() {return mSingleTextureSetLayout;}
 VkDescriptorSetLayout NEDevice::textureSetLayout() {return mTextureSetLayout;}
+VkDescriptorSetLayout NEDevice::shadowSetLayout() {return mShadowSetLayout;}
 bool NEDevice::bindless() {return mBindless;}
 VkSampleCountFlagBits NEDevice::sampleCount() {return mSampleCount;}

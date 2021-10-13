@@ -100,6 +100,7 @@ private:
     void setPipelineDynamics(VkCommandBuffer cmd, VkExtent2D extent);
     void calculateModelPositions();
     void setupCameraPosition(Camera cameraData);
+    glm::mat4 setupLightPosition(glm::vec3 lightPos);
     void drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags features);
     void startRender();
 

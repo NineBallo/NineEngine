@@ -71,6 +71,9 @@ std::pair<std::string, std::string> assembleShaders(uint32_t flags) {
         fragment = readFile("./shaders/Frag/Color.frag");
     }
 
+   // std::cout << fragment << std::endl;
+   // std::cout << vertex << std::endl;
+
     //Vertex, Fragment
     std::pair<std::string, std::string> assembledShaders;
 

@@ -85,7 +85,7 @@ set(SPIRV_HEADERS_SKIP_EXAMPLES ON)
 FetchContent_Declare(
         spirv-headers
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers
-        GIT_TAG master
+        GIT_TAG 5ea2d62e8c0ddd9e2a7d0ca5e3f2335e09e5f408
         GIT_SHALLOW 1
 )
 FetchContent_MakeAvailable(spirv-headers)
@@ -95,7 +95,7 @@ set(SPIRV_TOOLS_BUILD_STATIC ON)
 FetchContent_Declare(
         spirv-tools
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools
-        GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_TAG        master
         GIT_SHALLOW 1
 )
 
@@ -195,19 +195,19 @@ if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models/textures))
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/models/textures)
 endif()
 
-add_custom_command(TARGET NineEngine PRE_BUILD
+add_custom_command(TARGET NineEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/* ${CMAKE_BINARY_DIR}/models)
 
-add_custom_command(TARGET NineEngine PRE_BUILD
+add_custom_command(TARGET NineEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/textures/* ${CMAKE_BINARY_DIR}/models/textures)
 
-add_custom_command(TARGET NineEngine PRE_BUILD
+add_custom_command(TARGET NineEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Vert/* ${CMAKE_BINARY_DIR}/shaders/Vert)
 
-add_custom_command(TARGET NineEngine PRE_BUILD
+add_custom_command(TARGET NineEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Frag/* ${CMAKE_BINARY_DIR}/shaders/Frag)
 

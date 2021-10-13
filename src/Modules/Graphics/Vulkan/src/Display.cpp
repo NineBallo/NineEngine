@@ -79,14 +79,30 @@ void NEDisplay::finishInit() {
     //Create simple 1 mip generic sampler
     mSimpleSampler = mDevice->createSampler();
 
-    //Create both RenderPasses
-
     createDescriptors();
     initImGUI();
 
+    //Create both RenderPasses
     createFramebuffers(mExtent, mFormat, NE_RENDERMODE_TOSWAPCHAIN_BIT, true);
     createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOTEXTURE_BIT, true);
     createFramebuffers(mExtent, VK_FORMAT_R8G8B8A8_SRGB, NE_RENDERMODE_TOSHADOWMAP_BIT, true);
+
+
+
+
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        VkDescriptorImageInfo shadowImageInfo;
+        shadowImageInfo.sampler = mDevice->getSampler(0);
+        shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        shadowImageInfo.imageView = mFrameBufferList[NE_RENDERMODE_TOSHADOWMAP_BIT].depthImageViews[i];
+
+        VkWriteDescriptorSet shadowWrites = init::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                                       mFrames[i].mDirectionalShadowDescriptor,
+                                                                       &shadowImageInfo, 0);
+        vkUpdateDescriptorSets(mDevice->device(), 1, &shadowWrites, 0, nullptr);
+    }
+
 }
 
 void NEDisplay::createWindow(VkExtent2D extent, const std::string& title, bool resizable) {
@@ -194,6 +210,35 @@ void NEDisplay::setupCameraPosition(Camera camera) {
     vmaUnmapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation);
 }
 
+glm::mat4 NEDisplay::setupLightPosition(glm::vec3 lightPos) {
+
+
+    FrameData& frame = mFrames[mCurrentFrame];//x = pitch, y = yaw, z = roll
+
+    glm::mat4 lightProj = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 128.f);
+
+    glm::mat4 lightView = glm::lookAt(glm::vec3(-2.0f, 4.0f, -1.0f),
+                                      glm::vec3( 0.0f, 0.0f,  0.0f),
+                                      glm::vec3( 0.0f, 1.0f,  0.0f));
+
+
+    glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians((float)(mExtent.width/mExtent.height)), 1.0f, 1.f, 128.f);
+    glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0, 1, 0));
+
+   // lightProj[1][1] *= -1;
+    GPUCameraData cameraData {};
+    cameraData.proj = lightProj;
+    cameraData.view = lightView;
+    cameraData.viewproj = lightProj * lightView;
+
+    void* data;
+    vmaMapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation, &data);
+    memcpy(data, &cameraData, sizeof(GPUCameraData));
+    vmaUnmapMemory(mDevice->allocator(), frame.mCameraBuffer.mAllocation);
+
+    return lightProj;
+}
+
 void NEDisplay::drawframe() {
     FrameData& frame = mFrames[mCurrentFrame];
 
@@ -227,12 +272,14 @@ void NEDisplay::drawframe() {
     Camera lightPOV;
     lightPOV.Pos = mSceneData.sunlightDirection;
     lightPOV.aspect = (mExtent.width / mExtent.height);
-    lightPOV.zfar = 900.f;
-    lightPOV.znear = 0.01f;
+    lightPOV.zfar = 128.f;
+    lightPOV.znear = 1.f;
     lightPOV.Angle.x = -90;
 
-    setupCameraPosition(lightPOV);
-//
+    //setupCameraPosition(lightPOV);
+    glm::mat4 lightPov = setupLightPosition(mSceneData.sunlightDirection);
+    //setupCameraPosition(ECS::Get().getComponent<Camera>(0));
+
     drawEntities(cmd, NE_RENDERMODE_TOSHADOWMAP_BIT, NE_FLAG_SHADOW_BIT);
 //
     ////Finish shadowmap
@@ -241,8 +288,9 @@ void NEDisplay::drawframe() {
     //Start main render
     setupBindRenderpass(cmd, NE_RENDERMODE_TOTEXTURE_BIT, mGUI->getRenderWindowSize());
 
-    //setupCameraPosition(ECS::Get().getComponent<Camera>(0));
-    drawEntities(cmd, NE_RENDERMODE_TOTEXTURE_BIT, NE_FLAG_TEXTURE_BIT);
+    setupCameraPosition(ECS::Get().getComponent<Camera>(0));
+
+    drawEntities(cmd, NE_RENDERMODE_TOTEXTURE_BIT, NE_FLAG_TEXTURE_BIT | NE_FLAG_MSAA8x_BIT);
 
     endFrame();
 }
@@ -281,8 +329,12 @@ void NEDisplay::drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags featur
             if(mDevice->bindless()) {
                 //texture descriptor
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipelineInfo.second, 2, 1,
+                                        pipelineInfo.second, 3, 1,
                                         &textureDescriptorSet, 0, nullptr);
+
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
+                                        2, 1, &frame.mDirectionalShadowDescriptor, 0, nullptr);
+
             }
         }
 
@@ -468,7 +520,13 @@ void NEDisplay::createFramebuffers(VkExtent2D FBSize, VkFormat format, uint32_t 
     //Create a corresponding framebuffer for each image
     for (int i = 0; i < mSwapchainImageCount; i++) {
 
-        createImage(FBSize, 1, fbInfo.depthImages[i], fbInfo.depthImageViews[i], VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, mDevice->sampleCount());
+
+
+
+        createImage(FBSize, 1, fbInfo.depthImages[i], fbInfo.depthImageViews[i],
+                    VK_IMAGE_ASPECT_DEPTH_BIT, VK_FORMAT_D32_SFLOAT,
+                    static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
+                    ToShadow? VK_SAMPLE_COUNT_1_BIT : mDevice->sampleCount());
 
         if(!ToShadow) {
             createImage(FBSize, 1, fbInfo.colorImages[i], fbInfo.colorImageViews[i], VK_IMAGE_ASPECT_COLOR_BIT, format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, mDevice->sampleCount());
@@ -608,6 +666,9 @@ void NEDisplay::createDescriptors() {
         mFrames[i].mGlobalDescriptor = mDevice->createDescriptorSet(mDevice->globalSetLayout());
         mFrames[i].mObjectDescriptor = mDevice->createDescriptorSet(mDevice->objectSetLayout());
 
+        mFrames[i].mDirectionalShadowDescriptor = mDevice->createDescriptorSet(mDevice->shadowSetLayout());
+
+        ///TODO finish shadow discriptor
 
         VkDescriptorBufferInfo cameraInfo;
         cameraInfo.buffer = mFrames[i].mCameraBuffer.mBuffer;
@@ -629,14 +690,12 @@ void NEDisplay::createDescriptors() {
         VkWriteDescriptorSet sceneWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, mFrames[i].mGlobalDescriptor, &sceneInfo, 1);
         VkWriteDescriptorSet objectWrite = init::writeDescriptorBuffer(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mFrames[i].mObjectDescriptor, &objectBufferInfo, 0);
 
-        VkWriteDescriptorSet setWrites[3] = { cameraWrite, sceneWrite, objectWrite};
-        size_t writeSize = 3;
-
+        std::vector<VkWriteDescriptorSet> setWrites = { cameraWrite, sceneWrite, objectWrite};
 
         if(mDevice->bindless()) mFrames[i].mTextureDescriptor = mDevice->createDescriptorSet(mDevice->textureSetLayout());
 
 
-        vkUpdateDescriptorSets(mDevice->device(), writeSize, setWrites, 0, nullptr);
+        vkUpdateDescriptorSets(mDevice->device(), setWrites.size(), setWrites.data(), 0, nullptr);
 
         mDeletionQueue.push_function([=, this]() {
             vmaDestroyBuffer(mDevice->allocator(), mFrames[i].mObjectBuffer.mBuffer, mFrames[i].mObjectBuffer.mAllocation);

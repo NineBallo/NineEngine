@@ -106,6 +106,7 @@ public:
     VkDescriptorSetLayout objectSetLayout();
     VkDescriptorSetLayout singleTextureSetLayout();
     VkDescriptorSetLayout textureSetLayout();
+    VkDescriptorSetLayout shadowSetLayout();
 
     VmaAllocator allocator();
 
@@ -150,6 +151,8 @@ private:
     VkDescriptorSetLayout mObjectSetLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout mSingleTextureSetLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout mTextureSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout mShadowSetLayout {VK_NULL_HANDLE};
+
 
     //List of all allocated RenderPasses, keyed by the RenderPass flags.
     std::unordered_map<uint32_t, VkRenderPass> mRenderPassList;
