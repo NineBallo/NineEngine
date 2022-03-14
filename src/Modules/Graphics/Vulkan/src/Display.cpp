@@ -242,7 +242,6 @@ glm::mat4 NEDisplay::setupLightPosition(glm::vec3 lightPos) {
 void NEDisplay::drawframe() {
     FrameData& frame = mFrames[mCurrentFrame];
 
-
     ///Calculate all positions and send to gpu
     void* objectData;
     vmaMapMemory(mDevice->allocator(), frame.mObjectBuffer.mAllocation, &objectData);
@@ -326,17 +325,21 @@ void NEDisplay::drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags featur
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
                                     0, 1, &globalDescriptorSet, 1, &uniform_offset);
 
+
+
             if(mDevice->bindless()) {
                 //texture descriptor
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         pipelineInfo.second, 3, 1,
                                         &textureDescriptorSet, 0, nullptr);
 
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
-                                        2, 1, &frame.mDirectionalShadowDescriptor, 0, nullptr);
 
             }
         }
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineInfo.second,
+                                2, 1, &frame.mDirectionalShadowDescriptor, 0, nullptr);
+
 
         for(auto & mesh : meshGroup.mMeshes) {
             VkDeviceSize offset = 0;
@@ -358,7 +361,7 @@ void NEDisplay::drawEntities(VkCommandBuffer cmd, Flags rendermode, Flags featur
                 mLastTexture = texID;
                 VkDescriptorSet textureSet = mDevice->getTexture(texID).mTextureSet;
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipelineInfo.second, 2, 1,
+                                        pipelineInfo.second, 3, 1,
                                         &textureSet, 0, nullptr);
             }
 

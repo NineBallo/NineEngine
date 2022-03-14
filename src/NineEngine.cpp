@@ -26,6 +26,8 @@ float getTimeToComplete(std::function<void()> &&function) {
 
 
 int main(){
+
+
     ECS &ecs = ECS::Get();
 
     Entity player = ecs.createEntity(0);

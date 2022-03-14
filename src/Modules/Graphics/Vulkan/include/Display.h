@@ -127,7 +127,7 @@ private:
     std::array<TextureID, MAX_TEXTURES> mTexBindings;
     std::array<TextureID, MAX_TEXTURES> mTexToBindings;
     std::array<uint32_t, MAX_TEXTURES> mBindingsToTex;
-    uint32_t mBindingCount;
+    uint32_t mBindingCount {0};
     std::queue<TextureID> mOldTextures;
 
     //Window variables

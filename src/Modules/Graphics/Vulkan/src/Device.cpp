@@ -471,19 +471,14 @@ std::pair<VkPipeline, VkPipelineLayout> NEDevice::createPipeline(VkRenderPass re
     pipelineLayoutInfo.pPushConstantRanges = &push_constants;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-    std::vector<VkDescriptorSetLayout> layouts = {mGlobalSetLayout, mObjectSetLayout};
-    //if(!ToSc) {
-    layouts.push_back(mShadowSetLayout);
-            if(mBindless){
+    std::vector<VkDescriptorSetLayout> layouts = {mGlobalSetLayout, mObjectSetLayout, mShadowSetLayout};
 
-                layouts.push_back(mTextureSetLayout);
-            }
-            else{
-                layouts.push_back(mSingleTextureSetLayout);
-            }
-    //    }
-
-
+    if(mBindless){
+        layouts.push_back(mTextureSetLayout);
+    }
+    else{
+        layouts.push_back(mSingleTextureSetLayout);
+    }
 
 
     pipelineLayoutInfo.setLayoutCount = layouts.size();

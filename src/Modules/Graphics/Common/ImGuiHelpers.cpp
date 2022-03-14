@@ -254,9 +254,9 @@ void NEGUI::drawTimings() {
             }
         }
 
-        roundedFrametime /= sampleFrames;
+        auto fps = static_cast<uint32_t>(1 / (roundedFrametime / sampleFrames));
 
-        std::string FPS = "Average FPS: " + std::to_string((uint32_t)(std::floor(1/roundedFrametime)));
+        std::string FPS = "Average FPS: " + std::to_string(fps);
         ImGui::Text("%s", FPS.c_str());
         ImGui::Text("FrameTimes:");
         std::string timings = "Max: " + std::to_string(max) + " Min: " + std::to_string(min);

@@ -84,6 +84,7 @@ struct GPUSceneData {
     glm::vec4 ambientColor{0.018f, 0.018f, 0.011f, 1.f};
     glm::vec4 sunlightDirection{0.f, 100.f, 0.f, 1.f}; //w for sun power
     glm::vec4 sunlightColor{0.286f, 0.262f, 0.250f, 1.f};
+    glm::mat4 lightMatrix{1.f};
 };
 
 struct GPUTransformData {

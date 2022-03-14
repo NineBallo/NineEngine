@@ -3,9 +3,7 @@ project(NineEngine)
 
 set(CMAKE_CXX_STANDARD 20)
 
-set(CMAKE_CXX_COMPILER /usr/bin/clang++)
-add_link_options("-fuse-ld=lld")
-
+#add_link_options("-fuse-ld=lld")
 
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 find_package(Vulkan REQUIRED FATAL_ERROR) # error
@@ -13,16 +11,6 @@ find_package(Vulkan REQUIRED FATAL_ERROR) # error
 message(STATUS "Using ${CMAKE_GENERATOR}")
 message(STATUS "Using ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Using ${CMAKE_LINKER}")
-
-#Might help compile times idkset(CMAKE_BUILD_TYPE Debug)
-find_program(CCACHE "ccache")
-if(CCACHE)
-    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE})
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
-    set(USE_CCACHE ON)
-    message(STATUS "Using CCache")
-endif(CCACHE)
-
 
 include(FetchContent)
 set(GLFW_STANDALONE ON)
@@ -85,7 +73,7 @@ set(SPIRV_HEADERS_SKIP_EXAMPLES ON)
 FetchContent_Declare(
         spirv-headers
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers
-        GIT_TAG 5ea2d62e8c0ddd9e2a7d0ca5e3f2335e09e5f408
+        GIT_TAG sdk-1.2.198.0
         GIT_SHALLOW 1
 )
 FetchContent_MakeAvailable(spirv-headers)
@@ -95,7 +83,7 @@ set(SPIRV_TOOLS_BUILD_STATIC ON)
 FetchContent_Declare(
         spirv-tools
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools
-        GIT_TAG        master
+        GIT_TAG        sdk-1.2.198.0 #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
 
@@ -109,7 +97,7 @@ set(ENABLE_HLSL ON)
 FetchContent_Declare(
         glslang
         GIT_REPOSITORY https://github.com/KhronosGroup/glslang
-        GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_TAG        sdk-1.2.198.0 #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
 FetchContent_MakeAvailable(glslang)
@@ -122,7 +110,7 @@ set(SHADERC_SKIP_EXAMPLES ON)
 FetchContent_Declare(
         shaderc
         GIT_REPOSITORY https://github.com/google/shaderc
-        GIT_TAG        main #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_TAG        v2021.3  #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
         GIT_SHALLOW 1
 )
 FetchContent_MakeAvailable(shaderc)
@@ -134,10 +122,10 @@ set(ASSIMP_INSTALL OFF)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF)
 
 FetchContent_Declare(
-assimp
-GIT_REPOSITORY https://github.com/assimp/assimp
-GIT_TAG        master #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
-GIT_SHALLOW 1
+        assimp
+        GIT_REPOSITORY https://github.com/assimp/assimp
+        GIT_TAG        v5.1.5 #suggest using a tag so the library doesn't update whenever new commits are pushed to a branch
+        GIT_SHALLOW 1
 )
 FetchContent_GetProperties(assimp)
 
@@ -156,9 +144,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 message(STATUS "GIT modules fetched")
-
-
-
 
 set(imgui_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 
@@ -195,19 +180,19 @@ if(NOT (EXISTS ${CMAKE_BINARY_DIR}/models/textures))
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/models/textures)
 endif()
 
-add_custom_command(TARGET NineEngine POST_BUILD
+add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/* ${CMAKE_BINARY_DIR}/models)
 
-add_custom_command(TARGET NineEngine POST_BUILD
+add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/models/textures/* ${CMAKE_BINARY_DIR}/models/textures)
 
-add_custom_command(TARGET NineEngine POST_BUILD
+add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Vert/* ${CMAKE_BINARY_DIR}/shaders/Vert)
 
-add_custom_command(TARGET NineEngine POST_BUILD
+add_custom_command(TARGET NineEngine PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Modules/Graphics/Vulkan/shaders/Frag/* ${CMAKE_BINARY_DIR}/shaders/Frag)
 
